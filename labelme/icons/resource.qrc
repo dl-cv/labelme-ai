@@ -1,0 +1,38 @@
+
+<!DOCTYPE RCC><RCC version="1.0">
+<qresource>
+<file alias="cancel.png">cancel.png</file>
+<file alias="close.png">close.png</file>
+<file alias="color-line.png">color-line.png</file>
+<file alias="color.png">color.png</file>
+<file alias="copy.png">copy.png</file>
+<file alias="delete.png">delete.png</file>
+<file alias="done.png">done.png</file>
+<file alias="edit.png">edit.png</file>
+<file alias="expert.png">expert.png</file>
+<file alias="eye.png">eye.png</file>
+<file alias="feBlend-icon.png">feBlend-icon.png</file>
+<file alias="file.png">file.png</file>
+<file alias="fit-width.png">fit-width.png</file>
+<file alias="fit-window.png">fit-window.png</file>
+<file alias="fit.png">fit.png</file>
+<file alias="help.png">help.png</file>
+<file alias="icon.png">icon.png</file>
+<file alias="labels.png">labels.png</file>
+<file alias="new.png">new.png</file>
+<file alias="next.png">next.png</file>
+<file alias="objects.png">objects.png</file>
+<file alias="open.png">open.png</file>
+<file alias="prev.png">prev.png</file>
+<file alias="quit.png">quit.png</file>
+<file alias="refresh.png">refresh.png</file>
+<file alias="save-as.png">save-as.png</file>
+<file alias="save.png">save.png</file>
+<file alias="undo-cross.png">undo-cross.png</file>
+<file alias="undo.png">undo.png</file>
+<file alias="zoom-in.png">zoom-in.png</file>
+<file alias="zoom-out.png">zoom-out.png</file>
+<file alias="zoom.png">zoom.png</file>
+
+</qresource>
+</RCC>

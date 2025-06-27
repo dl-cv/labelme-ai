@@ -1,0 +1,12 @@
+github2pypi==1.0.0
+pytest
+pytest-qt
+ruff==0.1.9
+twine
+qtpy
+imgviz
+gdown
+pyqt-toast-notification
+pyqtgraph
+httpx
+qasync

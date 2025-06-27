@@ -1,0 +1,65 @@
+class DlcvTrObject:
+
+    # 兼容成类似 qt 的 tr 函数
+    @staticmethod
+    def tr(text):
+        from labelme.dlcv import tr
+        return tr(text)
+
+
+class DlcvTranslator:
+
+    def __call__(self, *args, **kwargs):
+        text = args[0]
+        return tr_map.get(self.lang, {}).get(text, text)
+
+    def set_lang(self, lang):
+        self.lang = lang
+
+    def get_lang(self):
+        return self.lang
+
+    def __init__(self):
+        # 获取系统语言
+        import locale
+        local_lang = locale.getdefaultlocale()[0]
+        # 如果系统语言不在支持的语言列表中，则默认为英文
+        self.lang = local_lang if local_lang in tr_map else 'en_US'
+
+
+tr_map = {
+    'en_US': {
+        'ai processing...': 'ai processing...',
+        'ai process done': 'ai process done',
+    },
+
+    'zh_CN': {
+        'ai processing...': 'ai分析中...',
+        'ai process done': 'ai分析完成',
+        'setting dock': '设置面板',
+        'display shape label': '显示标签名称',
+        'convert img to gray': '将标注图片转换为灰度图',
+        'keep prev scale': '图片保持上次缩放比例',
+        'label setting': '标注设置',
+        'other setting': '其他设置',
+        'slide label': '滑动标注多边形',
+        'slide distance': '滑动标注距离',
+        'brush enabled': '启用画笔标注（按+/-调整大小）',
+        'fill closed region': '填充闭合区域',
+        'brush size': '画笔大小',
+        'Flags': '文本标记',
+        'Add Text Flag': '添加文本标记',
+        'Please enter the text flag': '请输入文本标记',
+        'open next image': '下一幅',
+        'open previous image': '上一幅',
+        'highlight start point': '高亮起始点',
+
+        # 项目类型
+        'project setting': '项目设置',
+        'project type': '项目类型',
+        'normal': '常规',
+        '3D': '3D',
+    },
+}
+
+tr = DlcvTranslator()
