@@ -793,7 +793,10 @@ class MainWindow(MainWindow):
         #     self.adjustScale(initial=True)
 
         is_initial_load = not self.zoom_values or self.filename not in self.zoom_values
-        if not self._config["keep_prev_scale"]:
+        
+        if self.keep_scale: # 保持缩放比例
+            pass
+        elif not self._config["keep_prev_scale"]:
             self.adjustScale(initial=True)
         elif self.filename in self.zoom_values:
             self.zoomMode = self.zoom_values[self.filename][0]
@@ -1151,9 +1154,10 @@ class MainWindow(MainWindow):
                     {
                         "name": "keep_prev_scale",
                         "title": tr("keep prev scale"),
-                        "type": "bool",
-                        "value": False,
-                        "default": False,
+                        "type": "list",
+                        "value": ScaleEnum.AUTO_SCALE,
+                        "limits": [ScaleEnum.KEEP_PREV_SCALE, ScaleEnum.AUTO_SCALE, ScaleEnum.KEEP_SCALE],
+                        "default": ScaleEnum.AUTO_SCALE,
                     },
                     {
                         "name": "convert_img_to_gray",
@@ -1332,31 +1336,14 @@ class MainWindow(MainWindow):
     ):
         # 使用新的参数处理方法
         self._on_param_changed(root_parm, change_parms)
-
-        # 旧的处理逻辑保留以兼容性考虑，但实际工作已交给_on_param_changed
-        # parm_item = change_parms[0]
-        # parm_name = parm_item[0].name()
-        # new_value = parm_item[0].value()
-        # if parm_name == "display_shape_label":
-        #     STORE.set_canvas_display_shape_label(new_value)
-        #     self.canvas.update()
-        # elif parm_name == "keep_prev_scale":
-        #     self.enableKeepPrevScale(new_value)
-        # elif parm_name == "slide_label":
-        #     self.canvas.draw_polygon_with_mousemove = new_value
-        # elif parm_name == "slide_distance":
-        #     self.canvas.two_points_distance = new_value
-        # elif parm_name == "convert_img_to_gray":
-        #     STORE.set_convert_img_to_gray(new_value)
-        # elif parm_name == "highlight_start_point":
-        #     STORE.set_canvas_highlight_start_point(new_value)
-        # elif parm_name == "display_rotation_arrow":
-        #     STORE.canvas_display_rotation_arrow = new_value
-        #     self.canvas.update()
+    
+    @property
+    def keep_scale(self):
+        return self.parameter.child("other_setting", "keep_prev_scale").value() == ScaleEnum.KEEP_SCALE
 
     def _on_param_changed(self, param, changes):
         # 使用新的参数处理方法
-        for param, _, value in changes:
+        for param, _, new_value in changes:
             path = self.parameter.childPath(param)
             parent_path = path[:-1]
             param_name = path[-1]
@@ -1364,10 +1351,10 @@ class MainWindow(MainWindow):
             # update settings
             if len(parent_path) == 1 and parent_path[0] == "label_setting":
                 if param_name == "slide_label":
-                    self.draw_polygon_with_mousemove = value
-                    self.canvas.draw_polygon_with_mousemove = value
+                    self.draw_polygon_with_mousemove = new_value
+                    self.canvas.draw_polygon_with_mousemove = new_value
                     # 滑动标注和画笔标注互斥
-                    if value and self.canvas.brush_enabled:
+                    if new_value and self.canvas.brush_enabled:
                         self.canvas.brush_enabled = False
                         STORE.set_canvas_brush_enabled(False)
                         # 更新参数面板
@@ -1379,26 +1366,26 @@ class MainWindow(MainWindow):
                         except Exception:
                             pass
                 elif param_name == "slide_distance":
-                    self.canvas.two_points_distance = value
+                    self.canvas.two_points_distance = new_value
                 elif param_name == "highlight_start_point":
-                    STORE.set_canvas_highlight_start_point(value)
+                    STORE.set_canvas_highlight_start_point(new_value)
                 elif param_name == "display_rotation_arrow":
-                    STORE.set_canvas_display_rotation_arrow(value)
+                    STORE.set_canvas_display_rotation_arrow(new_value)
                 elif param_name == "brush_enabled":
                     # 检查当前模式是否为多边形标注模式
-                    if not self.canvas.editing() and self.canvas.createMode != "polygon" and value:
+                    if not self.canvas.editing() and self.canvas.createMode != "polygon" and new_value:
                         # 如果不是多边形标注模式，不立即启用画笔，但保留勾选状态
-                        STORE.set_canvas_brush_enabled(value)  # 保存用户的选择
+                        STORE.set_canvas_brush_enabled(new_value)  # 保存用户的选择
                         self.canvas.brush_enabled = False  # 但当前不启用画笔功能
                         notification("画笔功能提示",
                                      "画笔标注功能仅在多边形标注模式下可用，将在下次进入多边形模式时自动启用",
                                      ToastPreset.INFORMATION)
                         return
 
-                    self.canvas.brush_enabled = value
-                    STORE.set_canvas_brush_enabled(value)
+                    self.canvas.brush_enabled = new_value
+                    STORE.set_canvas_brush_enabled(new_value)
                     # 画笔标注和滑动标注互斥
-                    if value and self.canvas.draw_polygon_with_mousemove:
+                    if new_value and self.canvas.draw_polygon_with_mousemove:
                         self.canvas.draw_polygon_with_mousemove = False
                         # 更新参数面板
                         try:
@@ -1409,18 +1396,22 @@ class MainWindow(MainWindow):
                         except Exception:
                             pass
                 elif param_name == "brush_size":
-                    self.canvas.brush_size = value
+                    self.canvas.brush_size = new_value
                 elif param_name == "fill_closed_region":
-                    STORE.set_canvas_brush_fill_region(value)
+                    STORE.set_canvas_brush_fill_region(new_value)
             elif len(parent_path) == 1 and parent_path[0] == "other_setting":
                 if param_name == "display_shape_label":
-                    STORE.set_canvas_display_shape_label(value)
+                    STORE.set_canvas_display_shape_label(new_value)
                     self.canvas.update()
                 elif param_name == "convert_img_to_gray":
-                    STORE.set_convert_img_to_gray(value)
+                    STORE.set_convert_img_to_gray(new_value)
                 elif param_name == "keep_prev_scale":
-                    self.enableKeepPrevScale(value)
-                    self.canvas.update()
+                    if new_value == ScaleEnum.KEEP_PREV_SCALE:
+                        self.enableKeepPrevScale(True)
+                    elif new_value == ScaleEnum.AUTO_SCALE:
+                        self.enableKeepPrevScale(False)
+                    elif new_value == ScaleEnum.KEEP_SCALE:
+                        self.enableKeepPrevScale(False)
 
     # endregion
 
@@ -1832,3 +1823,9 @@ class ProjEnum:
     NORMAL = '常规'
     O3D = '3D'
     # ------------ 3D 视图 end ------------
+
+class ScaleEnum:
+    KEEP_PREV_SCALE = '保持上次缩放比例'
+    AUTO_SCALE = '自动缩放'
+    KEEP_SCALE = '保持缩放比例'
+
