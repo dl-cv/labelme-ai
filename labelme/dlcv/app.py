@@ -1708,7 +1708,7 @@ class MainWindow(MainWindow):
             for draw_mode, draw_action in draw_actions.items():
                 draw_action.setEnabled(createMode != draw_mode)
         self.actions.editMode.setEnabled(not edit)
-    
+
     # ------------ 旋转框 ------------
     def _init_rotate_shape_action(self):
         # 创建逆时针旋转动作
@@ -1726,7 +1726,7 @@ class MainWindow(MainWindow):
         )
         # 添加到菜单
         self.addAction(self.rotate_right_action)
-        
+
         # 连接信号
         self.rotate_left_action.triggered.connect(lambda: self.rotate_shape(angle=1.0, direction="left"))
         self.rotate_right_action.triggered.connect(lambda: self.rotate_shape(angle=1.0, direction="right"))
@@ -1734,10 +1734,10 @@ class MainWindow(MainWindow):
     # 旋转框旋转
     def rotate_shape(self, angle: float = 1.0, direction: str = "left"):
         """旋转选中的旋转框,支持多选"""
-        
+
         if not self.canvas.selectedShapes:
             return
-            
+
         # 遍历所有选中的形状
         for shape in self.canvas.selectedShapes:
             # 检查是否为旋转框类型
@@ -1749,14 +1749,14 @@ class MainWindow(MainWindow):
                 shape.direction -= angle
                 # 保证direction在0-360度之间
                 shape.direction = shape.direction % 360
-                
+
                 # 调用画布的旋转方法，传入对象和旋转角度
                 self.canvas.rotateShape(shape, -angle)
             else:
-                shape.direction += angle 
+                shape.direction += angle
                 shape.direction = shape.direction % 360
                 self.canvas.rotateShape(shape, angle)
-                
+
         # 更新显示和保存
         self.canvas.shapeMoved.emit()
         self.canvas.update()
@@ -1781,6 +1781,11 @@ class MainWindow(MainWindow):
         # 不允许子控件被折叠到0
         splitter.setChildrenCollapsible(False)
 
+        if self.is_3d:
+            self.o3d_widget.show()
+        else:
+            self.o3d_widget.hide()
+
         self.parameter.child("proj_setting", "proj_type").sigValueChanged.connect(self.proj_type_changed)
         self.parameter.child("proj_setting", "proj_type").setValue(
             self.settings.value("proj_type", ProjEnum.NORMAL)
@@ -1792,12 +1797,12 @@ class MainWindow(MainWindow):
     def is_3d(self) -> bool:
         return self.parameter.child("proj_setting", "proj_type").value() == ProjEnum.O3D
 
-    def proj_type_changed(self, param: Parameter, value: str):
+    def proj_type_changed(self, param: Parameter, new_value: str):
         if self.is_3d:
             self.o3d_widget.show()
         else:
             self.o3d_widget.hide()
-        self.settings.setValue("proj_type", value)
+        self.settings.setValue("proj_type", new_value)
 
     def _load_file_3d_callback(self):
         if not self.is_3d:
