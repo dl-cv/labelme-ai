@@ -1767,6 +1767,29 @@ class MainWindow(MainWindow):
             sizes = int(sizes[0]), int(sizes[1])
             self.centralWidget().setSizes(sizes)
 
+    # ------------ 键盘事件处理 ------------
+    def keyPressEvent(self, event):
+        """处理键盘事件"""
+        key = event.key()
+        modifiers = event.modifiers()
+        
+        # 检查是否为 Z 键（逆时针旋转）
+        if key == QtCore.Qt.Key_Z and not modifiers:
+            self.rotate_shape_anticlockwise()
+            event.accept()
+            return
+            
+        # 检查是否为 X 键（顺时针旋转，可选）
+        if key == QtCore.Qt.Key_X and not modifiers:
+            self.rotate_shape_clockwise()
+            event.accept()
+            return
+            
+        # 调用父类的键盘事件处理
+        super().keyPressEvent(event)
+    
+    # ------------ 键盘事件处理 end ------------
+
 class ProjEnum:
     NORMAL = '常规'
     O3D = '3D'
