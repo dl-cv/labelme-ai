@@ -1331,7 +1331,6 @@ class Canvas(Canvas, CustomCanvasAttr):
                 self.shapeMoved.emit()
                 self.update()
             elif key == QtCore.Qt.Key_B:  # 顺时针旋转
-                shape.direction += rotate_step
                 # 保证direction在0-360度之间
                 shape.direction = shape.direction % 360
                 # 旋转点位坐标
