@@ -39,6 +39,7 @@ from labelme.dlcv.shape import ShapeType
 from labelme.utils import print_time  # noqa
 from labelme.dlcv.shape import Shape
 from typing import List
+from labelme.dlcv.widget.viewAttribute import get_shape_attribute
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 
@@ -356,6 +357,24 @@ class MainWindow(MainWindow):
         )
         utils.addActions(self.menus.edit, actions + self.actions.editMenu)
 
+        # 新增 "查看属性" 动作
+        self.actions.viewAttribute = QtWidgets.QAction("查看属性", self)
+        self.actions.viewAttribute.setShortcut("Ctrl+I")  # 可选快捷键
+
+        # 调用属性查看方法
+        self.actions.viewAttribute.triggered.connect(self.view_attribute_func) 
+        self.actions.viewAttribute.setIcon(QtGui.QIcon("icon/view_attribute.png"))
+        self.addAction(self.actions.viewAttribute)
+
+        # 先转为 list 方便插入
+        self.actions.menu = list(self.actions.menu)
+        
+        # 插入到最后
+        self.actions.menu.append(self.actions.viewAttribute)
+
+        # 重新刷新右键菜单内容
+        self.canvas.menus[0].clear()
+        utils.addActions(self.canvas.menus[0], self.actions.menu)
     # https://bbs.dlcv.ai/t/topic/94
     def closeEvent(self, event):
         super().closeEvent(event)
@@ -1821,6 +1840,19 @@ class MainWindow(MainWindow):
         if sizes:
             sizes = int(sizes[0]), int(sizes[1])
             self.centralWidget().setSizes(sizes)
+
+    def view_attribute_func(self):
+        if not self.canvas.selectedShapes:
+            QtWidgets.QMessageBox.information(self, "提示", "请先选中一个标注")
+            return
+        shape = self.canvas.selectedShapes[0]
+        attr = get_shape_attribute(shape)
+        info = (
+            f"宽度: {attr['width']}\n"
+            f"高度: {attr['height']}\n"
+            f"面积: {attr['area']}"
+        )
+        QtWidgets.QMessageBox.information(self, "属性信息", info)
 
 
 class ProjEnum:

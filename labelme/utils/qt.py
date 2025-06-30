@@ -58,7 +58,7 @@ def newAction(
     return a
 
 
-def addActions(widget, actions):
+def addActions(widget, actions:list):
     for action in actions:
         if action is None:
             widget.addSeparator()
