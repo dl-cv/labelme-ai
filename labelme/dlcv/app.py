@@ -1763,10 +1763,9 @@ class MainWindow(MainWindow):
 
     def __restore_splitter_sizes(self):
         sizes = self.settings.value("o3d_widget_splitter_sizes")
-        sizes = int(sizes[0]), int(sizes[1])
         if sizes:
+            sizes = int(sizes[0]), int(sizes[1])
             self.centralWidget().setSizes(sizes)
-
 
 class ProjEnum:
     NORMAL = '常规'
