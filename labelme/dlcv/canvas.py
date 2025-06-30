@@ -1313,30 +1313,6 @@ class Canvas(Canvas, CustomCanvasAttr):
                 self.mousePressEvent(mouse_event, need_transform=False)
         # extra End
         
-        # 旋转框的旋转操作
-        if self.editing() and len(self.selectedShapes) == 1 and self.selectedShapes[0].shape_type == "rotation":
-            shape = self.selectedShapes[0]
-            rotate_step = 1.0  # 默认旋转步长
-            
-            # 按住Shift键时加快旋转速度
-            if modifiers & QtCore.Qt.ShiftModifier:
-                rotate_step = 5.0
-                
-            if key == QtCore.Qt.Key_Z:  # 逆时针旋转
-                shape.direction -= rotate_step
-                # 保证direction在0-360度之间
-                shape.direction = shape.direction % 360
-                # 旋转点位坐标
-                self.rotateShape(shape, -rotate_step)
-                self.shapeMoved.emit()
-                self.update()
-            elif key == QtCore.Qt.Key_B:  # 顺时针旋转
-                # 保证direction在0-360度之间
-                shape.direction = shape.direction % 360
-                # 旋转点位坐标
-                self.rotateShape(shape, rotate_step)
-                self.shapeMoved.emit()
-                self.update()
                 
     def rotateShape(self, shape, angle):
         """根据给定的角度旋转形状"""
