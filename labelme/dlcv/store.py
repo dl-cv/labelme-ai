@@ -57,6 +57,9 @@ class Store:
     def register_main_window(self, main_window: 'MainWindow'):
         self.__main_window = main_window
 
+    def get_config(self):
+        return self.__main_window._config
+
     # 需要先register_main_window,才能访问main_window
     @property
     def main_window(self) -> 'MainWindow':
