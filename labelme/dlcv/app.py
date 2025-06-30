@@ -984,6 +984,7 @@ class MainWindow(MainWindow):
         self._init_setting_dock()
         self._init_3d_widget()
         self._init_file_list_widget()
+        self._init_rotate_shape_action()
 
         def canvas_move(pos: QtCore.QPoint):
             try:
@@ -1707,6 +1708,60 @@ class MainWindow(MainWindow):
             for draw_mode, draw_action in draw_actions.items():
                 draw_action.setEnabled(createMode != draw_mode)
         self.actions.editMode.setEnabled(not edit)
+    
+    # ------------ 旋转框 ------------
+    def _init_rotate_shape_action(self):
+        # 创建逆时针旋转动作
+        self.rotate_left_action = QtWidgets.QAction("逆时针旋转", self)
+        self.rotate_left_action.setShortcut(
+            STORE.get_config()['shortcuts']['rotate_left']
+        )
+        # 添加到菜单
+        self.addAction(self.rotate_left_action)
+
+        # 创建顺时针旋转动作
+        self.rotate_right_action = QtWidgets.QAction("顺时针旋转", self)
+        self.rotate_right_action.setShortcut(
+            STORE.get_config()['shortcuts']['rotate_right']
+        )
+        # 添加到菜单
+        self.addAction(self.rotate_right_action)
+        
+        # 连接信号
+        self.rotate_left_action.triggered.connect(lambda: self.rotate_shape(angle=1.0, direction="left"))
+        self.rotate_right_action.triggered.connect(lambda: self.rotate_shape(angle=1.0, direction="right"))
+
+    # 旋转框旋转
+    def rotate_shape(self, angle: float = 1.0, direction: str = "left"):
+        """旋转选中的旋转框,支持多选"""
+        
+        if not self.canvas.selectedShapes:
+            return
+            
+        # 遍历所有选中的形状
+        for shape in self.canvas.selectedShapes:
+            # 检查是否为旋转框类型
+            if shape.shape_type != "rotation":
+                continue
+
+            if direction == "left":
+                # 执行逆时针旋转（减少角度）
+                shape.direction -= angle
+                # 保证direction在0-360度之间
+                shape.direction = shape.direction % 360
+                
+                # 调用画布的旋转方法，传入对象和旋转角度
+                self.canvas.rotateShape(shape, -angle)
+            else:
+                shape.direction += angle 
+                shape.direction = shape.direction % 360
+                self.canvas.rotateShape(shape, angle)
+                
+        # 更新显示和保存
+        self.canvas.shapeMoved.emit()
+        self.canvas.update()
+
+    # ------------ 旋转框 end ------------
 
     # ------------ 3D 视图 ------------
     def _init_3d_widget(self):
@@ -1763,8 +1818,8 @@ class MainWindow(MainWindow):
 
     def __restore_splitter_sizes(self):
         sizes = self.settings.value("o3d_widget_splitter_sizes")
-        sizes = int(sizes[0]), int(sizes[1])
         if sizes:
+            sizes = int(sizes[0]), int(sizes[1])
             self.centralWidget().setSizes(sizes)
 
 

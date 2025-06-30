@@ -78,6 +78,13 @@ def get_config(config_file_or_yaml=None, config_from_args=None):
 extra_shortcuts = {
     'canvas_auto_left_click': '1',
     'add_text_flag': 'T',
+
+    # 设置面板快捷键:
+    'display_shape_label': 'C',
+
+    # 旋转框快捷键
+    'rotate_left': 'Z',
+    'rotate_right': 'X',
 }
 
 
@@ -126,8 +133,6 @@ def get_config(*args, **kwargs):
                   'hide_all_polygons': None,
                   'toggle_all_polygons': 'V',
 
-                  # 设置面板快捷键:
-                  'display_shape_label': 'C',
               },
 
               'display_label_popup': False,
