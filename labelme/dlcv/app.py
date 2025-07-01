@@ -357,18 +357,13 @@ class MainWindow(MainWindow):
         )
         utils.addActions(self.menus.edit, actions + self.actions.editMenu)
 
-        # 在查看属性动作上面添加一个新的动作none，作为前面所有动作和查看属性动作的分割
-        # 添加分割线
-        # self.actions.action_none = QtWidgets.QAction(self)
-        # self.actions.action_none.setSeparator(True)
-        # self.addAction(self.actions.action_none)
-        # self.actions.menu.append(self.actions.action_none)
-
         # 添加查看属性动作
         self.actions.action_view_shape_attr = QtWidgets.QAction("查看属性", self)
         self.actions.action_view_shape_attr.triggered.connect(self.display_shape_attr)
         self.addAction(self.actions.action_view_shape_attr)
         self.actions.menu = list(self.actions.menu)
+
+        # 添加分割线
         self.actions.menu.append(None)
         self.actions.menu.append(self.actions.action_view_shape_attr)
 
