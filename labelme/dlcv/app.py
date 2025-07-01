@@ -39,7 +39,7 @@ from labelme.dlcv.shape import ShapeType
 from labelme.utils import print_time  # noqa
 from labelme.dlcv.shape import Shape
 from typing import List
-from labelme.dlcv.widget.viewAttribute import get_shape_attribute
+from labelme.dlcv.widget.viewAttribute import get_shape_attribute, get_window_position, viewAttribute
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 
@@ -237,6 +237,9 @@ class MainWindow(MainWindow):
             self.canvas.deSelectShape()
         # extra end
 
+        # 更新属性展示
+        self.update_view_attribute()
+
     # region 开发者模式
     def _init_dev_mode(self):
         # https://bbs.dlcv.ai/t/topic/195
@@ -357,13 +360,13 @@ class MainWindow(MainWindow):
         )
         utils.addActions(self.menus.edit, actions + self.actions.editMenu)
 
+        # ------------ 查看属性 ------------
         # 新增 "查看属性" 动作
         self.actions.viewAttribute = QtWidgets.QAction("查看属性", self)
         self.actions.viewAttribute.setShortcut("Ctrl+I")  # 可选快捷键
 
         # 调用属性查看方法
         self.actions.viewAttribute.triggered.connect(self.view_attribute_func) 
-        self.actions.viewAttribute.setIcon(QtGui.QIcon("../icons/view_attribute.png"))
         self.addAction(self.actions.viewAttribute)
 
         # 先转为 list 方便插入
@@ -375,6 +378,8 @@ class MainWindow(MainWindow):
         # 重新刷新右键菜单内容
         self.canvas.menus[0].clear()
         utils.addActions(self.canvas.menus[0], self.actions.menu)
+        # ------------ 查看属性 end ------------
+
     # https://bbs.dlcv.ai/t/topic/94
     def closeEvent(self, event):
         super().closeEvent(event)
@@ -1005,6 +1010,7 @@ class MainWindow(MainWindow):
         self._init_file_list_widget()
         self._init_rotate_shape_action()
 
+
         def canvas_move(pos: QtCore.QPoint):
             try:
                 if self.canvas.pixmap.isNull():
@@ -1516,7 +1522,7 @@ class MainWindow(MainWindow):
             item = self.flag_widget.item(0)
             return item.text()
         return ""
-
+    
     def _init_text_flag_wgt(self):
         self.flag_dock.setWindowTitle(tr("Flags"))
         self.add_text_flag_action = QtWidgets.QAction("添加文本标记", self)
@@ -1782,6 +1788,75 @@ class MainWindow(MainWindow):
 
     # ------------ 旋转框 end ------------
 
+
+    # ------------ 属性查看方法 ------------
+    def view_attribute_func(self):
+        if not self.canvas.selectedShapes:
+            QtWidgets.QMessageBox.information(self, "提示", "请先选中一个标注")
+            return
+        
+        # 初始化属性窗口字典
+        if not hasattr(self, '_attribute_windows_dict'):
+            self._attribute_windows_dict = {}
+            
+        # 为每个选中的标注创建或更新属性窗口
+        for i, shape in enumerate(self.canvas.selectedShapes):
+            # 如果该shape已有窗口,则更新窗口内容
+            if shape in self._attribute_windows_dict:
+                self.update_attribute_window(shape, i)
+            else:
+                self.create_attribute_window(shape, i)
+
+    # 更新属性窗口
+    def update_attribute_window(self, shape, index=0):
+        # 获取已存在的窗口
+        attr_widget = self._attribute_windows_dict[shape]
+        # 更新属性
+        attr = get_shape_attribute(shape)
+        attr_widget.width = attr['width']
+        attr_widget.height = attr['height']
+        attr_widget.area = attr['area']
+        # 刷新显示
+        attr_widget.update()
+        # 确保窗口可见
+        attr_widget.show()
+        attr_widget.raise_()
+
+    # 创建属性窗口
+    def create_attribute_window(self, shape, index=0):
+        window_width = 320
+        window_height = 200
+
+        # 1. 计算属性
+        attr = get_shape_attribute(shape)
+        # 2. 计算窗口显示位置
+        window_x, window_y = get_window_position(shape, self.canvas, window_width, window_height, offset=0)
+
+        window_x += 200
+        window_y += 200
+
+        # 3. 边界检测
+        screen = QtWidgets.QApplication.primaryScreen()
+        screen_geometry = screen.geometry()
+        if window_x + window_width > screen_geometry.right():
+            window_x = screen_geometry.right() - window_width - 10
+        if window_y + window_height > screen_geometry.bottom():
+            window_y = screen_geometry.bottom() - window_height - 10
+
+        # 创建并显示窗口
+        attr_widget = viewAttribute(attr['width'], attr['height'], attr['area'])
+        attr_widget.setGeometry(window_x, window_y, window_width, window_height)
+        attr_widget.setWindowTitle(f"属性 - {shape.label if shape.label else f'标注{index+1}'}")
+        attr_widget.setWindowFlags(QtCore.Qt.Window)
+        # 保持窗口在其他窗口之上
+        attr_widget.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
+        attr_widget.show()
+        attr_widget.raise_()
+
+        # 将窗口保存到字典中
+        self._attribute_windows_dict[shape] = attr_widget
+    # ------------ 属性查看方法 end ------------
+
     # ------------ 3D 视图 ------------
     def _init_3d_widget(self):
         from labelme.dlcv.widget_3d.o3dwidget import O3DWidget
@@ -1841,21 +1916,7 @@ class MainWindow(MainWindow):
             sizes = int(sizes[0]), int(sizes[1])
             self.centralWidget().setSizes(sizes)
 
-    def view_attribute_func(self):
-        if not self.canvas.selectedShapes:
-            QtWidgets.QMessageBox.information(self, "提示", "请先选中一个标注")
-            return
-        shape = self.canvas.selectedShapes[0]
-        attr = get_shape_attribute(shape)
-        info = (
-            f"宽度: {attr['width']}\n"
-            f"高度: {attr['height']}\n"
-            f"面积: {attr['area']}"
-        )
-        QtWidgets.QMessageBox.information(self, "属性信息", info)
-
-
 class ProjEnum:
     NORMAL = '常规'
     O3D = '3D'
-    # ------------ 3D 视图 end ------------
+    # ------------ 3D 视图 end ------------ 
