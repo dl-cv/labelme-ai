@@ -313,6 +313,7 @@
         <source>Undo last point</source>
         <translation>撤销最后的控制点</translation>
     </message>
+
     <message>
         <location filename="../app.py" line="434"/>
         <source>Undo last drawn point</source>
@@ -330,8 +331,7 @@
     </message>
     <message>
         <location filename="../app.py" line="451"/>
-        <source>Undo
-</source>
+        <source>Undo</source>
         <translation>撤销</translation>
     </message>
     <message>
