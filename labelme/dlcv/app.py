@@ -662,6 +662,12 @@ class MainWindow(MainWindow):
             notification(title="获取标签文件失败", text="代码不应该运行到这里", preset=ToastPreset.ERROR)
             raise Exception("获取标签文件失败")
 
+    def get_vertical_scrollbar(self):
+        return self.scrollBars[Qt.Vertical]
+
+    def get_horizontal_scrollbar(self):
+        return self.scrollBars[Qt.Horizontal]
+
     def loadFile(self, filename=None):
         """Load the specified file, or the last opened file if None."""
         # changing fileListWidget loads file
@@ -671,6 +677,13 @@ class MainWindow(MainWindow):
             self.fileListWidget.setCurrentRow(self.imageList.index(filename))
             self.fileListWidget.repaint()
             return
+
+        """保存当前图片的滚动条百分比"""
+        hbar = self.get_horizontal_scrollbar()
+        vbar = self.get_vertical_scrollbar()
+        x_percent = hbar.value() / hbar.maximum() if hbar.maximum() > 0 else 0.0
+        y_percent = vbar.value() / vbar.maximum() if vbar.maximum() > 0 else 0.0
+        last_scroll_percent = (round(x_percent, 3), round(y_percent, 3))
 
         self.resetState()
         self.canvas.setEnabled(False)
@@ -793,9 +806,12 @@ class MainWindow(MainWindow):
         #     self.adjustScale(initial=True)
 
         is_initial_load = not self.zoom_values or self.filename not in self.zoom_values
-        
-        if self.keep_scale: # 保持缩放比例
-            pass
+
+        if self.keep_scale:  # 保持缩放比例
+            hbar = self.get_horizontal_scrollbar()
+            vbar = self.get_vertical_scrollbar()
+            hbar.setValue(int(last_scroll_percent[0] * hbar.maximum()))
+            vbar.setValue(int(last_scroll_percent[1] * vbar.maximum()))
         elif not self._config["keep_prev_scale"]:
             self.adjustScale(initial=True)
         elif self.filename in self.zoom_values:
@@ -806,11 +822,12 @@ class MainWindow(MainWindow):
         # extra End
 
         # set scroll values
-        for orientation in self.scroll_values:
-            if self.filename in self.scroll_values[orientation]:
-                self.setScroll(
-                    orientation, self.scroll_values[orientation][self.filename]
-                )
+        if not self.keep_scale:  # 不知道这段代码有什么用
+            for orientation in self.scroll_values:
+                if self.filename in self.scroll_values[orientation]:
+                    self.setScroll(
+                        orientation, self.scroll_values[orientation][self.filename]
+                    )
         # set brightness contrast values
         # dialog = BrightnessContrastDialog(
         #     utils.img_data_to_pil(self.imageData),
@@ -1336,7 +1353,7 @@ class MainWindow(MainWindow):
     ):
         # 使用新的参数处理方法
         self._on_param_changed(root_parm, change_parms)
-    
+
     @property
     def keep_scale(self):
         return self.parameter.child("other_setting", "keep_prev_scale").value() == ScaleEnum.KEEP_SCALE
@@ -1824,8 +1841,8 @@ class ProjEnum:
     O3D = '3D'
     # ------------ 3D 视图 end ------------
 
+
 class ScaleEnum:
     KEEP_PREV_SCALE = '保持上次缩放比例'
     AUTO_SCALE = '自动缩放'
     KEEP_SCALE = '保持缩放比例'
-
