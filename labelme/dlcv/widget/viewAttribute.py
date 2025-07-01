@@ -63,7 +63,7 @@ def get_window_position(shape, canvas, window_width, window_height, offset=0):
     x = max([p.x() for p in points])
     y = max([p.y() for p in points])
     canvas_global = canvas.mapToGlobal(QtCore.QPoint(0, 0))
-    # 让窗口中心点对齐shape右下角
+    # 让窗口中心点对齐shape右下角 
     screen_x = int(canvas_global.x() + x - window_width // 2 + offset)
     screen_y = int(canvas_global.y() + y - window_height // 2 + offset)
     return screen_x, screen_y
