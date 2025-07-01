@@ -40,7 +40,7 @@ from labelme.utils import print_time  # noqa
 from labelme.dlcv.shape import Shape
 from typing import List
 from labelme.dlcv.widget.viewAttribute import get_shape_attribute, get_window_position, viewAttribute
-
+from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 
 
@@ -125,6 +125,7 @@ class MainWindow(MainWindow):
 
         self._init_dev_mode()
         self._init_ui()
+        self._init_copy_image()  # 必须在初始化时调用
 
         # 使用 store 存储数据
         STORE.set_edit_label_name(self._edit_label)
@@ -392,6 +393,27 @@ class MainWindow(MainWindow):
         self.settings.setValue("setting_store", setting_store)
         self.__store_splitter_sizes()
         # extra End
+    
+    # 复制文件
+    def copy_image(self):
+        # 获取当前画布显示的图片路径
+        file_path = getattr(self, "imagePath", None)
+        if file_path:
+            try:
+                copy_file_to_clipboard(file_path)
+                QtWidgets.QMessageBox.information(self, "提示", "图片已复制到剪贴板，可直接粘贴为文件。")
+            except Exception as e:
+                QtWidgets.QMessageBox.warning(self, "错误", f"复制失败: {e}")
+        else:
+            QtWidgets.QMessageBox.warning(self, "提示", "请先选中一张图片。")
+
+    # 新增复制文件动作，并添加快捷键
+    def _init_copy_image(self):
+        # 复制图片快捷键
+        action_copy = QtWidgets.QAction("复制文件", self)
+        action_copy.setShortcut("Ctrl+C")
+        action_copy.triggered.connect(self.copy_image)
+        self.addAction(action_copy)
 
     def fileSelectionChanged(self):
         if not self.is_all_shapes_valid():
