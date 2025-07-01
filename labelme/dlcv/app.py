@@ -357,22 +357,21 @@ class MainWindow(MainWindow):
         )
         utils.addActions(self.menus.edit, actions + self.actions.editMenu)
 
-        # ------------ 查看属性 ------------
-        # 新增 "查看属性" 动作
-        self.actions.action_view_shape_attr = QtWidgets.QAction("查看属性", self)
-        # self.actions.viewAttribute.setShortcut("Ctrl+I")  # 可选快捷键
+        # 在查看属性动作上面添加一个新的动作none，作为前面所有动作和查看属性动作的分割
+        # 添加分割线
+        self.actions.action_none = QtWidgets.QAction(self)
+        self.actions.action_none.setSeparator(True)
+        self.addAction(self.actions.action_none)
+        self.actions.menu.append(self.actions.action_none)
 
-        # 调用属性查看方法
+        # 添加查看属性动作
+        self.actions.action_view_shape_attr = QtWidgets.QAction("查看属性", self)
         self.actions.action_view_shape_attr.triggered.connect(self.display_shape_attr)
         self.addAction(self.actions.action_view_shape_attr)
-
-        # 先转为 list 方便插入
         self.actions.menu = list(self.actions.menu)
-
-        # 插入到最后
         self.actions.menu.append(self.actions.action_view_shape_attr)
 
-        # 重新刷新右键菜单内容
+        # 刷新右键菜单
         self.canvas.menus[0].clear()
         utils.addActions(self.canvas.menus[0], self.actions.menu)
         # ------------ 查看属性 end ------------
@@ -1831,7 +1830,7 @@ class MainWindow(MainWindow):
             window_y = screen_geometry.bottom() - window_height - 10
 
         # 创建并显示窗口
-        attr_widget = viewAttribute(attr['width'], attr['height'], attr['area'],parent=self)
+        attr_widget = viewAttribute(attr['width'], attr['height'], attr['area'], parent=self)
         attr_widget.setGeometry(window_x, window_y, window_width, window_height)
         attr_widget.setWindowTitle(f"属性 - {shape.label if shape.label else f'标注{index+1}'}")
         attr_widget.setWindowFlags(
