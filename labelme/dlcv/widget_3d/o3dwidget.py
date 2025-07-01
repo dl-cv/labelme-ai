@@ -27,7 +27,7 @@ class O3DWidget(QtWidgets.QDockWidget):
         self.timer = None
 
     def __getattribute__(self, item):
-        if item == "_init_flag":
+        if item == "_init_flag" or item == 'show' or item == 'hide':
             return super().__getattribute__(item)
 
         if self._init_flag == InitFlagEnum.NOT_INIT:

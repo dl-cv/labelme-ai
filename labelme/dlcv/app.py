@@ -1862,10 +1862,10 @@ class MainWindow(MainWindow):
         # 不允许子控件被折叠到0
         splitter.setChildrenCollapsible(False)
 
-        # if self.is_3d:
-        #     self.o3d_widget.show()
-        # else:
-        #     self.o3d_widget.hide()
+        if self.is_3d:
+            self.o3d_widget.show()
+        else:
+            self.o3d_widget.hide()
 
         self.parameter.child("proj_setting", "proj_type").sigValueChanged.connect(self.proj_type_changed)
         self.parameter.child("proj_setting", "proj_type").setValue(
