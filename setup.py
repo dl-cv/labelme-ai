@@ -32,7 +32,10 @@ def main():
         name=package_name,
         version=version,
         description="深圳市深度视觉科技有限公司-Labelme AI",
-        install_requires=["pyqt-toast-notification"],
+        install_requires=[
+            "pyqt-toast-notification",
+            "open3d",
+        ],
         # long_description=get_long_description(),
         # long_description_content_type="text/markdown",
         author="DLCV",
