@@ -85,9 +85,6 @@ extra_shortcuts = {
     # 旋转框快捷键
     'rotate_left': 'Z',
     'rotate_right': 'X',
-
-    # 查看属性快捷键
-    'view_attribute': 'Ctrl+I',
 }
 
 

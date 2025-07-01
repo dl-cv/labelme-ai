@@ -363,7 +363,7 @@ class MainWindow(MainWindow):
         # ------------ 查看属性 ------------
         # 新增 "查看属性" 动作
         self.actions.viewAttribute = QtWidgets.QAction("查看属性", self)
-        self.actions.viewAttribute.setShortcut("Ctrl+I")  # 可选快捷键
+        # self.actions.viewAttribute.setShortcut("Ctrl+I")  # 可选快捷键
 
         # 调用属性查看方法
         self.actions.viewAttribute.triggered.connect(self.view_attribute_func) 
@@ -1824,8 +1824,8 @@ class MainWindow(MainWindow):
 
     # 创建属性窗口
     def create_attribute_window(self, shape, index=0):
-        window_width = 320
-        window_height = 200
+        window_width = 240
+        window_height = 120
 
         # 1. 计算属性
         attr = get_shape_attribute(shape)
@@ -1847,9 +1847,11 @@ class MainWindow(MainWindow):
         attr_widget = viewAttribute(attr['width'], attr['height'], attr['area'])
         attr_widget.setGeometry(window_x, window_y, window_width, window_height)
         attr_widget.setWindowTitle(f"属性 - {shape.label if shape.label else f'标注{index+1}'}")
-        attr_widget.setWindowFlags(QtCore.Qt.Window)
-        # 保持窗口在其他窗口之上
-        attr_widget.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
+        attr_widget.setWindowFlags(
+            QtCore.Qt.Window | 
+            QtCore.Qt.WindowCloseButtonHint | # 关闭按钮
+            QtCore.Qt.WindowStaysOnTopHint # 保持窗口在其他窗口之上
+        )         
         attr_widget.show()
         attr_widget.raise_()
 
