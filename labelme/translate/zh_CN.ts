@@ -316,12 +316,6 @@
 
     <message>
         <location filename="../app.py" line="434"/>
-        <source>View Attribute</source>
-        <translation>查看属性</translation>
-    </message>
-
-    <message>
-        <location filename="../app.py" line="434"/>
         <source>Undo last drawn point</source>
         <translation>撤销最后一次绘制的控制点</translation>
     </message>

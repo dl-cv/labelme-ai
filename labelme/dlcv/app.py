@@ -363,7 +363,7 @@ class MainWindow(MainWindow):
 
         # 调用属性查看方法
         self.actions.viewAttribute.triggered.connect(self.view_attribute_func) 
-        self.actions.viewAttribute.setIcon(QtGui.QIcon("icon/view_attribute.png"))
+        self.actions.viewAttribute.setIcon(QtGui.QIcon("../icons/view_attribute.png"))
         self.addAction(self.actions.viewAttribute)
 
         # 先转为 list 方便插入
