@@ -1,4 +1,5 @@
 private
+dlcv_labelme_ai
 tests/*.tiff
 tests/*.json
 *.bat
