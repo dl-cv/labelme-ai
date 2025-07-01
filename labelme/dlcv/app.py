@@ -237,9 +237,6 @@ class MainWindow(MainWindow):
             self.canvas.deSelectShape()
         # extra end
 
-        # 更新属性展示
-        self.update_view_attribute()
-
     # region 开发者模式
     def _init_dev_mode(self):
         # https://bbs.dlcv.ai/t/topic/195
@@ -362,18 +359,18 @@ class MainWindow(MainWindow):
 
         # ------------ 查看属性 ------------
         # 新增 "查看属性" 动作
-        self.actions.viewAttribute = QtWidgets.QAction("查看属性", self)
+        self.actions.action_view_shape_attr = QtWidgets.QAction("查看属性", self)
         # self.actions.viewAttribute.setShortcut("Ctrl+I")  # 可选快捷键
 
         # 调用属性查看方法
-        self.actions.viewAttribute.triggered.connect(self.view_attribute_func)
-        self.addAction(self.actions.viewAttribute)
+        self.actions.action_view_shape_attr.triggered.connect(self.display_shape_attr)
+        self.addAction(self.actions.action_view_shape_attr)
 
         # 先转为 list 方便插入
         self.actions.menu = list(self.actions.menu)
 
         # 插入到最后
-        self.actions.menu.append(self.actions.viewAttribute)
+        self.actions.menu.append(self.actions.action_view_shape_attr)
 
         # 重新刷新右键菜单内容
         self.canvas.menus[0].clear()
@@ -1803,37 +1800,14 @@ class MainWindow(MainWindow):
 
 
     # ------------ 属性查看方法 ------------
-    def view_attribute_func(self):
+    def display_shape_attr(self):
         if not self.canvas.selectedShapes:
             QtWidgets.QMessageBox.information(self, "提示", "请先选中一个标注")
             return
 
-        # 初始化属性窗口字典
-        if not hasattr(self, '_attribute_windows_dict'):
-            self._attribute_windows_dict = {}
-
         # 为每个选中的标注创建或更新属性窗口
         for i, shape in enumerate(self.canvas.selectedShapes):
-            # 如果该shape已有窗口,则更新窗口内容
-            if shape in self._attribute_windows_dict:
-                self.update_attribute_window(shape, i)
-            else:
-                self.create_attribute_window(shape, i)
-
-    # 更新属性窗口
-    def update_attribute_window(self, shape, index=0):
-        # 获取已存在的窗口
-        attr_widget = self._attribute_windows_dict[shape]
-        # 更新属性
-        attr = get_shape_attribute(shape)
-        attr_widget.width = attr['width']
-        attr_widget.height = attr['height']
-        attr_widget.area = attr['area']
-        # 刷新显示
-        attr_widget.update()
-        # 确保窗口可见
-        attr_widget.show()
-        attr_widget.raise_()
+            self.create_attribute_window(shape, i)
 
     # 创建属性窗口
     def create_attribute_window(self, shape, index=0):
@@ -1857,7 +1831,7 @@ class MainWindow(MainWindow):
             window_y = screen_geometry.bottom() - window_height - 10
 
         # 创建并显示窗口
-        attr_widget = viewAttribute(attr['width'], attr['height'], attr['area'])
+        attr_widget = viewAttribute(attr['width'], attr['height'], attr['area'],parent=self)
         attr_widget.setGeometry(window_x, window_y, window_width, window_height)
         attr_widget.setWindowTitle(f"属性 - {shape.label if shape.label else f'标注{index+1}'}")
         attr_widget.setWindowFlags(
@@ -1868,8 +1842,6 @@ class MainWindow(MainWindow):
         attr_widget.show()
         attr_widget.raise_()
 
-        # 将窗口保存到字典中
-        self._attribute_windows_dict[shape] = attr_widget
     # ------------ 属性查看方法 end ------------
 
     # ------------ 3D 视图 ------------
@@ -1890,10 +1862,10 @@ class MainWindow(MainWindow):
         # 不允许子控件被折叠到0
         splitter.setChildrenCollapsible(False)
 
-        if self.is_3d:
-            self.o3d_widget.show()
-        else:
-            self.o3d_widget.hide()
+        # if self.is_3d:
+        #     self.o3d_widget.show()
+        # else:
+        #     self.o3d_widget.hide()
 
         self.parameter.child("proj_setting", "proj_type").sigValueChanged.connect(self.proj_type_changed)
         self.parameter.child("proj_setting", "proj_type").setValue(
