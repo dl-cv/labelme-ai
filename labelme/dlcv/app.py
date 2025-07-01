@@ -370,6 +370,7 @@ class MainWindow(MainWindow):
             "canvas_brush_fill_region": STORE.canvas_brush_fill_region,
             "canvas_brush_enabled": STORE.canvas_brush_enabled,  # 新增：保存画笔标注设置
             "canvas_brush_size": STORE.canvas_brush_size,  # 新增：保存画笔大小
+            "scale_option": self.parameter.child("other_setting", "scale_option").value()
         }
         self.settings.setValue("setting_store", setting_store)
         self.__store_splitter_sizes()
@@ -1169,7 +1170,7 @@ class MainWindow(MainWindow):
                         "shortcut": self._config["shortcuts"]["display_shape_label"],
                     },
                     {
-                        "name": "keep_prev_scale",
+                        "name": "scale_option",
                         "title": tr("keep prev scale"),
                         "type": "list",
                         "value": ScaleEnum.AUTO_SCALE,
@@ -1335,6 +1336,10 @@ class MainWindow(MainWindow):
                 self.parameter.child("label_setting", "brush_enabled").setValue(
                     setting_store.get("canvas_brush_enabled", False)
                 )
+                # 新增：恢复缩放选项设置
+                self.parameter.child("other_setting", "scale_option").setValue(
+                    setting_store.get("scale_option", ScaleEnum.AUTO_SCALE)
+                )
                 # 更新STORE中的值
                 STORE.set_canvas_brush_fill_region(
                     setting_store.get("canvas_brush_fill_region", True)
@@ -1356,7 +1361,7 @@ class MainWindow(MainWindow):
 
     @property
     def keep_scale(self):
-        return self.parameter.child("other_setting", "keep_prev_scale").value() == ScaleEnum.KEEP_SCALE
+        return self.parameter.child("other_setting", "scale_option").value() == ScaleEnum.KEEP_SCALE
 
     def _on_param_changed(self, param, changes):
         # 使用新的参数处理方法
@@ -1422,7 +1427,7 @@ class MainWindow(MainWindow):
                     self.canvas.update()
                 elif param_name == "convert_img_to_gray":
                     STORE.set_convert_img_to_gray(new_value)
-                elif param_name == "keep_prev_scale":
+                elif param_name == "scale_option":
                     if new_value == ScaleEnum.KEEP_PREV_SCALE:
                         self.enableKeepPrevScale(True)
                     elif new_value == ScaleEnum.AUTO_SCALE:
