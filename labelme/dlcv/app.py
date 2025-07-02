@@ -394,18 +394,31 @@ class MainWindow(MainWindow):
         self.__store_splitter_sizes()
         # extra End
     
-    # 复制文件
+    # 复制文件到剪贴板
     def copy_image(self):
         # 获取当前画布显示的图片路径
         file_path = getattr(self, "imagePath", None)
+
         if file_path:
             try:
                 copy_file_to_clipboard(file_path)
-                QtWidgets.QMessageBox.information(self, "提示", "图片已复制到剪贴板，可直接粘贴为文件。")
+                notification(
+                    "复制成功",
+                    "图片已复制到剪贴板，可直接粘贴为文件。",
+                    ToastPreset.SUCCESS,
+                )
             except Exception as e:
-                QtWidgets.QMessageBox.warning(self, "错误", f"复制失败: {e}")
+                notification(
+                    "复制失败",
+                    str(e),
+                    ToastPreset.ERROR,
+                )
         else:
-            QtWidgets.QMessageBox.warning(self, "提示", "请先选中一张图片。")
+            notification(
+                "提示",
+                "请先选中一张图片。",
+                ToastPreset.WARNING,
+            )
 
     # 新增复制文件动作，并添加快捷键
     def _init_copy_image(self):
@@ -414,6 +427,7 @@ class MainWindow(MainWindow):
         action_copy.setShortcut("Ctrl+C")
         action_copy.triggered.connect(self.copy_image)
         self.addAction(action_copy)
+
 
     def fileSelectionChanged(self):
         if not self.is_all_shapes_valid():
@@ -1053,13 +1067,15 @@ class MainWindow(MainWindow):
                     return
                 x, y = int(pos.x()), int(pos.y())
                 rgb_value = self.canvas.pixmap.toImage().pixelColor(x, y).getRgb()[:-1]
-                self.status(f"Mouse is at: x={x}, y={y}, RGB={rgb_value}")
+                # 获取图片的宽高
+                width = self.canvas.pixmap.width()
+                height = self.canvas.pixmap.height()
+                self.status(f"Mouse is at: x={x}, y={y}, RGB={rgb_value}, Image Size: {width}x{height}")
             except:
                 notification(
                     "显示rgb值失败!", traceback.format_exc(), ToastPreset.ERROR
                 )
                 logger.error(traceback.format_exc())
-
         self.canvas.mouseMoved.disconnect()
         self.canvas.mouseMoved.connect(canvas_move)
 
