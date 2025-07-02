@@ -1,4 +1,5 @@
 import numpy as np
+import cv2
 
 from pyqttoast import Toast, ToastPreset, ToastPosition
 
@@ -6,7 +7,6 @@ Toast.setPosition(ToastPosition.TOP_MIDDLE)
 
 
 def cv_imread(file_path) -> np.ndarray:
-    import cv2
     if isinstance(file_path, str):
         file_path = file_path.encode("utf-8")
     cv_img = cv2.imdecode(
@@ -93,7 +93,6 @@ def normalize_16b_gray_to_uint8(bgr_img: np.ndarray) -> np.ndarray:
 
 
 if __name__ == "__main__":
-    import cv2
     from labelme.dlcv.widget_3d.tests import gray_img_path, depth_img_path
 
     raw_gray_img = cv2.imread(gray_img_path, cv2.IMREAD_UNCHANGED)

@@ -40,6 +40,7 @@ from labelme.utils import print_time  # noqa
 from labelme.dlcv.shape import Shape
 from typing import List
 from labelme.dlcv.widget.viewAttribute import get_shape_attribute, get_window_position, viewAttribute
+from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 
@@ -369,7 +370,7 @@ class MainWindow(MainWindow):
 
         # 刷新右键菜单
         self.canvas.menus[0].clear()
-       
+
         utils.addActions(self.canvas.menus[0], self.actions.menu)
         # ------------ 查看属性 end ------------
 
@@ -392,6 +393,57 @@ class MainWindow(MainWindow):
         self.settings.setValue("setting_store", setting_store)
         self.__store_splitter_sizes()
         # extra End
+
+    # ------------ Ctrl + C 触发函数 复制图片或形状 ------------
+
+    def copySelectedShape(self):
+        """
+        复制选中的形状或当前图片。
+        如果有选中的形状,则复制形状;
+        如果没有选中形状,则复制当前图片。
+        """
+        if self.canvas.selectedShapes:
+            super().copySelectedShape()
+            notification(
+                "复制成功",
+                f"已复制 {len(self.canvas.selectedShapes)} 个形状",
+                ToastPreset.SUCCESS,
+            )
+        else:
+            self.copy_image_to_clipboard()
+
+    def shapeSelectionChanged(self, selected_shapes):
+        super().shapeSelectionChanged(selected_shapes)
+        self.actions.copy.setEnabled(True)
+
+    # 复制图片到剪贴板
+    def copy_image_to_clipboard(self):
+        """复制当前图片到剪贴板"""
+        # 获取当前画布显示的图片路径
+        file_path = getattr(self, "imagePath", None)
+
+        if not file_path:
+            notification(
+                "提示",
+                "请先选中一张图片。",
+                ToastPreset.WARNING,
+            )
+            return
+
+        try:
+            copy_file_to_clipboard(file_path)
+            notification(
+                "复制成功",
+                "图片已复制到剪贴板，可直接粘贴为文件。",
+                ToastPreset.SUCCESS,
+            )
+        except Exception as e:
+            notification(
+                "复制失败",
+                str(e),
+                ToastPreset.ERROR,
+            )
+     # ------------ Ctrl + C 触发函数 end ------------
 
     def fileSelectionChanged(self):
         if not self.is_all_shapes_valid():
@@ -1023,7 +1075,6 @@ class MainWindow(MainWindow):
         self._init_3d_widget()
         self._init_file_list_widget()
         self._init_rotate_shape_action()
-
 
         def canvas_move(pos: QtCore.QPoint):
             try:
@@ -1797,7 +1848,6 @@ class MainWindow(MainWindow):
 
     # ------------ 旋转框 end ------------
 
-
     # ------------ 属性查看方法 ------------
     def display_shape_attr(self):
         if not self.canvas.selectedShapes:
@@ -1832,11 +1882,11 @@ class MainWindow(MainWindow):
         # 创建并显示窗口
         attr_widget = viewAttribute(attr['width'], attr['height'], attr['area'], parent=self)
         attr_widget.setGeometry(window_x, window_y, window_width, window_height)
-        attr_widget.setWindowTitle(f"属性 - {shape.label if shape.label else f'标注{index+1}'}")
+        attr_widget.setWindowTitle(f"属性 - {shape.label if shape.label else f'标注{index + 1}'}")
         attr_widget.setWindowFlags(
             QtCore.Qt.Window |
-            QtCore.Qt.WindowCloseButtonHint | # 关闭按钮
-            QtCore.Qt.WindowStaysOnTopHint # 保持窗口在其他窗口之上
+            QtCore.Qt.WindowCloseButtonHint |  # 关闭按钮
+            QtCore.Qt.WindowStaysOnTopHint  # 保持窗口在其他窗口之上
         )
         attr_widget.show()
         attr_widget.raise_()
@@ -1906,6 +1956,7 @@ class MainWindow(MainWindow):
         if sizes:
             sizes = int(sizes[0]), int(sizes[1])
             self.centralWidget().setSizes(sizes)
+
 
 class ProjEnum:
     NORMAL = '常规'
