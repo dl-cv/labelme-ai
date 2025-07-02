@@ -1,9 +1,9 @@
 private
+build_script
 dlcv_labelme_ai
 tests/*.tiff
 tests/*.json
 *.bat
-build_script/
 labelme/labelme_private
 
 /.cache/

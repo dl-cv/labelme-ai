@@ -393,7 +393,7 @@ class MainWindow(MainWindow):
         self.settings.setValue("setting_store", setting_store)
         self.__store_splitter_sizes()
         # extra End
-    
+
     # 复制文件到剪贴板
     def copy_image(self):
         # 获取当前画布显示的图片路径
@@ -1067,7 +1067,7 @@ class MainWindow(MainWindow):
                     return
                 x, y = int(pos.x()), int(pos.y())
                 rgb_value = self.canvas.pixmap.toImage().pixelColor(x, y).getRgb()[:-1]
-                # 获取图片的宽高
+                # 增加图片的宽高信息
                 width = self.canvas.pixmap.width()
                 height = self.canvas.pixmap.height()
                 self.status(f"Mouse is at: x={x}, y={y}, RGB={rgb_value}, Image Size: {width}x{height}")
