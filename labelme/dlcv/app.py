@@ -1031,7 +1031,10 @@ class MainWindow(MainWindow):
                     return
                 x, y = int(pos.x()), int(pos.y())
                 rgb_value = self.canvas.pixmap.toImage().pixelColor(x, y).getRgb()[:-1]
-                self.status(f"Mouse is at: x={x}, y={y}, RGB={rgb_value}")
+                # 增加图片的宽高信息
+                width = self.canvas.pixmap.width()
+                height = self.canvas.pixmap.height()
+                self.status(f"Mouse is at: x={x}, y={y}, RGB={rgb_value}, Image Size: {width}x{height}")
             except:
                 notification(
                     "显示rgb值失败!", traceback.format_exc(), ToastPreset.ERROR
