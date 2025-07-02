@@ -394,6 +394,21 @@ class MainWindow(MainWindow):
         self.__store_splitter_sizes()
         # extra End
 
+    # 条件复制功能：根据选中状态决定复制形状还是图片
+    def copy_shape_or_image(self):
+        # 检查是否有选中的形状
+        if self.canvas.selectedShapes:
+            # 有选中形状时，复制形状
+            self.copySelectedShape()
+            notification(
+                "复制成功",
+                f"已复制 {len(self.canvas.selectedShapes)} 个形状",
+                ToastPreset.SUCCESS,
+            )
+        else:
+            # 没有选中形状时，复制图片文件
+            self.copy_image()
+    
     # 复制文件到剪贴板
     def copy_image(self):
         # 获取当前画布显示的图片路径
@@ -422,11 +437,15 @@ class MainWindow(MainWindow):
 
     # 新增复制文件动作，并添加快捷键
     def _init_copy_image(self):
-        # 复制图片快捷键
-        action_copy = QtWidgets.QAction("复制文件", self)
+        # 智能复制功能：根据选中状态决定复制形状还是图片
+        action_copy = QtWidgets.QAction("智能复制", self)
         action_copy.setShortcut("Ctrl+C")
-        action_copy.triggered.connect(self.copy_image)
+        action_copy.triggered.connect(self.copy_shape_or_image)
         self.addAction(action_copy)
+        
+        # 移除原有的复制形状快捷键绑定，避免冲突
+        if hasattr(self.actions, 'copy'):
+            self.actions.copy.setShortcut("")  # 清空原有快捷键
 
 
     def fileSelectionChanged(self):
