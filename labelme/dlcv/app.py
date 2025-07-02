@@ -41,6 +41,7 @@ from labelme.dlcv.shape import Shape
 from typing import List
 from labelme.dlcv.widget.viewAttribute import get_shape_attribute, get_window_position, viewAttribute
 from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
+
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 
 
@@ -125,7 +126,6 @@ class MainWindow(MainWindow):
 
         self._init_dev_mode()
         self._init_ui()
-        self._init_copy_image()  # 必须在初始化时调用
 
         # 使用 store 存储数据
         STORE.set_edit_label_name(self._edit_label)
@@ -370,7 +370,7 @@ class MainWindow(MainWindow):
 
         # 刷新右键菜单
         self.canvas.menus[0].clear()
-       
+
         utils.addActions(self.canvas.menus[0], self.actions.menu)
         # ------------ 查看属性 end ------------
 
@@ -394,59 +394,56 @@ class MainWindow(MainWindow):
         self.__store_splitter_sizes()
         # extra End
 
-    # 条件复制功能：根据选中状态决定复制形状还是图片
-    def copy_shape_or_image(self):
-        # 检查是否有选中的形状
+    # ------------ Ctrl + C 触发函数 复制图片或形状 ------------
+
+    def copySelectedShape(self):
+        """
+        复制选中的形状或当前图片。
+        如果有选中的形状,则复制形状;
+        如果没有选中形状,则复制当前图片。
+        """
         if self.canvas.selectedShapes:
-            # 有选中形状时，复制形状
-            self.copySelectedShape()
+            super().copySelectedShape()
             notification(
                 "复制成功",
                 f"已复制 {len(self.canvas.selectedShapes)} 个形状",
                 ToastPreset.SUCCESS,
             )
         else:
-            # 没有选中形状时，复制图片文件
-            self.copy_image()
-    
-    # 复制文件到剪贴板
-    def copy_image(self):
+            self.copy_image_to_clipboard()
+
+    def shapeSelectionChanged(self, selected_shapes):
+        super().shapeSelectionChanged(selected_shapes)
+        self.actions.copy.setEnabled(True)
+
+    # 复制图片到剪贴板
+    def copy_image_to_clipboard(self):
+        """复制当前图片到剪贴板"""
         # 获取当前画布显示的图片路径
         file_path = getattr(self, "imagePath", None)
 
-        if file_path:
-            try:
-                copy_file_to_clipboard(file_path)
-                notification(
-                    "复制成功",
-                    "图片已复制到剪贴板，可直接粘贴为文件。",
-                    ToastPreset.SUCCESS,
-                )
-            except Exception as e:
-                notification(
-                    "复制失败",
-                    str(e),
-                    ToastPreset.ERROR,
-                )
-        else:
+        if not file_path:
             notification(
                 "提示",
                 "请先选中一张图片。",
                 ToastPreset.WARNING,
             )
+            return
 
-    # 新增复制文件动作，并添加快捷键
-    def _init_copy_image(self):
-        # 智能复制功能：根据选中状态决定复制形状还是图片
-        action_copy = QtWidgets.QAction("智能复制", self)
-        action_copy.setShortcut("Ctrl+C")
-        action_copy.triggered.connect(self.copy_shape_or_image)
-        self.addAction(action_copy)
-        
-        # 移除原有的复制形状快捷键绑定，避免冲突
-        if hasattr(self.actions, 'copy'):
-            self.actions.copy.setShortcut("")  # 清空原有快捷键
-
+        try:
+            copy_file_to_clipboard(file_path)
+            notification(
+                "复制成功",
+                "图片已复制到剪贴板，可直接粘贴为文件。",
+                ToastPreset.SUCCESS,
+            )
+        except Exception as e:
+            notification(
+                "复制失败",
+                str(e),
+                ToastPreset.ERROR,
+            )
+     # ------------ Ctrl + C 触发函数 end ------------
 
     def fileSelectionChanged(self):
         if not self.is_all_shapes_valid():
@@ -1079,7 +1076,6 @@ class MainWindow(MainWindow):
         self._init_file_list_widget()
         self._init_rotate_shape_action()
 
-
         def canvas_move(pos: QtCore.QPoint):
             try:
                 if self.canvas.pixmap.isNull():
@@ -1095,6 +1091,7 @@ class MainWindow(MainWindow):
                     "显示rgb值失败!", traceback.format_exc(), ToastPreset.ERROR
                 )
                 logger.error(traceback.format_exc())
+
         self.canvas.mouseMoved.disconnect()
         self.canvas.mouseMoved.connect(canvas_move)
 
@@ -1851,7 +1848,6 @@ class MainWindow(MainWindow):
 
     # ------------ 旋转框 end ------------
 
-
     # ------------ 属性查看方法 ------------
     def display_shape_attr(self):
         if not self.canvas.selectedShapes:
@@ -1886,11 +1882,11 @@ class MainWindow(MainWindow):
         # 创建并显示窗口
         attr_widget = viewAttribute(attr['width'], attr['height'], attr['area'], parent=self)
         attr_widget.setGeometry(window_x, window_y, window_width, window_height)
-        attr_widget.setWindowTitle(f"属性 - {shape.label if shape.label else f'标注{index+1}'}")
+        attr_widget.setWindowTitle(f"属性 - {shape.label if shape.label else f'标注{index + 1}'}")
         attr_widget.setWindowFlags(
             QtCore.Qt.Window |
-            QtCore.Qt.WindowCloseButtonHint | # 关闭按钮
-            QtCore.Qt.WindowStaysOnTopHint # 保持窗口在其他窗口之上
+            QtCore.Qt.WindowCloseButtonHint |  # 关闭按钮
+            QtCore.Qt.WindowStaysOnTopHint  # 保持窗口在其他窗口之上
         )
         attr_widget.show()
         attr_widget.raise_()
@@ -1960,6 +1956,7 @@ class MainWindow(MainWindow):
         if sizes:
             sizes = int(sizes[0]), int(sizes[1])
             self.centralWidget().setSizes(sizes)
+
 
 class ProjEnum:
     NORMAL = '常规'
