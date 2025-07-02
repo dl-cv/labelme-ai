@@ -127,6 +127,7 @@ class MainWindow(MainWindow):
         self._init_dev_mode()
         self._init_ui()
 
+        self._init_edit_mode_action()  # 初始化编辑模式切换动作
         # 使用 store 存储数据
         STORE.set_edit_label_name(self._edit_label)
 
@@ -1890,6 +1891,33 @@ class MainWindow(MainWindow):
         )
         attr_widget.show()
         attr_widget.raise_()
+
+
+    # ------------ 编辑和绘制状态切换新动作 ------------
+    def _init_edit_mode_action(self):
+        # 创建一个新动作用于编辑和绘制状态切换
+        self.edit_mode_action = QtWidgets.QAction("编辑和绘制状态切换", self)
+        self.edit_mode_action.setShortcut(
+            STORE.get_config()['shortcuts']['edit_mode']
+        )
+        self.addAction(self.edit_mode_action)
+        self.edit_mode_action.triggered.connect(self.toggle_edit_mode)
+
+
+    # 添加一个新的动作用于编辑和绘制状态切换
+    def toggle_edit_mode(self):
+
+        # 如果当前在绘制状态,切换到编辑状态
+        if not self.canvas.editing():
+            # 记录当前的绘制模式
+            self._prev_create_mode = self.canvas.createMode
+            self.toggleDrawMode(True)
+        else:
+            # 如果在编辑状态,切换回之前的绘制模式
+            if hasattr(self, '_prev_create_mode'):
+                self.toggleDrawMode(False, createMode=self._prev_create_mode)
+            else:
+                notification("请先进行一次标注", "请先进行一次标注后再切换编辑模式", ToastPreset.WARNING)
 
     # ------------ 属性查看方法 end ------------
 

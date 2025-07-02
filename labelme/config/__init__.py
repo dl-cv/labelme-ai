@@ -85,6 +85,9 @@ extra_shortcuts = {
     # 旋转框快捷键
     'rotate_left': 'Z',
     'rotate_right': 'X',
+
+    # 编辑和绘制状态切换
+    'edit_mode': '2',
 }
 
 
