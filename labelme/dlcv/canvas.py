@@ -5,7 +5,7 @@ import labelme.utils
 from labelme import __appname__, logger
 from labelme.widgets.canvas import *
 from labelme.shape import Shape
-from labelme.dlcv.shape import Shape
+from labelme.dlcv.shape import Shape, ShapeType
 from labelme.dlcv.store import STORE
 
 
@@ -25,6 +25,12 @@ class CustomCanvasAttr:
         # AI多边形简化参数
         self.ai_polygon_simplify_enabled = True  # 是否启用简化
         self.ai_polygon_simplify_epsilon = 0.002  # 简化程度，值越大简化越多
+        
+        # 同步STORE中的简化参数
+        if hasattr(STORE, 'canvas_ai_polygon_simplify'):
+            self.ai_polygon_simplify_enabled = STORE.canvas_ai_polygon_simplify
+        if hasattr(STORE, 'canvas_ai_polygon_simplify_epsilon'):
+            self.ai_polygon_simplify_epsilon = STORE.canvas_ai_polygon_simplify_epsilon
 
 
 from labelme.dlcv.shape import Shape
@@ -1636,9 +1642,9 @@ class Canvas(Canvas, CustomCanvasAttr):
         if self.createMode in ["ai_polygon", "ai_mask"] and self.shapes and len(self.shapes) > 0:
             last_shape = self.shapes[-1]
             if last_shape.shape_type == "polygon" and len(last_shape.points) > 3:
-                print('开始简化AI多边形点数')
+                # print('开始简化AI多边形点数')
                 self.simplifyShapePoints(last_shape)
-                print(f'简化完成，点数: {len(last_shape.points)}')
+                # print(f'简化完成，点数: {len(last_shape.points)}')
                 
 
         # 如果仍在绘图模式，为下一次绘制准备好line
@@ -1679,6 +1685,7 @@ class Canvas(Canvas, CustomCanvasAttr):
         # 保存当前绘制模式，以便在取消操作时能正确处理
         self._lastCreateMode = self.createMode
 
+    # AI多边形简化方法
     def simplifyShapePoints(self, shape):
         """简化指定形状的轮廓点数量
         
@@ -1686,10 +1693,6 @@ class Canvas(Canvas, CustomCanvasAttr):
             shape: 要简化的形状对象
         """
         if not shape or len(shape.points) < 4:
-            return
-            
-        # 检查是否启用简化
-        if not self.ai_polygon_simplify_enabled:
             return
             
         try:
@@ -1703,8 +1706,13 @@ class Canvas(Canvas, CustomCanvasAttr):
             
             contour = np.array(points, dtype=np.int32).reshape(-1, 1, 2)
             
-            # 使用可配置的简化参数
-            epsilon = self.ai_polygon_simplify_epsilon * cv2.arcLength(contour, True)
+            # 使用可配置的简化参数（优先使用STORE中的设置）
+            if hasattr(STORE, 'canvas_ai_polygon_simplify_epsilon'):
+                epsilon_factor = STORE.canvas_ai_polygon_simplify_epsilon
+            else:
+                epsilon_factor = self.ai_polygon_simplify_epsilon
+                
+            epsilon = epsilon_factor * cv2.arcLength(contour, True)
             approx = cv2.approxPolyDP(contour, epsilon, True)
             
             # 转换回点列表格式
@@ -1716,41 +1724,11 @@ class Canvas(Canvas, CustomCanvasAttr):
             if len(simplified_points) >= 3:
                 original_count = len(shape.points)
                 shape.points = simplified_points
-                logger.debug(f"简化形状轮廓点: {original_count} -> {len(simplified_points)} (epsilon_factor={self.ai_polygon_simplify_epsilon})")
                 
         except ImportError:
             logger.warning("OpenCV not available, skipping shape simplification")
         except Exception as e:
             logger.error(f"Error simplifying shape points: {str(e)}")
-
-    def setAiPolygonSimplifyEnabled(self, enabled: bool):
-        """设置是否启用AI多边形简化
-        
-        Args:
-            enabled: 是否启用简化
-        """
-        self.ai_polygon_simplify_enabled = enabled
-        
-    def setAiPolygonSimplifyEpsilon(self, epsilon_factor: float):
-        """设置AI多边形简化程度
-        
-        Args:
-            epsilon_factor: 简化程度，值越大简化越多
-                          - 0.001: 轻微简化
-                          - 0.002: 默认简化
-                          - 0.005: 较多简化
-                          - 0.01: 大量简化
-        """
-        self.ai_polygon_simplify_epsilon = max(0.0001, epsilon_factor)  # 确保最小值
-        
-    def getAiPolygonSimplifyEnabled(self) -> bool:
-        """获取是否启用AI多边形简化"""
-        return self.ai_polygon_simplify_enabled
-        
-    def getAiPolygonSimplifyEpsilon(self) -> float:
-        """获取AI多边形简化程度"""
-        return self.ai_polygon_simplify_epsilon
-
 
 def polygon_intersects_curve(polygon, curve):
     def point_in_polygon(point, polygon):

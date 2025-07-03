@@ -128,7 +128,6 @@ class MainWindow(MainWindow):
         self._init_ui()
 
         self._init_edit_mode_action()  # 初始化编辑模式切换动作
-        # 使用 store 存储数据
         STORE.set_edit_label_name(self._edit_label)
 
     # https://bbs.dlcv.com.cn/t/topic/590
@@ -1319,6 +1318,17 @@ class MainWindow(MainWindow):
                         "value": STORE.canvas_display_rotation_arrow,
                         "default": STORE.canvas_display_rotation_arrow,
                     },
+                    {
+                        "name": "ai_polygon_simplify_epsilon",
+                        "title": tr("AI多边形简化参数设置"),
+                        "type": "float",
+                        "value": STORE.canvas_ai_polygon_simplify_epsilon,
+                        "default": STORE.canvas_ai_polygon_simplify_epsilon,
+                        "min": 0.001,
+                        "max": 0.01,
+                        "step": 0.001,
+                        "tip": "简化程度，值越大简化越多\n0.001: 轻微简化\n0.002: 默认简化\n0.005: 较多简化\n0.01: 大量简化",
+                    }
                 ],
             },
         ]
@@ -1413,6 +1423,10 @@ class MainWindow(MainWindow):
                 self.parameter.child("other_setting", "scale_option").setValue(
                     setting_store.get("scale_option", ScaleEnum.AUTO_SCALE)
                 )
+                # 新增：恢复AI多边形简化参数设置
+                self.parameter.child("label_setting", "ai_polygon_simplify_epsilon").setValue(
+                    setting_store.get("canvas_ai_polygon_simplify_epsilon", 0.002)
+                )
                 # 更新STORE中的值
                 STORE.set_canvas_brush_fill_region(
                     setting_store.get("canvas_brush_fill_region", True)
@@ -1422,6 +1436,9 @@ class MainWindow(MainWindow):
                 )
                 STORE.set_canvas_brush_size(
                     setting_store.get("canvas_brush_size", 3)
+                )
+                STORE.set_canvas_ai_polygon_simplify_epsilon(
+                    setting_store.get("canvas_ai_polygon_simplify_epsilon", 0.002)
                 )
 
         restore_setting()
@@ -1466,6 +1483,9 @@ class MainWindow(MainWindow):
                     STORE.set_canvas_highlight_start_point(new_value)
                 elif param_name == "display_rotation_arrow":
                     STORE.set_canvas_display_rotation_arrow(new_value)
+                elif param_name == "ai_polygon_simplify_epsilon":
+                    # 处理epsilon参数的变化
+                    STORE.set_canvas_ai_polygon_simplify_epsilon(new_value)
                 elif param_name == "brush_enabled":
                     # 检查当前模式是否为多边形标注模式
                     if not self.canvas.editing() and self.canvas.createMode != "polygon" and new_value:
@@ -1921,20 +1941,6 @@ class MainWindow(MainWindow):
                 notification("请先进行一次标注", "请先进行一次标注后再切换编辑模式", ToastPreset.WARNING)
     # ------------ 编辑和绘制状态切换新动作 end ------------
 
-    # ------------ AI多边形点数简化动作 ------------
-    def _init_ai_polygon_simplify_action(self):
-        self.ai_polygon_simplify_action = QtWidgets.QAction("AI多边形点数简化", self)
-        self.ai_polygon_simplify_action.setShortcut(
-            STORE.get_config()['shortcuts']['ai_polygon_simplify']
-        )
-        self.addAction(self.ai_polygon_simplify_action)
-        self.ai_polygon_simplify_action.triggered.connect(self.ai_polygon_simplify)
-
-    from canvas import simplifyShapePoints
-    def ai_polygon_simplify(self):
-        for shape in self.canvas.shapes:
-            if shape.shape_type == "polygon":
-                self.canvas.simplifyShapePoints(shape)
 
     # ------------ 3D 视图 ------------
     def _init_3d_widget(self):

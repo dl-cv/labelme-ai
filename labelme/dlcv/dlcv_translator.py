@@ -53,6 +53,7 @@ tr_map = {
         'open next image': '下一幅',
         'open previous image': '上一幅',
         'highlight start point': '高亮起始点',
+        'ai polygon simplify epsilon': 'AI多边形简化参数设置',
 
         # 项目类型
         'project setting': '项目设置',
