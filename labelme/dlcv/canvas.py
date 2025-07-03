@@ -1,12 +1,8 @@
-import math
-from PyQt5 import QtCore, QtGui
-from shapely.geometry import LineString, MultiPolygon, Point, Polygon
-import labelme.utils
-from labelme import __appname__, logger
+from shapely import Polygon, Point, LineString, MultiPolygon
+import math  # 添加math模块导入
+
 from labelme.widgets.canvas import *
-from labelme.shape import Shape
-from labelme.dlcv.shape import Shape, ShapeType
-from labelme.dlcv.store import STORE
+from labelme.dlcv.shape import ShapeType
 
 
 class CustomCanvasAttr:
@@ -21,7 +17,11 @@ class CustomCanvasAttr:
         self.brush_drawing = False  # 是否正在使用画笔绘制
         self.brush_erase_mode = False  # 是否为消除模式（右键）
         self.brush_points = []  # 画笔绘制的点集
-        
+
+
+from labelme.dlcv.shape import Shape
+from labelme.dlcv.store import STORE
+
 
 class Canvas(Canvas, CustomCanvasAttr):
     current: Shape = None
@@ -1619,10 +1619,10 @@ class Canvas(Canvas, CustomCanvasAttr):
                 # 如果点不够，取消创建旋转框
                 self.current = None
                 return
-            
+
         # 调用父类的finalise方法完成提交
         super().finalise()
-                
+
         # 如果仍在绘图模式，为下一次绘制准备好line
         if self.createMode == "polygon":
             if self.current is not None:
@@ -1661,7 +1661,6 @@ class Canvas(Canvas, CustomCanvasAttr):
         # 保存当前绘制模式，以便在取消操作时能正确处理
         self._lastCreateMode = self.createMode
 
-    
 
 def polygon_intersects_curve(polygon, curve):
     def point_in_polygon(point, polygon):
