@@ -1636,17 +1636,7 @@ class Canvas(Canvas, CustomCanvasAttr):
             
         # 调用父类的finalise方法完成提交
         super().finalise()
-
-        # 在父类的finalise之后，对AI生成的多边形进行点数简化
-        # 此时AI已经生成了轮廓点，并且形状已经被添加到shapes列表中
-        if self.createMode in ["ai_polygon", "ai_mask"] and self.shapes and len(self.shapes) > 0:
-            last_shape = self.shapes[-1]
-            if last_shape.shape_type == "polygon" and len(last_shape.points) > 3:
-                # print('开始简化AI多边形点数')
-                self.simplifyShapePoints(last_shape)
-                # print(f'简化完成，点数: {len(last_shape.points)}')
                 
-
         # 如果仍在绘图模式，为下一次绘制准备好line
         if self.createMode == "polygon":
             if self.current is not None:
@@ -1685,50 +1675,7 @@ class Canvas(Canvas, CustomCanvasAttr):
         # 保存当前绘制模式，以便在取消操作时能正确处理
         self._lastCreateMode = self.createMode
 
-    # AI多边形简化方法
-    def simplifyShapePoints(self, shape):
-        """简化指定形状的轮廓点数量
-        
-        Args:
-            shape: 要简化的形状对象
-        """
-        if not shape or len(shape.points) < 4:
-            return
-            
-        try:
-            import cv2
-            import numpy as np
-            
-            # 将形状的点转换为OpenCV格式
-            points = []
-            for point in shape.points:
-                points.append([int(point.x()), int(point.y())])
-            
-            contour = np.array(points, dtype=np.int32).reshape(-1, 1, 2)
-            
-            # 使用可配置的简化参数（优先使用STORE中的设置）
-            if hasattr(STORE, 'canvas_ai_polygon_simplify_epsilon'):
-                epsilon_factor = STORE.canvas_ai_polygon_simplify_epsilon
-            else:
-                epsilon_factor = self.ai_polygon_simplify_epsilon
-                
-            epsilon = epsilon_factor * cv2.arcLength(contour, True)
-            approx = cv2.approxPolyDP(contour, epsilon, True)
-            
-            # 转换回点列表格式
-            simplified_points = []
-            for p in approx:
-                simplified_points.append(QtCore.QPointF(p[0][0], p[0][1]))
-            
-            # 如果简化后的点数仍然足够，则使用简化后的点
-            if len(simplified_points) >= 3:
-                original_count = len(shape.points)
-                shape.points = simplified_points
-                
-        except ImportError:
-            logger.warning("OpenCV not available, skipping shape simplification")
-        except Exception as e:
-            logger.error(f"Error simplifying shape points: {str(e)}")
+    
 
 def polygon_intersects_curve(polygon, curve):
     def point_in_polygon(point, polygon):
