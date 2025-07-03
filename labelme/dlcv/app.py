@@ -388,7 +388,8 @@ class MainWindow(MainWindow):
             "canvas_brush_fill_region": STORE.canvas_brush_fill_region,
             "canvas_brush_enabled": STORE.canvas_brush_enabled,  # 新增：保存画笔标注设置
             "canvas_brush_size": STORE.canvas_brush_size,  # 新增：保存画笔大小
-            "scale_option": self.parameter.child("other_setting", "scale_option").value()
+            "scale_option": self.parameter.child("other_setting", "scale_option").value(),
+            "ai_polygon_simplify_epsilon": self.parameter.child("label_setting", "ai_polygon_simplify_epsilon").value()
         }
         self.settings.setValue("setting_store", setting_store)
         self.__store_splitter_sizes()
@@ -1432,7 +1433,7 @@ class MainWindow(MainWindow):
                 )
                 # 新增：恢复AI多边形简化参数设置
                 self.parameter.child("label_setting", "ai_polygon_simplify_epsilon").setValue(
-                    setting_store.get("canvas_ai_polygon_simplify_epsilon", 0.002)
+                    setting_store.get("ai_polygon_simplify_epsilon", 0.002)
                 )
                 # 更新STORE中的值
                 STORE.set_canvas_brush_fill_region(
