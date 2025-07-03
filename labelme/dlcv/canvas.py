@@ -22,16 +22,6 @@ class CustomCanvasAttr:
         self.brush_erase_mode = False  # 是否为消除模式（右键）
         self.brush_points = []  # 画笔绘制的点集
         
-        # AI多边形简化参数
-        self.ai_polygon_simplify_enabled = True  # 是否启用简化
-        self.ai_polygon_simplify_epsilon = 0.002  # 简化程度，值越大简化越多
-        
-        # 同步STORE中的简化参数
-        if hasattr(STORE, 'canvas_ai_polygon_simplify'):
-            self.ai_polygon_simplify_enabled = STORE.canvas_ai_polygon_simplify
-        if hasattr(STORE, 'canvas_ai_polygon_simplify_epsilon'):
-            self.ai_polygon_simplify_epsilon = STORE.canvas_ai_polygon_simplify_epsilon
-
 
 from labelme.dlcv.shape import Shape
 from labelme.dlcv.store import STORE

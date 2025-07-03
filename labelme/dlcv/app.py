@@ -1329,8 +1329,8 @@ class MainWindow(MainWindow):
                         "name": "ai_polygon_simplify_epsilon",
                         "title": tr("AI多边形简化参数设置"),
                         "type": "float",
-                        "value": STORE.canvas_ai_polygon_simplify_epsilon,
-                        "default": STORE.canvas_ai_polygon_simplify_epsilon,
+                        "value": 0.002,
+                        "default": 0.002,
                         "min": 0.001,
                         "max": 0.01,
                         "step": 0.001,
@@ -1444,10 +1444,7 @@ class MainWindow(MainWindow):
                 STORE.set_canvas_brush_size(
                     setting_store.get("canvas_brush_size", 3)
                 )
-                STORE.set_canvas_ai_polygon_simplify_epsilon(
-                    setting_store.get("canvas_ai_polygon_simplify_epsilon", 0.002)
-                )
-
+    
         restore_setting()
 
     def on_setting_dock_changed(
@@ -1490,9 +1487,6 @@ class MainWindow(MainWindow):
                     STORE.set_canvas_highlight_start_point(new_value)
                 elif param_name == "display_rotation_arrow":
                     STORE.set_canvas_display_rotation_arrow(new_value)
-                elif param_name == "ai_polygon_simplify_epsilon":
-                    # 处理epsilon参数的变化
-                    STORE.set_canvas_ai_polygon_simplify_epsilon(new_value)
                 elif param_name == "brush_enabled":
                     # 检查当前模式是否为多边形标注模式
                     if not self.canvas.editing() and self.canvas.createMode != "polygon" and new_value:
@@ -1790,11 +1784,7 @@ class MainWindow(MainWindow):
             
             contour = np.array(points, dtype=np.int32).reshape(-1, 1, 2)
             
-            # 使用可配置的简化参数（优先使用STORE中的设置）
-            if hasattr(STORE, 'canvas_ai_polygon_simplify_epsilon'):
-                epsilon_factor = STORE.canvas_ai_polygon_simplify_epsilon
-            else:
-                epsilon_factor = 0.002  # 默认值
+            epsilon_factor = self.parameter.child("label_setting", "ai_polygon_simplify_epsilon").value()  # 默认值
                 
             epsilon = epsilon_factor * cv2.arcLength(contour, True)
             approx = cv2.approxPolyDP(contour, epsilon, True)
@@ -1806,7 +1796,8 @@ class MainWindow(MainWindow):
             
             # 如果简化后的点数仍然足够，则使用简化后的点
             if len(simplified_points) >= 3:
-                original_count = len(shape.points)
+                # original_count = len(shape.points)
+                # logger.info(f"简化前点数: {len(shape.points)}, 简化后点数: {len(simplified_points)}, 简化程度: {epsilon_factor}")
                 shape.points = simplified_points
                 
         except ImportError:

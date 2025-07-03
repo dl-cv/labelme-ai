@@ -14,9 +14,6 @@ class Store:
     canvas_brush_size: int = 10  # 画笔大小
     canvas_brush_fill_region: bool = True  # 是否填充闭合区域
     canvas_brush_modify_shapes: bool = True  # 是否允许画笔修改现有形状
-    
-    # AI多边形简化相关参数
-    canvas_ai_polygon_simplify_epsilon: float = 0.002  # 简化程度
 
     auto_label_covered: bool = False
 
@@ -56,17 +53,6 @@ class Store:
     def set_canvas_brush_modify_shapes(self, value: bool):
         self.canvas_brush_modify_shapes = value
     
-    # AI多边形简化参数
-    def set_canvas_ai_polygon_simplify_epsilon(self, value: float):
-        """设置AI多边形简化程度 (0.001-0.01)"""
-        assert isinstance(value, (int, float))
-        # 限制epsilon在合理范围内
-        value = max(0.001, min(0.01, float(value)))
-        self.canvas_ai_polygon_simplify_epsilon = value
-        # 同步到canvas实例
-        if hasattr(self.__main_window, 'canvas') and self.__main_window.canvas:
-            self.__main_window.canvas.ai_polygon_simplify_epsilon = value
-
     # 注册 main_window 以供全局访问
     def register_main_window(self, main_window: 'MainWindow'):
         self.__main_window = main_window
