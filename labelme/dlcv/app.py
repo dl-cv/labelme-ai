@@ -1891,6 +1891,7 @@ class MainWindow(MainWindow):
         )
         attr_widget.show()
         attr_widget.raise_()
+    # ------------ 属性查看方法 end ------------
 
 
     # ------------ 编辑和绘制状态切换新动作 ------------
@@ -1918,8 +1919,22 @@ class MainWindow(MainWindow):
                 self.toggleDrawMode(False, createMode=self._prev_create_mode)
             else:
                 notification("请先进行一次标注", "请先进行一次标注后再切换编辑模式", ToastPreset.WARNING)
+    # ------------ 编辑和绘制状态切换新动作 end ------------
 
-    # ------------ 属性查看方法 end ------------
+    # ------------ AI多边形点数简化动作 ------------
+    def _init_ai_polygon_simplify_action(self):
+        self.ai_polygon_simplify_action = QtWidgets.QAction("AI多边形点数简化", self)
+        self.ai_polygon_simplify_action.setShortcut(
+            STORE.get_config()['shortcuts']['ai_polygon_simplify']
+        )
+        self.addAction(self.ai_polygon_simplify_action)
+        self.ai_polygon_simplify_action.triggered.connect(self.ai_polygon_simplify)
+
+    from canvas import simplifyShapePoints
+    def ai_polygon_simplify(self):
+        for shape in self.canvas.shapes:
+            if shape.shape_type == "polygon":
+                self.canvas.simplifyShapePoints(shape)
 
     # ------------ 3D 视图 ------------
     def _init_3d_widget(self):
