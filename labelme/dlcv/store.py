@@ -52,7 +52,7 @@ class Store:
 
     def set_canvas_brush_modify_shapes(self, value: bool):
         self.canvas_brush_modify_shapes = value
-
+    
     # 注册 main_window 以供全局访问
     def register_main_window(self, main_window: 'MainWindow'):
         self.__main_window = main_window

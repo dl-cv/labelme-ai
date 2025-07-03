@@ -128,7 +128,6 @@ class MainWindow(MainWindow):
         self._init_ui()
 
         self._init_edit_mode_action()  # 初始化编辑模式切换动作
-        # 使用 store 存储数据
         STORE.set_edit_label_name(self._edit_label)
 
     # https://bbs.dlcv.com.cn/t/topic/590
@@ -389,7 +388,8 @@ class MainWindow(MainWindow):
             "canvas_brush_fill_region": STORE.canvas_brush_fill_region,
             "canvas_brush_enabled": STORE.canvas_brush_enabled,  # 新增：保存画笔标注设置
             "canvas_brush_size": STORE.canvas_brush_size,  # 新增：保存画笔大小
-            "scale_option": self.parameter.child("other_setting", "scale_option").value()
+            "scale_option": self.parameter.child("other_setting", "scale_option").value(),
+            "ai_polygon_simplify_epsilon": self.parameter.child("label_setting", "ai_polygon_simplify_epsilon").value()
         }
         self.settings.setValue("setting_store", setting_store)
         self.__store_splitter_sizes()
@@ -593,6 +593,14 @@ class MainWindow(MainWindow):
 
         position MUST be in global coordinates.
         """
+        # 在弹窗前先处理AI多边形简化
+        if self.canvas.createMode == "ai_polygon" and self.canvas.shapes:
+            last_shape = self.canvas.shapes[-1]
+            if last_shape.shape_type == "polygon" and len(last_shape.points) > 3:
+                # print('简化前点数: ', len(last_shape.points))
+                self.simplifyShapePoints(last_shape)
+                # print('简化后点数: ', len(last_shape.points))
+        
         items = self.uniqLabelList.selectedItems()
         text = None
         if items:
@@ -626,7 +634,6 @@ class MainWindow(MainWindow):
             # extra AI自动标注，有可能出现不合法的多边形
             if self.canvas.createMode == "ai_polygon":
                 shape = self.fix_shape(shape)
-
             self.addLabel(shape)
             self.actions.editMode.setEnabled(True)
             self.actions.undoLastPoint.setEnabled(False)
@@ -1319,6 +1326,17 @@ class MainWindow(MainWindow):
                         "value": STORE.canvas_display_rotation_arrow,
                         "default": STORE.canvas_display_rotation_arrow,
                     },
+                    {
+                        "name": "ai_polygon_simplify_epsilon",
+                        "title": tr("AI多边形简化参数设置"),
+                        "type": "float",
+                        "value": 0.002,
+                        "default": 0.002,
+                        "min": 0.001,
+                        "max": 0.01,
+                        "step": 0.001,
+                        "tip": "简化程度，值越大简化越多\n0.001: 轻微简化\n0.002: 默认简化\n0.005: 较多简化\n0.01: 大量简化",
+                    }
                 ],
             },
         ]
@@ -1413,6 +1431,10 @@ class MainWindow(MainWindow):
                 self.parameter.child("other_setting", "scale_option").setValue(
                     setting_store.get("scale_option", ScaleEnum.AUTO_SCALE)
                 )
+                # 新增：恢复AI多边形简化参数设置
+                self.parameter.child("label_setting", "ai_polygon_simplify_epsilon").setValue(
+                    setting_store.get("ai_polygon_simplify_epsilon", 0.002)
+                )
                 # 更新STORE中的值
                 STORE.set_canvas_brush_fill_region(
                     setting_store.get("canvas_brush_fill_region", True)
@@ -1423,7 +1445,7 @@ class MainWindow(MainWindow):
                 STORE.set_canvas_brush_size(
                     setting_store.get("canvas_brush_size", 3)
                 )
-
+    
         restore_setting()
 
     def on_setting_dock_changed(
@@ -1742,6 +1764,48 @@ class MainWindow(MainWindow):
                     shape.addPoint(QtCore.QPointF(point[0], point[1]))
         return shape
 
+    def simplifyShapePoints(self, shape):
+        """简化指定形状的轮廓点数量
+        
+        Args:
+            shape: 要简化的形状对象
+        """
+        if not shape or len(shape.points) < 4:
+            return
+            
+        try:
+            import cv2
+            import numpy as np
+            from PyQt5 import QtCore
+            
+            # 将形状的点转换为OpenCV格式
+            points = []
+            for point in shape.points:
+                points.append([int(point.x()), int(point.y())])
+            
+            contour = np.array(points, dtype=np.int32).reshape(-1, 1, 2)
+            
+            epsilon_factor = self.parameter.child("label_setting", "ai_polygon_simplify_epsilon").value()  # 默认值
+                
+            epsilon = epsilon_factor * cv2.arcLength(contour, True)
+            approx = cv2.approxPolyDP(contour, epsilon, True)
+            
+            # 转换回点列表格式
+            simplified_points = []
+            for p in approx:
+                simplified_points.append(QtCore.QPointF(p[0][0], p[0][1]))
+            
+            # 如果简化后的点数仍然足够，则使用简化后的点
+            if len(simplified_points) >= 3:
+                # original_count = len(shape.points)
+                # logger.info(f"简化前点数: {len(shape.points)}, 简化后点数: {len(simplified_points)}, 简化程度: {epsilon_factor}")
+                shape.points = simplified_points
+                
+        except ImportError:
+            logger.warning("OpenCV not available, skipping shape simplification")
+        except Exception as e:
+            logger.error(f"Error simplifying shape points: {str(e)}")
+
     def is_shape_valid(self, shape: Shape) -> bool:
         points_pos = shape.get_points_pos()
         try:
@@ -1891,6 +1955,7 @@ class MainWindow(MainWindow):
         )
         attr_widget.show()
         attr_widget.raise_()
+    # ------------ 属性查看方法 end ------------
 
 
     # ------------ 编辑和绘制状态切换新动作 ------------
@@ -1918,8 +1983,8 @@ class MainWindow(MainWindow):
                 self.toggleDrawMode(False, createMode=self._prev_create_mode)
             else:
                 notification("请先进行一次标注", "请先进行一次标注后再切换编辑模式", ToastPreset.WARNING)
+    # ------------ 编辑和绘制状态切换新动作 end ------------
 
-    # ------------ 属性查看方法 end ------------
 
     # ------------ 3D 视图 ------------
     def _init_3d_widget(self):
