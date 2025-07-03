@@ -23,10 +23,6 @@ class CustomCanvasAttr:
         self.brush_points = []  # 画笔绘制的点集
         
 
-from labelme.dlcv.shape import Shape
-from labelme.dlcv.store import STORE
-
-
 class Canvas(Canvas, CustomCanvasAttr):
     current: Shape = None
     # 添加shapeDone信号
