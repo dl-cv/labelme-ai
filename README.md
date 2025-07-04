@@ -15,7 +15,7 @@ Labelme**无法自动保存json文件**，需手动点击保存，文件大小�
 ## 2、深度视觉LabelmeAI 图片可显示标签名称、RGB
 ![img_3.png](LabelmeImages/img_3.png)
 ## 3、深度视觉LabelmeAI加载、切换>4k大图速度较快
-深度视觉LabelmeAI切换图像，速度快、不卡顿**
+**深度视觉LabelmeAI切换图像，速度快、不卡顿**
 ![img_4.png](LabelmeImages/3_1图像切换.gif)
 **开源版Labelme切换图像，速度较慢、卡顿明显：**
 ![img_5.png](LabelmeImages/3_2图像切换.gif)
