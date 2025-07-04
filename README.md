@@ -1,4 +1,4 @@
-# 我们做了什么
+# ✌️我们做了什么
 * json 文件保存差异：开源版 labelme 不能自动保存 json 文件，需手动点击保存，且文件大小大于 100KB 。而深度视觉 LabelmeAI 可自动保存 json 文件，其文件大小仅在 5KB - 15KB 。例如在大量标注任务中，手动保存 json 文件会耗费时间，且较大文件占用更多存储空间，深度视觉 LabelmeAI 自动保存及较小文件大小则更具优势。
 * 图像显示与切换：深度视觉 LabelmeAI 的图片可显示标签名称、RGB，且加载、切换 4K 大图速度快，切换图像不卡顿。开源版 Labelme 切换图像速度慢且卡顿明显。在处理高清图像时，深度视觉 LabelmeAI 能流畅操作，为标注人员提供更好体验，如在标注 4K 分辨率的医学影像时，卡顿的开源版 labelme 会影响标注效率。
 * 标注功能对比：深度视觉 LabelmeAI 增加了画笔功能，并可调节滑动标注距离，而开源版 labelme 无此画笔功能，只能一直点击鼠标左键创建多边形点完成标注。例如在标注不规则图形时，深度视觉 LabelmeAI 的画笔功能可更灵活绘制，提高标注效率。
@@ -7,5 +7,5 @@
 
 详见：https://bbs.dlcv.com.cn/t/topic/515
 
-# Acknowledgement
+# 📑Acknowledgement
 This repo is the fork of [labelme](https://github.com/wkentaro/labelme)
