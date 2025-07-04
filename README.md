@@ -1,4 +1,4 @@
-# 简介
+# 📄 简介
 深度视觉LabelmeAI是一款基于LabelMe开源版进行深度重开发的更加智能的标注工具。 如名所示，这个工具与开源版本相比主要在于以下几点， 这些更改让你能够快速构建你的数据集。
 
 # ✌️我们做了什么
@@ -41,7 +41,7 @@ Labelme**无法自动保存json文件**，需手动点击保存，文件大小�
 深度视觉labelmeAI支持将原图转换成灰度图，灰度图消除了颜色的干扰，使得图像的形状和纹理更明显，同时还降低标注人员的眼睛疲劳感。开源版labelme不支持转换。\
 ![img_13.png](LabelmeImages/img_13.png)
 
-# 更多详细操作详见
+# 🔗 更多详细操作详见
 https://bbs.dlcv.com.cn/t/topic/160
-# 📑Acknowledgement
+# 🙇‍ Acknowledgement
 This repo is the fork of [labelme](https://github.com/wkentaro/labelme)
