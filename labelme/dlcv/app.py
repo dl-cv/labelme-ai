@@ -1082,7 +1082,7 @@ class MainWindow(MainWindow):
         self._init_setting_dock()
         self._init_3d_widget()
         self._init_file_list_widget()
-        self._init_rotate_shape_action()
+        self._init_trigger_action()
 
         def canvas_move(pos: QtCore.QPoint):
             try:
@@ -1859,59 +1859,72 @@ class MainWindow(MainWindow):
                 draw_action.setEnabled(createMode != draw_mode)
         self.actions.editMode.setEnabled(not edit)
 
-    # ------------ 旋转框 ------------
-    def _init_rotate_shape_action(self):
+    # ------------ zx触发事件动作 ------------
+    def _init_trigger_action(self):
         # 创建逆时针旋转动作
-        self.rotate_left_action = QtWidgets.QAction("逆时针旋转", self)
-        self.rotate_left_action.setShortcut(
-            STORE.get_config()['shortcuts']['rotate_left']
+        self.z_action = QtWidgets.QAction("逆时针旋转", self)
+        self.z_action.setShortcut(
+            STORE.get_config()['shortcuts']['z_trigger']
         )
         # 添加到菜单
-        self.addAction(self.rotate_left_action)
+        self.addAction(self.z_action)
 
         # 创建顺时针旋转动作
-        self.rotate_right_action = QtWidgets.QAction("顺时针旋转", self)
-        self.rotate_right_action.setShortcut(
-            STORE.get_config()['shortcuts']['rotate_right']
+        self.x_action = QtWidgets.QAction("顺时针旋转", self)
+        self.x_action.setShortcut(
+            STORE.get_config()['shortcuts']['x_trigger']
         )
         # 添加到菜单
-        self.addAction(self.rotate_right_action)
+        self.addAction(self.x_action)
 
         # 连接信号
-        self.rotate_left_action.triggered.connect(lambda: self.rotate_shape(angle=1.0, direction="left"))
-        self.rotate_right_action.triggered.connect(lambda: self.rotate_shape(angle=1.0, direction="right"))
+        self.z_action.triggered.connect(lambda: self.trigger_action(angle=1.0, direction="left"))
+        self.x_action.triggered.connect(lambda: self.trigger_action(angle=1.0, direction="right"))
 
-    # 旋转框旋转
-    def rotate_shape(self, angle: float = 1.0, direction: str = "left"):
-        """旋转选中的旋转框,支持多选"""
+    # z\x键触发
+    def trigger_action(self, angle: float = 1.0, direction: str = "left"):
+        # 如果在绘制模式下
+        if self.canvas.drawing():
+            # 如果有上一个移动点,直接标注该点
+            if self.canvas.prevMovePoint:
+                # 创建鼠标按下事件来模拟点击
+                mouse_event = QtGui.QMouseEvent(
+                    QtCore.QEvent.MouseButtonPress,
+                    self.canvas.prevMovePoint,
+                    QtCore.Qt.LeftButton,
+                    QtCore.Qt.LeftButton,
+                    QtCore.Qt.NoModifier
+                )
+                # 触发鼠标点击事件来标注点
+                self.canvas.mousePressEvent(mouse_event, need_transform=False)  # 修改为直接调用canvas的事件处理
+        # extra End
+        else:
+            if not self.canvas.selectedShapes:
+                return
 
-        if not self.canvas.selectedShapes:
-            return
+            # 遍历所有选中的形状
+            for shape in self.canvas.selectedShapes:
+                # 检查是否为旋转框类型
+                if shape.shape_type != "rotation":
+                    continue
 
-        # 遍历所有选中的形状
-        for shape in self.canvas.selectedShapes:
-            # 检查是否为旋转框类型
-            if shape.shape_type != "rotation":
-                continue
+                if direction == "left":
+                    # 执行逆时针旋转（减少角度）
+                    shape.direction -= angle
+                    # 保证direction在0-360度之间
+                    shape.direction = shape.direction % 360
 
-            if direction == "left":
-                # 执行逆时针旋转（减少角度）
-                shape.direction -= angle
-                # 保证direction在0-360度之间
-                shape.direction = shape.direction % 360
+                    # 调用画布的旋转方法，传入对象和旋转角度
+                    self.canvas.rotateShape(shape, -angle)
+                else:
+                    shape.direction += angle
+                    shape.direction = shape.direction % 360
+                    self.canvas.rotateShape(shape, angle)
 
-                # 调用画布的旋转方法，传入对象和旋转角度
-                self.canvas.rotateShape(shape, -angle)
-            else:
-                shape.direction += angle
-                shape.direction = shape.direction % 360
-                self.canvas.rotateShape(shape, angle)
+            # 更新显示和保存
+            self.canvas.shapeMoved.emit()
+            self.canvas.update()
 
-        # 更新显示和保存
-        self.canvas.shapeMoved.emit()
-        self.canvas.update()
-
-    # ------------ 旋转框 end ------------
 
     # ------------ 属性查看方法 ------------
     def display_shape_attr(self):

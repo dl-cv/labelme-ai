@@ -82,9 +82,9 @@ extra_shortcuts = {
     # 设置面板快捷键:
     'display_shape_label': 'C',
 
-    # 旋转框快捷键
-    'rotate_left': 'Z',
-    'rotate_right': 'X',
+    # 特殊触发键：不要修改快捷键，
+    'z_trigger': 'Z',
+    'x_trigger': 'X',
 
     # 编辑和绘制状态切换
     'edit_mode': '2',
