@@ -1299,19 +1299,7 @@ class Canvas(Canvas, CustomCanvasAttr):
                 self.update()
                 return
 
-        # extra Z键直接标注点
-        if self.drawing():
-            # Z键直接标注点
-            if key == QtCore.Qt.Key_Z and self.prevMovePoint:
-                mouse_event = QtGui.QMouseEvent(
-                    QtCore.QEvent.MouseButtonPress,
-                    self.prevMovePoint,
-                    QtCore.Qt.LeftButton,
-                    QtCore.Qt.LeftButton,
-                    QtCore.Qt.NoModifier,
-                )
-                self.mousePressEvent(mouse_event, need_transform=False)
-        # extra End
+        
         
                 
     def rotateShape(self, shape, angle):
