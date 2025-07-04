@@ -1897,10 +1897,6 @@ class MainWindow(MainWindow):
                 )
                 # 触发鼠标点击事件来标注点
                 self.canvas.mousePressEvent(mouse_event)  # 修改为直接调用canvas的事件处理
-                # 发送形状移动信号
-                self.canvas.shapeMoved.emit()
-                # 更新画布
-                self.canvas.update()
         # extra End
         else:
             if not self.canvas.selectedShapes:
