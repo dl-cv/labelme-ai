@@ -47,5 +47,9 @@ Labelme**无法自动保存json文件**，需手动点击保存，文件大小�
 **9、深度视觉labelmeAI支持将原图转换成灰度图**\
 深度视觉labelmeAI支持将原图转换成灰度图，灰度图消除了颜色的干扰，使得图像的形状和纹理更明显，同时还降低标注人员的眼睛疲劳感。开源版labelme不支持转换。\
 ![img_13.png](LabelmeImages/img_13.png)
+10、
+
+# 更多详细操作详见
+https://bbs.dlcv.com.cn/t/topic/160
 # 📑Acknowledgement
 This repo is the fork of [labelme](https://github.com/wkentaro/labelme)
