@@ -60,7 +60,9 @@ labelme 设置中支持不显示标签名称，并设置了快捷键C
 
 
 # 🔗 更多详细操作详见
-https://bbs.dlcv.com.cn/t/topic/160
+## https://bbs.dlcv.com.cn/t/topic/160  
+
+
 # 未来将会持续完善功能， 请持续关注， 如果觉得好用的话 请给个star ⭐
 # 🙇‍ Acknowledgement
 This repo is the fork of [labelme](https://github.com/wkentaro/labelme)
