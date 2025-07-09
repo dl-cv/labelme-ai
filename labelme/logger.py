@@ -60,3 +60,17 @@ handler_format = ColoredFormatter(
 stream_handler.setFormatter(handler_format)
 
 logger.addHandler(stream_handler)
+
+# windows 平台
+if os.name == "nt":
+    log_path = fr'C:\dlcv\Lib\site-packages\dlcv_labelme_ai\{__appname__}.log'
+
+    # 大于500MB
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    if os.path.exists(log_path):
+        if os.path.getsize(log_path) > 500 * 1024 * 1024:
+            os.remove(log_path)
+
+    file_handler = logging.FileHandler(log_path, mode="a")
+    file_handler.setFormatter(handler_format)
+    logger.addHandler(file_handler)
