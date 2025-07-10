@@ -27,11 +27,8 @@ class ProjManager:
             return img_path
 
     @property
-    def __is_3d(self):
-        try:
-            return STORE.main_window.is_3d
-        except:
-            return self._is_3d  # 测试用
+    def _is_3d(self):
+        return STORE.main_window.is_3d
 
     def is_3d_data(self, img_path: str):
         suffix = Path(img_path).suffix
@@ -56,7 +53,7 @@ class ProjManager:
         return [gray_img_name, depth_img_name, gray_img_name]
 
     def get_json_path(self, img_path: str) -> str:
-        if not self.__is_3d or not self.is_3d_data(img_path):
+        if not self._is_3d or not self.is_3d_data(img_path):
             return str(Path(img_path).with_suffix('.json'))
 
         suffix = Path(img_path).suffix
@@ -64,11 +61,21 @@ class ProjManager:
         return gray_img_path.replace(f'_G{suffix}', '.json')
 
 
+class TestProjManager(ProjManager):
+
+    def __init__(self):
+        self.is_3d_flag = False
+
+    @property
+    def _is_3d(self):
+        return self.is_3d_flag
+
+
 def test_manager():
-    manager_test = ProjManager()
+    manager_test = TestProjManager()
 
     # 常规项目 - 常规数据
-    manager_test._is_3d = False
+    manager_test.is_3d_flag = False
     test_normal_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\145053828_e0e748717c_b.jpg"
     test_normal_json_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\145053828_e0e748717c_b.json"
 
@@ -82,7 +89,7 @@ def test_manager():
     assert json_path_1 == test_normal_json_path
 
     # 3D 项目 - 常规数据
-    manager_test._is_3d = True
+    manager_test.is_3d_flag = True
     test_normal_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\145053828_e0e748717c_b.jpg"
     test_normal_json_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\145053828_e0e748717c_b.json"
 
@@ -96,7 +103,7 @@ def test_manager():
     assert json_path_1 == test_normal_json_path
 
     # 3D 项目 - 3D数据
-    manager_test._is_3d = True
+    manager_test.is_3d_flag = True
     test_gray_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\0021_18-57-01_28057__1_G.tiff"
     test_depth_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\0021_18-57-01_28057__1_H.tiff"
     test_json_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\0021_18-57-01_28057__1.json"
