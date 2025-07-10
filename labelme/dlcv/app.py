@@ -41,7 +41,7 @@ from labelme.dlcv.shape import Shape
 from typing import List
 from labelme.dlcv.widget.viewAttribute import get_shape_attribute, get_window_position, viewAttribute
 from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
-from labelme.dlcv.widget_3d.manager import ProjManager, ProjEnum
+from labelme.dlcv.widget_3d.manager import ProjManager, ProjTypeEnum
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 
@@ -601,7 +601,7 @@ class MainWindow(MainWindow):
                 # print('简化前点数: ', len(last_shape.points))
                 self.simplifyShapePoints(last_shape)
                 # print('简化后点数: ', len(last_shape.points))
-        
+
         items = self.uniqLabelList.selectedItems()
         text = None
         if items:
@@ -1232,8 +1232,8 @@ class MainWindow(MainWindow):
                         "name": "proj_type",
                         "title": tr("project type"),
                         "type": "list",
-                        "limits": [ProjEnum.NORMAL, ProjEnum.O3D],
-                        "default": ProjEnum.NORMAL,
+                        "limits": [ProjTypeEnum.D2,ProjTypeEnum.D25, ProjTypeEnum.D3],
+                        "default": ProjTypeEnum.D2,
                     },
                 ],
             },
@@ -2022,16 +2022,20 @@ class MainWindow(MainWindow):
         else:
             self.o3d_widget.hide()
 
-        self.parameter.child("proj_setting", "proj_type").sigValueChanged.connect(self.proj_type_changed)
-        self.parameter.child("proj_setting", "proj_type").setValue(
-            self.settings.value("proj_type", ProjEnum.NORMAL)
+        self.proj_type_param.sigValueChanged.connect(self.proj_type_changed)
+        self.proj_type_param.setValue(
+            self.settings.value("proj_type", ProjTypeEnum.D2)
         )
 
         self.__restore_splitter_sizes()
 
     @property
     def is_3d(self) -> bool:
-        return self.parameter.child("proj_setting", "proj_type").value() == ProjEnum.O3D
+        return self.proj_type_param.value() == ProjTypeEnum.D3
+
+    @property
+    def proj_type_param(self) -> Parameter:
+        return self.parameter.child("proj_setting", "proj_type")
 
     def proj_type_changed(self, param: Parameter, new_value: str):
         if self.is_3d:
@@ -2045,7 +2049,7 @@ class MainWindow(MainWindow):
             return
 
         img_path = self.filename
-        if not self.proj_manager.is_3d_data(img_path):
+        if not self.proj_manager.is_target_data(img_path):
             notification("3D 视图提示", "当前图片不是3D数据，无法显示3D视图", ToastPreset.WARNING)
             return
 
