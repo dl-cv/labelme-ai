@@ -4,6 +4,9 @@ from labelme.dlcv.store import STORE
 
 suffixes_3D = ['.tiff', '.tif', '.png']
 
+class ProjEnum:
+    NORMAL = '常规'
+    O3D = '3D'
 
 class ProjManager:
     """

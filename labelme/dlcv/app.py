@@ -41,6 +41,7 @@ from labelme.dlcv.shape import Shape
 from typing import List
 from labelme.dlcv.widget.viewAttribute import get_shape_attribute, get_window_position, viewAttribute
 from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
+from labelme.dlcv.widget_3d.manager import ProjManager, ProjEnum
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 
@@ -2002,7 +2003,6 @@ class MainWindow(MainWindow):
     # ------------ 3D 视图 ------------
     def _init_3d_widget(self):
         from labelme.dlcv.widget_3d.o3dwidget import O3DWidget
-        from labelme.dlcv.widget_3d.manager import ProjManager
 
         self.o3d_widget = O3DWidget()
         self.proj_manager = ProjManager()
@@ -2063,10 +2063,6 @@ class MainWindow(MainWindow):
             sizes = int(sizes[0]), int(sizes[1])
             self.centralWidget().setSizes(sizes)
 
-
-class ProjEnum:
-    NORMAL = '常规'
-    O3D = '3D'
     # ------------ 3D 视图 end ------------
 
 
