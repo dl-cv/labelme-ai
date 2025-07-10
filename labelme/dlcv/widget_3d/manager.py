@@ -26,13 +26,21 @@ class ProjManager:
         else:
             return img_path
 
+    @property
+    def __is_3d(self):
+        try:
+            return STORE.main_window.is_3d
+        except:
+            return self._is_3d  # 测试用
+
     def is_3d_data(self, img_path: str):
         suffix = Path(img_path).suffix
 
         gray_img_path = self.get_gray_img_path(img_path)
         depth_img_path = self.get_depth_img_path(img_path)
 
-        if gray_img_path.endswith(f'_G{suffix}') and depth_img_path.endswith(f'_H{suffix}') and suffix in suffixes_3D:
+        if gray_img_path.endswith(f'_G{suffix}') and depth_img_path.endswith(
+                f'_H{suffix}') and suffix in suffixes_3D:
             return True
         else:
             return False
@@ -48,7 +56,7 @@ class ProjManager:
         return [gray_img_name, depth_img_name, gray_img_name]
 
     def get_json_path(self, img_path: str) -> str:
-        if not STORE.main_window.is_3d or not self.is_3d_data(img_path):
+        if not self.__is_3d or not self.is_3d_data(img_path):
             return str(Path(img_path).with_suffix('.json'))
 
         suffix = Path(img_path).suffix
@@ -57,17 +65,12 @@ class ProjManager:
 
 
 def test_manager():
-    from labelme.dlcv.app import MainWindow, ProjEnum, QtWidgets
-    Q_APP = QtWidgets.QApplication([])
     manager_test = ProjManager()
-    main_window = MainWindow()
-    main_window.hide()
-    STORE.register_main_window(main_window)
 
     # 常规项目 - 常规数据
+    manager_test._is_3d = False
     test_normal_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\145053828_e0e748717c_b.jpg"
     test_normal_json_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\145053828_e0e748717c_b.json"
-    main_window.parameter.child("proj_setting", "proj_type").setValue(ProjEnum.NORMAL)
 
     gray_path_1 = manager_test.get_gray_img_path(test_normal_path)
     depth_path_1 = manager_test.get_depth_img_path(test_normal_path)
@@ -79,9 +82,9 @@ def test_manager():
     assert json_path_1 == test_normal_json_path
 
     # 3D 项目 - 常规数据
+    manager_test._is_3d = True
     test_normal_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\145053828_e0e748717c_b.jpg"
     test_normal_json_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\145053828_e0e748717c_b.json"
-    main_window.parameter.child("proj_setting", "proj_type").setValue(ProjEnum.O3D)
 
     gray_path_1 = manager_test.get_gray_img_path(test_normal_path)
     depth_path_1 = manager_test.get_depth_img_path(test_normal_path)
@@ -93,10 +96,10 @@ def test_manager():
     assert json_path_1 == test_normal_json_path
 
     # 3D 项目 - 3D数据
+    manager_test._is_3d = True
     test_gray_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\0021_18-57-01_28057__1_G.tiff"
     test_depth_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\0021_18-57-01_28057__1_H.tiff"
     test_json_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\0021_18-57-01_28057__1.json"
-    main_window.parameter.child("proj_setting", "proj_type").setValue(ProjEnum.O3D)
 
     gray_path_2 = manager_test.get_gray_img_path(test_depth_path)
     depth_path_2 = manager_test.get_depth_img_path(test_gray_path)
