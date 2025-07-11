@@ -198,6 +198,27 @@ def test_D2_with_normal_data():
     assert json_path_1 == test_normal_json_path
 
 
+def test_D2_with_D3_data():
+    __manager_test__._proj_type = ProjTypeEnum.D2
+    test_gray_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\0021_18-57-01_28057__1_G.tiff"
+    test_json_path_1 = r"C:\Users\Admin\Desktop\work_space\labelme\tests\0021_18-57-01_28057__1_G.json"
+
+    test_depth_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\0021_18-57-01_28057__1_H.tiff"
+    test_json_path_2 = r"C:\Users\Admin\Desktop\work_space\labelme\tests\0021_18-57-01_28057__1_H.json"
+
+    depth_path = __manager_test__.get_depth_img_path(test_gray_path)
+    gray_path = __manager_test__.get_gray_img_path(test_depth_path)
+
+    json_path_1 = __manager_test__.get_json_path(test_gray_path)
+    json_path_2 = __manager_test__.get_json_path(test_depth_path)
+
+    assert __manager_test__.is_target_data(test_gray_path)
+    assert gray_path == test_gray_path
+    assert depth_path == test_depth_path
+    assert json_path_1 == test_json_path_1
+    assert json_path_2 == test_json_path_2
+
+
 def test_D3_with_normal_data():
     # 3D 项目 - 2D数据
     __manager_test__._proj_type = ProjTypeEnum.D3
