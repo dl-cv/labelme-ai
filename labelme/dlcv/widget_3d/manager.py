@@ -29,14 +29,51 @@ class NormalStrategy(ABCStrategy):
 class D25Strategy(ABCStrategy):
 
     def is_target(self, path: str) -> bool:
-        suf = Path(path).suffix.lower()
-        return suf in suffixes_3D and ("_C" in path or "_D" in path)
+        """判断是否为2.5D数据
+        2.5D数据的特征：
+        1. 文件名格式为 xxxx_n_TYPE.bmp，其中TYPE可以是CAD或CMP
+        2. 每个编号n对应两张图片，分别以_CAD和_CMP结尾
+        """
+        suffix = Path(path).suffix
+        if suffix.lower() != '.bmp':
+            return False
+
+        # 检查是否符合命名规范
+        filename = Path(path).stem  # 不含后缀的文件名
+        if not (filename.endswith('_CAD') or filename.endswith('_CMP')):
+            return False
+
+        # 获取对应的另一张图片路径
+        base_name = filename[:-4]  # 移除_CAD或_CMP
+        if filename.endswith('_CAD'):
+            pair_path = str(Path(path).with_name(f"{base_name}_CMP{suffix}"))
+        else:
+            pair_path = str(Path(path).with_name(f"{base_name}_CAD{suffix}"))
+
+        # 检查配对文件是否存在
+        return Path(pair_path).exists()
 
     def get_json_path(self, path: str) -> str:
-        return str(Path(path).with_suffix(".json"))
+        """获取对应的JSON文件路径
+        对于2.5D数据，JSON文件命名规则：
+        移除_CAD或_CMP后缀，替换为.json
+        """
+        filename = Path(path).stem
+        base_name = filename[:-4]  # 移除_CAD或_CMP
+        return str(Path(path).with_name(f"{base_name}.json"))
 
     def get_img_name_list(self, path: str) -> list[str]:
-        return [Path(path).name]
+        """获取相关的图片名称列表
+        返回格式：[CAD图名称, CMP图名称]
+        """
+        filename = Path(path).stem
+        suffix = Path(path).suffix
+        base_name = filename[:-4]  # 移除_CAD或_CMP
+
+        cad_name = f"{base_name}_CAD{suffix}"
+        cmp_name = f"{base_name}_CMP{suffix}"
+
+        return [cad_name, cmp_name]
 
 
 # class ProjManager:
@@ -255,3 +292,19 @@ def test_D3_with_D3_data():
     assert gray_path_2 == test_gray_path
     assert depth_path_2 == test_depth_path
     assert json_path_2 == test_json_path
+
+
+D25_img_path_list = [
+    '1752131715_1_CAD.bmp',
+    '1752131715_1_CMP.bmp',
+    '1752131715_2_CAD.bmp',
+    '1752131715_2_CMP.bmp',
+    '1752131715_3_CAD.bmp',
+    '1752131715_3_CMP.bmp',
+    '1752131715_4_CAD.bmp',
+    '1752131715_4_CMP.bmp',
+    '1752131715_5_CAD.bmp',
+    '1752131715_5_CMP.bmp',
+    '1752131715_6_CAD.bmp',
+    '1752131715_6_CMP.bmp',
+]

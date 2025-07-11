@@ -466,8 +466,7 @@ class MainWindow(MainWindow):
     def saveLabels(self, filename: str):
         """ filename: json 文件路径 """
         # extra 保存 3d json
-        if self.is_3d:
-            filename = self.getLabelFile()
+        filename = self.getLabelFile()
         # extra End
 
         lf = LabelFile()
@@ -529,7 +528,7 @@ class MainWindow(MainWindow):
                 os.makedirs(osp.dirname(filename))
 
             # extra 3D 需要保存3D数据
-            if self.is_3d and self.otherData is not None:
+            if self.otherData is not None:
                 self.otherData.update({
                     'img_name_list': self.proj_manager.get_img_name_list(self.filename),
                 })
