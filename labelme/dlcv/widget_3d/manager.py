@@ -182,8 +182,8 @@ if "pytest" in sys.modules:
     __manager_test__ = TestProjManager()
 
 
-def test_2D_normal_data():
-    # 常规项目 - 常规数据
+def test_D2_with_normal_data():
+    # 常规项目 - 2D数据
     __manager_test__._proj_type = ProjTypeEnum.D2
     test_normal_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\145053828_e0e748717c_b.jpg"
     test_normal_json_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\145053828_e0e748717c_b.json"
@@ -198,8 +198,8 @@ def test_2D_normal_data():
     assert json_path_1 == test_normal_json_path
 
 
-def test_3D_normal_data():
-    # 3D 项目 - 常规数据
+def test_D3_with_normal_data():
+    # 3D 项目 - 2D数据
     __manager_test__._proj_type = ProjTypeEnum.D3
     test_normal_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\145053828_e0e748717c_b.jpg"
     test_normal_json_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\145053828_e0e748717c_b.json"
@@ -214,7 +214,7 @@ def test_3D_normal_data():
     assert json_path_1 == test_normal_json_path
 
 
-def test_D3_D3_data():
+def test_D3_with_D3_data():
     # 3D 项目 - 3D数据
     __manager_test__._proj_type = ProjTypeEnum.D3
     test_gray_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\0021_18-57-01_28057__1_G.tiff"
