@@ -348,7 +348,11 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         """ 自动标注使用了该函数 """
         return self._file_items.get(self.image_list[row])
 
-    def findItems(self, text, p_str=None, *args, **kwargs) -> list[FileTreeItem]:
+    def findItems(self,
+                  text,
+                  p_str=None,
+                  *args,
+                  **kwargs) -> list[FileTreeItem]:
         """
         text 是文件路径
         更改 checkState 的时候，使用了该函数，详情查看   def saveLabels(self, filename):
@@ -366,16 +370,20 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         text = Path(text).absolute().as_posix()
 
         try:
-            if STORE.main_window.is_3d and STORE.main_window.proj_manager.is_target_data(text):
-                gray_img_path = STORE.main_window.proj_manager.get_gray_img_path(text)
-                depth_img_path = STORE.main_window.proj_manager.get_depth_img_path(text)
+            items = []
 
-                gray_img_item = self._file_items.get(gray_img_path)
-                depth_img_item = self._file_items.get(depth_img_path)
-                return list(filter(None, [gray_img_item, depth_img_item]))
-            else:
-                item = self._file_items[text]
-                return [item]
+            parent_path = Path(text).parent
+            img_name_list = STORE.main_window.proj_manager.get_img_name_list(
+                text)
+
+            for img_name in img_name_list:
+                img_path = str(
+                    (Path(parent_path) / img_name).absolute().as_posix())
+                item = self._file_items.get(img_path)
+                if item:
+                    items.append(item)
+
+            return items
         except KeyError:
             from labelme.dlcv.utils_func import notification, ToastPreset
             notification(title=f"未找到 {text} 文件路径", text="代码不应该运行到这里", preset=ToastPreset.ERROR)
