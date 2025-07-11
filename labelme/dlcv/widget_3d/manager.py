@@ -128,7 +128,7 @@ class D3Strategy(ABCStrategy):
 
 class ProjManager:
     """项目管理类"""
-    _strategy_map = {
+    _strategy_map: dict[str, NormalStrategy | D25Strategy | D3Strategy] = {
         ProjTypeEnum.D2: NormalStrategy(),
         ProjTypeEnum.D25: D25Strategy(),
         ProjTypeEnum.D3: D3Strategy(),
@@ -141,7 +141,7 @@ class ProjManager:
         return type_str
 
     @property
-    def strategy(self) -> ABCStrategy:
+    def strategy(self) -> NormalStrategy | D25Strategy | D3Strategy:
         """获取当前策略"""
         return self._strategy_map[self.proj_type]
 
