@@ -200,39 +200,44 @@ def test_D2_with_normal_data():
 
 def test_D2_with_D3_data():
     __manager_test__._proj_type = ProjTypeEnum.D2
+
+    # --------- 灰度图测试 ---------
     test_gray_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\0021_18-57-01_28057__1_G.tiff"
     test_json_path_1 = r"C:\Users\Admin\Desktop\work_space\labelme\tests\0021_18-57-01_28057__1_G.json"
 
+    depth_path = __manager_test__.get_depth_img_path(test_gray_path)
+    json_path_1 = __manager_test__.get_json_path(test_gray_path)
+
+    assert json_path_1 == test_json_path_1
+
+    # --------- 深度图测试 ---------
     test_depth_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\0021_18-57-01_28057__1_H.tiff"
     test_json_path_2 = r"C:\Users\Admin\Desktop\work_space\labelme\tests\0021_18-57-01_28057__1_H.json"
 
-    depth_path = __manager_test__.get_depth_img_path(test_gray_path)
     gray_path = __manager_test__.get_gray_img_path(test_depth_path)
-
-    json_path_1 = __manager_test__.get_json_path(test_gray_path)
     json_path_2 = __manager_test__.get_json_path(test_depth_path)
+
+    assert json_path_2 == test_json_path_2
 
     assert __manager_test__.is_target_data(test_gray_path)
     assert gray_path == test_gray_path
     assert depth_path == test_depth_path
-    assert json_path_1 == test_json_path_1
-    assert json_path_2 == test_json_path_2
 
 
 def test_D3_with_normal_data():
     # 3D 项目 - 2D数据
     __manager_test__._proj_type = ProjTypeEnum.D3
-    test_normal_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\145053828_e0e748717c_b.jpg"
-    test_normal_json_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\145053828_e0e748717c_b.json"
+    test_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\145053828_e0e748717c_b.jpg"
+    test_json_path = r"C:\Users\Admin\Desktop\work_space\labelme\tests\145053828_e0e748717c_b.json"
 
-    gray_path_1 = __manager_test__.get_gray_img_path(test_normal_path)
-    depth_path_1 = __manager_test__.get_depth_img_path(test_normal_path)
-    json_path_1 = __manager_test__.get_json_path(test_normal_path)
+    gray_path_1 = __manager_test__.get_gray_img_path(test_path)
+    depth_path_1 = __manager_test__.get_depth_img_path(test_path)
+    json_path_1 = __manager_test__.get_json_path(test_path)
 
-    assert not __manager_test__.is_target_data(test_normal_path)
-    assert gray_path_1 == test_normal_path
-    assert depth_path_1 == test_normal_path
-    assert json_path_1 == test_normal_json_path
+    assert not __manager_test__.is_target_data(test_path)
+    assert gray_path_1 == test_path
+    assert depth_path_1 == test_path
+    assert json_path_1 == test_json_path
 
 
 def test_D3_with_D3_data():
