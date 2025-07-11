@@ -600,7 +600,7 @@ class MainWindow(MainWindow):
                 # print('简化前点数: ', len(last_shape.points))
                 self.simplifyShapePoints(last_shape)
                 # print('简化后点数: ', len(last_shape.points))
-        
+
         items = self.uniqLabelList.selectedItems()
         text = None
         if items:
@@ -1272,6 +1272,14 @@ class MainWindow(MainWindow):
                 "type": "group",
                 "children": [
                     {
+                        "name": "blue_line_color",
+                        "title": tr("蓝色线段标注"),
+                        "type": "bool",
+                        "value": False,
+                        "default": False,
+                        "tip": "启用后，将高亮标注线段为蓝色",
+                    },
+                    {
                         "name": "slide_label",
                         "title": tr("slide label"),
                         "type": "bool",
@@ -1445,7 +1453,7 @@ class MainWindow(MainWindow):
                 STORE.set_canvas_brush_size(
                     setting_store.get("canvas_brush_size", 3)
                 )
-    
+
         restore_setting()
 
     def on_setting_dock_changed(
@@ -1467,6 +1475,16 @@ class MainWindow(MainWindow):
 
             # update settings
             if len(parent_path) == 1 and parent_path[0] == "label_setting":
+                if param_name == "blue_line_color":
+                    # 'line_color': [0, 127, 255,255],
+                    # 'vertex_fill_color': [0, 127, 255,255]
+                    if new_value:
+                        Shape.line_color = QtGui.QColor(0, 127, 255,255)
+                        Shape.vertex_fill_color = QtGui.QColor(0, 127, 255,255)
+                    else:
+                        Shape.line_color = QtGui.QColor(0, 255, 0, 128)
+                        Shape.vertex_fill_color = QtGui.QColor(0, 255, 0, 255)
+
                 if param_name == "slide_label":
                     self.draw_polygon_with_mousemove = new_value
                     self.canvas.draw_polygon_with_mousemove = new_value
@@ -1766,41 +1784,41 @@ class MainWindow(MainWindow):
 
     def simplifyShapePoints(self, shape):
         """简化指定形状的轮廓点数量
-        
+
         Args:
             shape: 要简化的形状对象
         """
         if not shape or len(shape.points) < 4:
             return
-            
+
         try:
             import cv2
             import numpy as np
             from PyQt5 import QtCore
-            
+
             # 将形状的点转换为OpenCV格式
             points = []
             for point in shape.points:
                 points.append([int(point.x()), int(point.y())])
-            
+
             contour = np.array(points, dtype=np.int32).reshape(-1, 1, 2)
-            
+
             epsilon_factor = self.parameter.child("label_setting", "ai_polygon_simplify_epsilon").value()  # 默认值
-                
+
             epsilon = epsilon_factor * cv2.arcLength(contour, True)
             approx = cv2.approxPolyDP(contour, epsilon, True)
-            
+
             # 转换回点列表格式
             simplified_points = []
             for p in approx:
                 simplified_points.append(QtCore.QPointF(p[0][0], p[0][1]))
-            
+
             # 如果简化后的点数仍然足够，则使用简化后的点
             if len(simplified_points) >= 3:
                 # original_count = len(shape.points)
                 # logger.info(f"简化前点数: {len(shape.points)}, 简化后点数: {len(simplified_points)}, 简化程度: {epsilon_factor}")
                 shape.points = simplified_points
-                
+
         except ImportError:
             logger.warning("OpenCV not available, skipping shape simplification")
         except Exception as e:
