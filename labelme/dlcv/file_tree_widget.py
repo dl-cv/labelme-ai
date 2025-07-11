@@ -366,7 +366,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         text = Path(text).absolute().as_posix()
 
         try:
-            if STORE.main_window.is_3d:
+            if STORE.main_window.is_3d and STORE.main_window.proj_manager.is_target_data(text):
                 gray_img_path = STORE.main_window.proj_manager.get_gray_img_path(text)
                 depth_img_path = STORE.main_window.proj_manager.get_depth_img_path(text)
 
