@@ -337,6 +337,17 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         if len(select_items) > 0:
             context_file_nemu(select_items)
 
+    def mouseReleaseEvent(self, event):
+        # 在鼠标释放时也检查 Shift 键的状态
+        if not (event.modifiers() & Qt.ShiftModifier):  # 如果 Shift 键没有按下
+            self.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
+        super().mouseReleaseEvent(event)
+
+    def mousePressEvent(self, event):
+        if event.modifiers() & Qt.ShiftModifier:
+            self.setSelectionMode(QtWidgets.QAbstractItemView.MultiSelection)
+        super().mousePressEvent(event)
+
     def search(self, text: str):
         """ 根据字符串隐藏 items """
         for img_path, file_item in self._file_items.items():
