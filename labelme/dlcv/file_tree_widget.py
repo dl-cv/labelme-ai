@@ -279,8 +279,14 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             expand_action.triggered.connect(expand_all)
             menu.exec_(self.viewport().mapToGlobal(event.pos()))
 
-        def context_file_nemu(item):
+        def context_file_nemu(item: FileTreeItem):
             menu = QtWidgets.QMenu(self)
+
+            from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
+
+            def copy_to_clipboard():
+                file_path = item.get_path()
+                copy_file_to_clipboard(file_path)
 
             def open_in_explorer():
                 current_path = self.currentItem().get_path()
@@ -297,12 +303,14 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             menu.addSeparator()
             copy_file_name_action = menu.addAction("复制文件名")
             copy_path_action = menu.addAction("复制路径")
+            copy_to_clipboard_action = menu.addAction("复制文件到剪贴板")
 
             display_in_explorer_action.triggered.connect(open_in_explorer)
             copy_path_action.triggered.connect(lambda: QtWidgets.QApplication.clipboard().setText(item.get_path()))
             copy_file_name_action.triggered.connect(
                 lambda: QtWidgets.QApplication.clipboard().setText(item.super_text(0)))
             open_file_action.triggered.connect(open_file)
+            copy_to_clipboard_action.triggered.connect(copy_to_clipboard)
 
             menu.exec_(self.viewport().mapToGlobal(event.pos()))
 
