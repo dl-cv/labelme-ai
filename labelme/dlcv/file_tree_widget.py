@@ -285,12 +285,12 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             def open_in_explorer():
                 current_path = self.currentItem().get_path()
                 current_path = str(Path(current_path).absolute())
-                os.system(f"explorer /select, {current_path}")
+                os.system(f'explorer /select,"{current_path}"')
 
             def open_file():
                 current_path = self.currentItem().get_path()
                 current_path = str(Path(current_path).absolute())
-                os.system(f"start {current_path}")
+                os.system(f'start "" "{current_path}"')
 
             open_file_action = menu.addAction("打开文件")
             display_in_explorer_action = menu.addAction("打开所在目录")
