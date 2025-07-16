@@ -22,6 +22,7 @@ COLORS = {
 
 
 class ColoredFormatter(logging.Formatter):
+
     def __init__(self, fmt, use_color=True):
         logging.Formatter.__init__(self, fmt)
         self.use_color = use_color
@@ -55,8 +56,7 @@ logger.setLevel(logging.INFO)
 stream_handler = logging.StreamHandler(sys.stderr)
 handler_format = ColoredFormatter(
     "%(asctime)s [%(levelname2)s] %(module2)s:%(funcName2)s:%(lineno2)s"
-    "- %(message2)s"
-)
+    "- %(message2)s")
 stream_handler.setFormatter(handler_format)
 
 logger.addHandler(stream_handler)
@@ -74,3 +74,32 @@ if os.name == "nt":
     file_handler = logging.FileHandler(log_path, mode="a")
     file_handler.setFormatter(handler_format)
     logger.addHandler(file_handler)
+
+
+def _handle_exception(exc_type, exc_value, exc_traceback):
+    import traceback
+    from qtpy import QtWidgets
+
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        sys.exit(0)
+
+    traceback_str: str = "".join(
+        traceback.format_exception(exc_type, exc_value, exc_traceback))
+    logger.critical(traceback_str)
+
+    traceback_html: str = traceback_str.replace("\n", "<br/>").replace(
+        " ", "&nbsp;")
+    QtWidgets.QMessageBox.critical(
+        None,
+        "Error",
+        f"An unexpected error occurred. The application will close.<br/><br/>Please report issues following the <a href='https://labelme.io/docs/troubleshoot'>Troubleshoot</a>.<br/><br/>{traceback_html}",  # noqa: E501
+    )
+    logger.critical(traceback_str)
+
+    if app := QtWidgets.QApplication.instance():
+        app.quit()
+    sys.exit(1)
+
+
+sys.excepthook = _handle_exception
