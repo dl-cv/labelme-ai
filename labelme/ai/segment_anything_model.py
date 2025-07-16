@@ -3,7 +3,6 @@ import threading
 
 import imgviz
 import numpy as np
-import onnxruntime
 import skimage
 
 from labelme.logger import logger
@@ -14,6 +13,7 @@ class SegmentAnythingModel:
     def __init__(self, encoder_path, decoder_path):
         self._image_size = 1024
 
+        import onnxruntime
         self._encoder_session = onnxruntime.InferenceSession(encoder_path)
         self._decoder_session = onnxruntime.InferenceSession(decoder_path)
 
