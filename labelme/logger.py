@@ -84,6 +84,11 @@ def _handle_exception(exc_type, exc_value, exc_traceback):
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
         sys.exit(0)
 
+    app = QtWidgets.QApplication.instance()
+    if not app:
+        app = QtWidgets.QApplication([])
+    app.setQuitOnLastWindowClosed(True)
+
     traceback_str: str = "".join(
         traceback.format_exception(exc_type, exc_value, exc_traceback))
     logger.critical(traceback_str)
@@ -95,10 +100,8 @@ def _handle_exception(exc_type, exc_value, exc_traceback):
         "Error",
         f"An unexpected error occurred. The application will close.<br/><br/>Please report issues following the <a href='https://labelme.io/docs/troubleshoot'>Troubleshoot</a>.<br/><br/>{traceback_html}",  # noqa: E501
     )
-    logger.critical(traceback_str)
 
-    if app := QtWidgets.QApplication.instance():
-        app.quit()
+    app.quit()
     sys.exit(1)
 
 
