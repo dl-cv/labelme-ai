@@ -3,7 +3,6 @@ import time
 from typing import List, Tuple
 
 import numpy as np
-import osam
 
 from labelme.logger import logger
 
@@ -11,6 +10,8 @@ from labelme.logger import logger
 def get_rectangles_from_texts(
         model: str, image: np.ndarray, texts: List[str]
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    import osam
+
     request: osam.types.GenerateRequest = osam.types.GenerateRequest(
         model=model,
         image=image,
@@ -58,6 +59,8 @@ def non_maximum_suppression(
         score_threshold: float,
         max_num_detections: int,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    import osam
+
     num_classes = np.max(labels) + 1
     scores_of_all_classes = np.zeros((len(boxes), num_classes), dtype=np.float32)
     for i, (score, label) in enumerate(zip(scores, labels)):
