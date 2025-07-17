@@ -1,3 +1,5 @@
+from labelme.logger import logger  # noqa: F401 先导入logger，防止未正常启动exe就报错
+
 import argparse
 import codecs
 import logging
@@ -12,7 +14,6 @@ from labelme import __appname__
 from labelme import __version__
 from labelme.config import get_config
 from labelme.dlcv.app import MainWindow
-from labelme.logger import logger
 from labelme.utils import newIcon
 
 

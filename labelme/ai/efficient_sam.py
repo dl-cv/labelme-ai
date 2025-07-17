@@ -3,7 +3,6 @@ import threading
 
 import imgviz
 import numpy as np
-import onnxruntime
 import skimage
 
 from labelme.logger import logger
@@ -12,6 +11,7 @@ from labelme.ai import _utils
 
 class EfficientSam:
     def __init__(self, encoder_path, decoder_path):
+        import onnxruntime
         self._encoder_session = onnxruntime.InferenceSession(encoder_path)
         self._decoder_session = onnxruntime.InferenceSession(decoder_path)
 

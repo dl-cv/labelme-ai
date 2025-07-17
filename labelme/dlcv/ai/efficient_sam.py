@@ -14,6 +14,8 @@ class EfficientSam(EfficientSam, DlcvTrObject, QtCore.QObject):
     def __init__(self, encoder_path, decoder_path, parent=None):
         # super().__init__(encoder_path, decoder_path)
 
+        import onnxruntime
+
         # 查看显卡驱动版本
         support_gpu = False
 
