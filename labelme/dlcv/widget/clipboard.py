@@ -1,18 +1,30 @@
-def copy_file_to_clipboard(file_path):
+def copy_files_to_clipboard(file_paths):
+    """
+    将多个文件复制到剪贴板
+    
+    Args:
+        file_paths (list): 文件路径列表
+    """
     import ctypes
     import os
     from ctypes import wintypes
 
-    file_path = os.path.abspath(file_path).replace("/", "\\")
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"文件不存在: {file_path}")
+    if not file_paths:
+        raise ValueError("文件路径列表不能为空")
+
+    # 确保所有路径都存在且格式正确
+    formatted_paths = []
+    for path in file_paths:
+        abs_path = os.path.abspath(path).replace("/", "\\")
+        if not os.path.exists(abs_path):
+            raise FileNotFoundError(f"文件不存在: {abs_path}")
+        formatted_paths.append(abs_path)
 
     CF_HDROP = 15
     GMEM_MOVEABLE = 0x0002
     GMEM_ZEROINIT = 0x0040
     GHND = GMEM_MOVEABLE | GMEM_ZEROINIT
 
-    # 强制结构体按1字节对齐，避免编译器填充
     class DROPFILES(ctypes.Structure):
         _pack_ = 1
         _fields_ = [
@@ -25,7 +37,6 @@ def copy_file_to_clipboard(file_path):
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     user32 = ctypes.WinDLL("user32", use_last_error=True)
 
-    # 配置API参数类型
     kernel32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
     kernel32.GlobalAlloc.restype = wintypes.HGLOBAL
     kernel32.GlobalLock.argtypes = [wintypes.HGLOBAL]
@@ -39,13 +50,16 @@ def copy_file_to_clipboard(file_path):
     dropfiles.pt.x = 0
     dropfiles.pt.y = 0
     dropfiles.fNC = False
-    dropfiles.fWide = True  # 使用Unicode
+    dropfiles.fWide = True
 
-    # 关键修正：路径后添加双空字符（4字节）
-    path_bytes = file_path.encode("utf-16le")
-    data = path_bytes + b"\x00\x00\x00\x00"  # 两个UTF-16空字符
+    # 将所有路径合并成一个字节串，每个路径用null分隔
+    paths_bytes = b""
+    for path in formatted_paths:
+        paths_bytes += path.encode("utf-16le") + b"\x00\x00"
+    # 添加最后的双null终止符
+    paths_bytes += b"\x00\x00"
 
-    total_size = ctypes.sizeof(DROPFILES) + len(data)
+    total_size = ctypes.sizeof(DROPFILES) + len(paths_bytes)
     h_global = kernel32.GlobalAlloc(GHND, total_size)
     if not h_global:
         raise MemoryError("全局内存分配失败")
@@ -57,7 +71,7 @@ def copy_file_to_clipboard(file_path):
 
     try:
         ctypes.memmove(ptr, ctypes.byref(dropfiles), ctypes.sizeof(DROPFILES))
-        ctypes.memmove(ptr + ctypes.sizeof(DROPFILES), data, len(data))
+        ctypes.memmove(ptr + ctypes.sizeof(DROPFILES), paths_bytes, len(paths_bytes))
     finally:
         kernel32.GlobalUnlock(h_global)
 
@@ -68,6 +82,15 @@ def copy_file_to_clipboard(file_path):
         user32.SetClipboardData(CF_HDROP, h_global)
     finally:
         user32.CloseClipboard()
+
+def copy_file_to_clipboard(file_path):
+    """
+    将单个文件复制到剪贴板（向后兼容）
+    
+    Args:
+        file_path (str): 文件路径
+    """
+    copy_files_to_clipboard([file_path])
 
 
 all_temp_files = []
@@ -116,11 +139,19 @@ def clear_temps():
 
 
 if __name__ == "__main__":
-    # 测试文件路径复制
-    file_path = r"C:\dlcv\datasets\dogs_vs_cats\狗\dog.0.jpg"
-    copy_file_to_clipboard(file_path)
+    # 测试单文件复制
+    # file_path = r"C:\dlcv\datasets\dogs_vs_cats\狗\dog.0.jpg"
+    # copy_file_to_clipboard(file_path)
+
+    # 测试多文件复制
+    file_paths = [
+        r"C:\dlcv\datasets\dogs_vs_cats\狗\dog.0.jpg",
+        r"C:\dlcv\datasets\dogs_vs_cats\狗\dog.1.jpg",
+        r"C:\dlcv\datasets\dogs_vs_cats\狗\dog.2.jpg"
+    ]
+    copy_files_to_clipboard(file_paths)
 
     # 测试文件字节复制
-    with open(file_path, "rb") as f:
-        file_bytes = f.read()
-    copy_bytes_to_clipboard(file_bytes, "test.jpg")
+    # with open(file_path, "rb") as f:
+    #     file_bytes = f.read()
+    # copy_bytes_to_clipboard(file_bytes, "test.jpg")

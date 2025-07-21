@@ -1,3 +1,4 @@
+*.log
 private
 build_script
 dlcv_labelme_ai

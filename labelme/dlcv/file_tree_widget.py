@@ -279,40 +279,74 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             expand_action.triggered.connect(expand_all)
             menu.exec_(self.viewport().mapToGlobal(event.pos()))
 
-        def context_file_nemu(item):
+        def context_file_nemu(items: list[FileTreeItem]):
             menu = QtWidgets.QMenu(self)
+
+            def copy_to_clipboard():
+                from labelme.dlcv.widget.clipboard import copy_files_to_clipboard
+                from labelme.dlcv.utils_func import notification, ToastPreset
+
+                file_paths = [item.get_path() for item in items]
+                file_paths = [
+                    file_path for file_path in file_paths
+                    if os.path.exists(file_path)
+                ]
+                copy_files_to_clipboard(file_paths)
+                notification(
+                    title="复制文件到剪贴板成功",
+                    text="已将文件复制到剪贴板",
+                    preset=ToastPreset.SUCCESS)
 
             def open_in_explorer():
                 current_path = self.currentItem().get_path()
                 current_path = str(Path(current_path).absolute())
-                os.system(f"explorer /select, {current_path}")
+                os.system(f'explorer /select,"{current_path}"')
 
             def open_file():
                 current_path = self.currentItem().get_path()
                 current_path = str(Path(current_path).absolute())
-                os.system(f"start {current_path}")
+                os.system(f'start "" "{current_path}"')
 
             open_file_action = menu.addAction("打开文件")
             display_in_explorer_action = menu.addAction("打开所在目录")
             menu.addSeparator()
             copy_file_name_action = menu.addAction("复制文件名")
             copy_path_action = menu.addAction("复制路径")
+            menu.addSeparator()
+            copy_to_clipboard_action = menu.addAction("复制文件到剪贴板")
 
             display_in_explorer_action.triggered.connect(open_in_explorer)
-            copy_path_action.triggered.connect(lambda: QtWidgets.QApplication.clipboard().setText(item.get_path()))
+            copy_path_action.triggered.connect(
+                lambda: QtWidgets.QApplication.clipboard().setText(item.
+                                                                   get_path()))
             copy_file_name_action.triggered.connect(
-                lambda: QtWidgets.QApplication.clipboard().setText(item.super_text(0)))
+                lambda: QtWidgets.QApplication.clipboard().setText(
+                    item.super_text(0)))
             open_file_action.triggered.connect(open_file)
+            copy_to_clipboard_action.triggered.connect(copy_to_clipboard)
 
             menu.exec_(self.viewport().mapToGlobal(event.pos()))
 
         item = self.itemAt(event.pos())
-        if not item:
-            return
-        if item.childCount() > 0:
+        select_items = self.selectedItems()
+
+        # 如果点击的是文件夹，则显示文件夹菜单
+        if item and item.childCount() > 0:
             context_folder_menu(item, event)
-        else:
-            context_file_nemu(item)
+
+        if len(select_items) > 0:
+            context_file_nemu(select_items)
+
+    def mouseReleaseEvent(self, event):
+        # 在鼠标释放时也检查 Shift 键的状态
+        if not (event.modifiers() & Qt.ShiftModifier):  # 如果 Shift 键没有按下
+            self.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
+        super().mouseReleaseEvent(event)
+
+    def mousePressEvent(self, event):
+        if event.modifiers() & Qt.ShiftModifier:
+            self.setSelectionMode(QtWidgets.QAbstractItemView.MultiSelection)
+        super().mousePressEvent(event)
 
     def search(self, text: str):
         """ 根据字符串隐藏 items """
