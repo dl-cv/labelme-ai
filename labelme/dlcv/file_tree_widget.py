@@ -233,7 +233,6 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             return
 
         self.clear()
-        self._root_dir = root_dir  # <--- 新增
         # 只加载根目录下的文件夹
         root_item = self.invisibleRootItem()
         self._load_directory_contents(root_dir, root_item)
@@ -446,11 +445,6 @@ class FileTreeWidget(QtWidgets.QWidget):
         if hasattr(self.tree_widget, name):
             return getattr(self.tree_widget, name)
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
-
-    @property
-    def root_dir(self):
-        return self.tree_widget._root_dir
-
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication([])

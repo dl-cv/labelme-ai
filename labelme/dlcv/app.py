@@ -298,16 +298,10 @@ class MainWindow(MainWindow):
 
         create_action = functools.partial(utils.newAction, self)
 
-        action = functools.partial(utils.newAction, self)
-
-        # 新增加载标签文件控件
-        def load_label_txt_file():
-            self.load_label_txt()
-    
         # 加载读取标签文件
-        load_label_file_action = action(
+        load_label_file_action = create_action(
             self.tr("加载标签文件"),
-            load_label_txt_file,
+            self.load_label_txt,
             "objects",
             enabled=True,
             icon='labels'
@@ -323,7 +317,7 @@ class MainWindow(MainWindow):
             if file_name:
                 self.save_label_txt(file_name)
 
-        save_label_file_action = action(
+        save_label_file_action = create_action(
             self.tr("保存标签文件"),
             save_label_txt_file,
             "objects",
