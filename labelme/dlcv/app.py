@@ -320,6 +320,10 @@ class MainWindow(MainWindow):
                         lines = f.readlines()
                     all_labels = [line.strip() for line in lines if line.strip()]
 
+                    if not all_labels:
+                        notification("标签文件为空", f"该标签文件没有任何标签。", ToastPreset.INFORMATION)
+                        return
+
                     loaded_count = 0
                     for label in all_labels:
                         if self.uniqLabelList.findItemByLabel(label) is None:
@@ -332,7 +336,7 @@ class MainWindow(MainWindow):
                     if loaded_count > 0:
                         notification("标签加载完成", f"成功加载 {loaded_count} 个新标签。", ToastPreset.SUCCESS)
                     else:
-                        notification("标签加载完成", "未发现新标签，所有标签已存在。", ToastPreset.INFO)
+                        notification("标签加载完成", f"未发现新标签，所有标签已存在。", ToastPreset.INFORMATION)
                 except Exception as e:
                     notification("加载标签文件失败", str(e), ToastPreset.ERROR)
 
@@ -345,7 +349,7 @@ class MainWindow(MainWindow):
             icon='labels'
         )
         self.actions.load_label_file = load_label_file_action
-        self.actions.tool.insert(6, self.actions.load_label_file)
+        self.actions.tool.insert(1, self.actions.load_label_file)
 
         # 新增保存标签文件控件
 
@@ -364,7 +368,7 @@ class MainWindow(MainWindow):
             icon='save-as'
         )
         self.actions.save_label_file = save_label_file_action
-        self.actions.tool.insert(7, self.actions.save_label_file)
+        self.actions.tool.insert(2, self.actions.save_label_file)
 
         # 创建AI多边形,添加快捷键文本
         ai_polygon_mode = self.actions.createAiPolygonMode
