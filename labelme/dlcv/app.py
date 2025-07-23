@@ -101,6 +101,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 class MainWindow(MainWindow):
     canvas: labelme.dlcv.canvas.Canvas
     sig_auto_label_all_update = QtCore.Signal(object)
+    LABEL_TXT_DIR = r'C:\Users\dlcv\AppData\Roaming\dlcv\labelmeai_label'
 
     def __init__(self,
                  config=None,
@@ -132,6 +133,10 @@ class MainWindow(MainWindow):
 
         self._init_edit_mode_action()  # 初始化编辑模式切换动作
         STORE.set_edit_label_name(self._edit_label)
+
+        # 确保标签txt目录存在
+        if not os.path.exists(self.LABEL_TXT_DIR):
+            os.makedirs(self.LABEL_TXT_DIR, exist_ok=True)
 
     # https://bbs.dlcv.com.cn/t/topic/590
     def _edit_label(self, value=None):
@@ -295,35 +300,54 @@ class MainWindow(MainWindow):
         create_action = functools.partial(utils.newAction, self)
 
         # 加载读取标签文件
-        LABEL_TXT_DIR = r'C:\Users\dlcv\AppData\Roaming\dlcv\labelmeai_label'
         action = functools.partial(utils.newAction, self)
 
-        def open_label_txt_file():
+
+        def load_label_txt_file():
             # 获取当前已打开的文件夹路径
             if hasattr(self.fileListWidget, 'root_dir'):
                 current_dir = self.fileListWidget.root_dir
             else:
                 current_dir = None
-
             if not current_dir:
                 notification("未检测到当前文件夹", "请先打开一个图片文件夹。", ToastPreset.WARNING)
                 return
 
             file_name = os.path.basename(current_dir.rstrip(os.sep))
-            file_path = os.path.join(LABEL_TXT_DIR, file_name + '.txt')
+            file_path = os.path.join(self.LABEL_TXT_DIR, file_name + '.txt')
+            if not os.path.exists(self.LABEL_TXT_DIR):
+                notification("未检测到标签文件夹", "请先保存一次标注，生成标签列表。", ToastPreset.WARNING)
+                return
             if os.path.exists(file_path):
                 try:
                     with open(file_path, 'r', encoding='utf-8') as f:
                         lines = f.readlines()
-                    # 读取所有标签（包括重复），统计总数
                     all_labels = [line.strip() for line in lines if line.strip()]
-                    for label in all_labels:
-                        if self.uniqLabelList.findItemByLabel(label) is None:
-                            item = self.uniqLabelList.createItemFromLabel(label)
-                            self.uniqLabelList.addItem(item)
-                            rgb = self._get_rgb_by_label(label)
-                            self.uniqLabelList.setItemLabel(item, label, rgb)
-                    notification("标签加载完成", f"已加载 {len(all_labels)} 个标签。", ToastPreset.SUCCESS)
+
+                    # 弹出标签选择对话框，仅加载用户选择的标签
+                    label_list = QtWidgets.QListWidget()
+                    label_list.setSelectionMode(QtWidgets.QAbstractItemView.MultiSelection)
+                    label_list.addItems(all_labels)
+                    dialog = QtWidgets.QDialog(self)
+                    dialog.setWindowTitle("选择要加载的标签")
+                    layout = QtWidgets.QVBoxLayout(dialog)
+                    layout.addWidget(QtWidgets.QLabel("请选择要加载的标签："))
+                    layout.addWidget(label_list)
+                    button_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+                    layout.addWidget(button_box)
+                    button_box.accepted.connect(dialog.accept)
+                    button_box.rejected.connect(dialog.reject)
+                    if dialog.exec_() == QtWidgets.QDialog.Accepted:
+                        selected_items = label_list.selectedItems()
+                        for item_widget in selected_items:
+                            label = item_widget.text()
+                            if self.uniqLabelList.findItemByLabel(label) is None:
+                                item = self.uniqLabelList.createItemFromLabel(label)
+                                self.uniqLabelList.addItem(item)
+                                rgb = self._get_rgb_by_label(label)
+                                self.uniqLabelList.setItemLabel(item, label, rgb)
+
+                    notification("标签加载完成", f"已加载 {len(selected_items)} 个标签。", ToastPreset.SUCCESS)
                 except Exception as e:
                     notification("加载标签文件失败", str(e), ToastPreset.ERROR)
             else:
@@ -331,7 +355,7 @@ class MainWindow(MainWindow):
 
         load_label_file_action = action(
             self.tr("加载标签文件"),
-            open_label_txt_file,
+            load_label_txt_file,
             "objects",
             enabled=True,
             icon='labels'
@@ -464,13 +488,13 @@ class MainWindow(MainWindow):
         将当前唯一标签列表（uniqLabelList）保存为txt文件。
         文件名为当前文件夹名.txt，保存在 LABEL_TXT_DIR 目录下。
         """
-        LABEL_TXT_DIR = r'C:\Users\dlcv\AppData\Roaming\dlcv\labelmeai_label'
+        if not os.path.exists(self.LABEL_TXT_DIR):
+            os.makedirs(self.LABEL_TXT_DIR, exist_ok=True)
         label_set = set()
         for i in range(self.uniqLabelList.count()):
             item = self.uniqLabelList.item(i)
             label = item.data(Qt.UserRole) if hasattr(item, 'data') else item.text()
             label_set.add(label)
-
         if hasattr(self.fileListWidget, 'root_dir'):
             current_dir = self.fileListWidget.root_dir
         else:
@@ -479,14 +503,11 @@ class MainWindow(MainWindow):
             print("未检测到当前文件夹，无法保存标签列表。")
             return
         file_name = os.path.basename(current_dir.rstrip(os.sep))
-        output_dir = LABEL_TXT_DIR
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir, exist_ok=True)
-        file_path = os.path.join(output_dir, file_name + '.txt')
-
+        file_path = os.path.join(self.LABEL_TXT_DIR, file_name + '.txt')
         with open(file_path, 'w', encoding='utf-8') as f:
             for label in sorted(label_set):
                 f.write(label + '\n')
+        print(f'保存标签到 {file_path}')
         return file_path
 
     # ------------ Ctrl + C 触发函数 复制图片或形状 ------------
