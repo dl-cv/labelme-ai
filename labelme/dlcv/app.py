@@ -296,63 +296,47 @@ class MainWindow(MainWindow):
         # 移除 [打开文件] 功能
         self.actions.tool = list(self.actions.tool[1:])
 
-        # 新增加载标签文件控件
         create_action = functools.partial(utils.newAction, self)
 
-        # 加载读取标签文件
         action = functools.partial(utils.newAction, self)
 
-
+        # 新增加载标签文件控件
         def load_label_txt_file():
-            # 获取当前已打开的文件夹路径
-            if hasattr(self.fileListWidget, 'root_dir'):
-                current_dir = self.fileListWidget.root_dir
-            else:
-                current_dir = None
-            if not current_dir:
-                notification("未检测到当前文件夹", "请先打开一个图片文件夹。", ToastPreset.WARNING)
-                return
-
-            file_name = os.path.basename(current_dir.rstrip(os.sep))
-            file_path = os.path.join(self.LABEL_TXT_DIR, file_name + '.txt')
-            if not os.path.exists(self.LABEL_TXT_DIR):
+            # 直接弹出 LABEL_TXT_DIR 目录，让用户选择任意标签txt文件
+            label_dir = self.LABEL_TXT_DIR
+            if not os.path.exists(label_dir):
                 notification("未检测到标签文件夹", "请先保存一次标注，生成标签列表。", ToastPreset.WARNING)
                 return
-            if os.path.exists(file_path):
+
+            file_dialog = QtWidgets.QFileDialog(self)
+            file_dialog.setWindowTitle("选择要加载的标签txt文件")
+            file_dialog.setDirectory(label_dir)
+            file_dialog.setNameFilter("标签文件 (*.txt)")
+            file_dialog.setFileMode(QtWidgets.QFileDialog.ExistingFile)
+            if file_dialog.exec_() == QtWidgets.QFileDialog.Accepted:
+                selected_file = file_dialog.selectedFiles()[0]
                 try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
+                    with open(selected_file, 'r', encoding='utf-8') as f:
                         lines = f.readlines()
                     all_labels = [line.strip() for line in lines if line.strip()]
 
-                    # 弹出标签选择对话框，仅加载用户选择的标签
-                    label_list = QtWidgets.QListWidget()
-                    label_list.setSelectionMode(QtWidgets.QAbstractItemView.MultiSelection)
-                    label_list.addItems(all_labels)
-                    dialog = QtWidgets.QDialog(self)
-                    dialog.setWindowTitle("选择要加载的标签")
-                    layout = QtWidgets.QVBoxLayout(dialog)
-                    layout.addWidget(QtWidgets.QLabel("请选择要加载的标签："))
-                    layout.addWidget(label_list)
-                    button_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
-                    layout.addWidget(button_box)
-                    button_box.accepted.connect(dialog.accept)
-                    button_box.rejected.connect(dialog.reject)
-                    if dialog.exec_() == QtWidgets.QDialog.Accepted:
-                        selected_items = label_list.selectedItems()
-                        for item_widget in selected_items:
-                            label = item_widget.text()
-                            if self.uniqLabelList.findItemByLabel(label) is None:
-                                item = self.uniqLabelList.createItemFromLabel(label)
-                                self.uniqLabelList.addItem(item)
-                                rgb = self._get_rgb_by_label(label)
-                                self.uniqLabelList.setItemLabel(item, label, rgb)
+                    loaded_count = 0
+                    for label in all_labels:
+                        if self.uniqLabelList.findItemByLabel(label) is None:
+                            item = self.uniqLabelList.createItemFromLabel(label)
+                            self.uniqLabelList.addItem(item)
+                            rgb = self._get_rgb_by_label(label)
+                            self.uniqLabelList.setItemLabel(item, label, rgb)
+                            loaded_count += 1
 
-                    notification("标签加载完成", f"已加载 {len(selected_items)} 个标签。", ToastPreset.SUCCESS)
+                    if loaded_count > 0:
+                        notification("标签加载完成", f"成功加载 {loaded_count} 个新标签。", ToastPreset.SUCCESS)
+                    else:
+                        notification("标签加载完成", "未发现新标签，所有标签已存在。", ToastPreset.INFO)
                 except Exception as e:
                     notification("加载标签文件失败", str(e), ToastPreset.ERROR)
-            else:
-                notification("未找到标签文件", f"文件不存在: {file_path}", ToastPreset.WARNING)
 
+        # 加载读取标签文件
         load_label_file_action = action(
             self.tr("加载标签文件"),
             load_label_txt_file,
@@ -363,12 +347,31 @@ class MainWindow(MainWindow):
         self.actions.load_label_file = load_label_file_action
         self.actions.tool.insert(6, self.actions.load_label_file)
 
+        # 新增保存标签文件控件
+
+        def save_label_txt_file():
+            # 弹出文件名输入框，让用户指定文件名
+            file_name, _ = QtWidgets.QFileDialog.getSaveFileName(
+                self, "保存标签文件", self.LABEL_TXT_DIR, "标签文件 (*.txt)")
+            if file_name:
+                self.save_label_txt_on_close(file_name)
+
+        save_label_file_action = action(
+            self.tr("保存标签文件"),
+            save_label_txt_file,
+            "objects",
+            enabled=True,
+            icon='save-as'
+        )
+        self.actions.save_label_file = save_label_file_action
+        self.actions.tool.insert(7, self.actions.save_label_file)
+
         # 创建AI多边形,添加快捷键文本
         ai_polygon_mode = self.actions.createAiPolygonMode
         ai_polygon_mode.setIconText(
             ai_polygon_mode.text() +
             f"({ai_polygon_mode.shortcut().toString()})")
-        self.actions.tool.insert(7, self.actions.createAiPolygonMode)
+        self.actions.tool.insert(8, self.actions.createAiPolygonMode)
 
         # https://bbs.dlcv.com.cn/t/topic/1050
         # 刷新功能
@@ -396,7 +399,7 @@ class MainWindow(MainWindow):
             enabled=False,
         )
         self.actions.createRotationMode = createRotationMode
-        self.actions.tool.insert(7, self.actions.createRotationMode)  # 插入到合适位置
+        self.actions.tool.insert(8, self.actions.createRotationMode)  # 插入到合适位置
 
         # 亮度对比度禁用
         # https://bbs.dlcv.ai/t/topic/328
@@ -479,14 +482,15 @@ class MainWindow(MainWindow):
         self.__store_splitter_sizes()
         # extra End
 
-        # 关闭前保存唯一标签列表到指定目录
-        self.save_label_txt_on_close()
+        # # 关闭前保存唯一标签列表到指定目录
+        # self.save_label_txt_on_close()
 
     # 缓存标签列表，统一使用当前打开文件夹路径
-    def save_label_txt_on_close(self):
+    def save_label_txt_on_close(self, filename):
         """
         将当前唯一标签列表（uniqLabelList）保存为txt文件。
-        文件名为当前文件夹名.txt，保存在 LABEL_TXT_DIR 目录下。
+        文件名由用户指定，保存在 LABEL_TXT_DIR 目录下。
+        :param filename: 用户指定的文件名（不带路径，可带或不带.txt后缀）
         """
         if not os.path.exists(self.LABEL_TXT_DIR):
             os.makedirs(self.LABEL_TXT_DIR, exist_ok=True)
@@ -495,15 +499,10 @@ class MainWindow(MainWindow):
             item = self.uniqLabelList.item(i)
             label = item.data(Qt.UserRole) if hasattr(item, 'data') else item.text()
             label_set.add(label)
-        if hasattr(self.fileListWidget, 'root_dir'):
-            current_dir = self.fileListWidget.root_dir
-        else:
-            current_dir = None
-        if not current_dir:
-            print("未检测到当前文件夹，无法保存标签列表。")
-            return
-        file_name = os.path.basename(current_dir.rstrip(os.sep))
-        file_path = os.path.join(self.LABEL_TXT_DIR, file_name + '.txt')
+        # 检查文件名后缀
+        if not filename.lower().endswith('.txt'):
+            filename = filename + '.txt'
+        file_path = os.path.join(self.LABEL_TXT_DIR, filename)
         with open(file_path, 'w', encoding='utf-8') as f:
             for label in sorted(label_set):
                 f.write(label + '\n')
