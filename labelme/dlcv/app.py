@@ -302,44 +302,8 @@ class MainWindow(MainWindow):
 
         # 新增加载标签文件控件
         def load_label_txt_file():
-            # 直接弹出 LABEL_TXT_DIR 目录，让用户选择任意标签txt文件
-            label_dir = self.LABEL_TXT_DIR
-            if not os.path.exists(label_dir):
-                notification("未检测到标签文件夹", "请先保存一次标注，生成标签列表。", ToastPreset.WARNING)
-                return
-
-            file_dialog = QtWidgets.QFileDialog(self)
-            file_dialog.setWindowTitle("选择要加载的标签txt文件")
-            file_dialog.setDirectory(label_dir)
-            file_dialog.setNameFilter("标签文件 (*.txt)")
-            file_dialog.setFileMode(QtWidgets.QFileDialog.ExistingFile)
-            if file_dialog.exec_() == QtWidgets.QFileDialog.Accepted:
-                selected_file = file_dialog.selectedFiles()[0]
-                try:
-                    with open(selected_file, 'r', encoding='utf-8') as f:
-                        lines = f.readlines()
-                    all_labels = [line.strip() for line in lines if line.strip()]
-
-                    if not all_labels:
-                        notification("标签文件为空", f"该标签文件没有任何标签。", ToastPreset.INFORMATION)
-                        return
-
-                    loaded_count = 0
-                    for label in all_labels:
-                        if self.uniqLabelList.findItemByLabel(label) is None:
-                            item = self.uniqLabelList.createItemFromLabel(label)
-                            self.uniqLabelList.addItem(item)
-                            rgb = self._get_rgb_by_label(label)
-                            self.uniqLabelList.setItemLabel(item, label, rgb)
-                            loaded_count += 1
-
-                    if loaded_count > 0:
-                        notification("标签加载完成", f"成功加载 {loaded_count} 个新标签。", ToastPreset.SUCCESS)
-                    else:
-                        notification("标签加载完成", f"未发现新标签，所有标签已存在。", ToastPreset.INFORMATION)
-                except Exception as e:
-                    notification("加载标签文件失败", str(e), ToastPreset.ERROR)
-
+            self.load_label_txt()
+    
         # 加载读取标签文件
         load_label_file_action = action(
             self.tr("加载标签文件"),
@@ -352,13 +316,12 @@ class MainWindow(MainWindow):
         self.actions.tool.insert(1, self.actions.load_label_file)
 
         # 新增保存标签文件控件
-
         def save_label_txt_file():
             # 弹出文件名输入框，让用户指定文件名
             file_name, _ = QtWidgets.QFileDialog.getSaveFileName(
                 self, "保存标签文件", self.LABEL_TXT_DIR, "标签文件 (*.txt)")
             if file_name:
-                self.save_label_txt_on_close(file_name)
+                self.save_label_txt(file_name)
 
         save_label_file_action = action(
             self.tr("保存标签文件"),
@@ -486,18 +449,47 @@ class MainWindow(MainWindow):
         self.__store_splitter_sizes()
         # extra End
 
-        # # 关闭前保存唯一标签列表到指定目录
-        # self.save_label_txt_on_close()
+    # 加载标签文件
+    def load_label_txt(self):
+        file_dialog = QtWidgets.QFileDialog(self)
+        file_dialog.setWindowTitle("选择要加载的标签txt文件")
+        file_dialog.setDirectory(self.LABEL_TXT_DIR)
+        file_dialog.setNameFilter("标签文件 (*.txt)")
+        file_dialog.setFileMode(QtWidgets.QFileDialog.ExistingFile)
+        if file_dialog.exec_() == QtWidgets.QFileDialog.Accepted:
+            selected_file = file_dialog.selectedFiles()[0]
+            try:
+                with open(selected_file, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                all_labels = [line.strip() for line in lines if line.strip()]
 
-    # 缓存标签列表，统一使用当前打开文件夹路径
-    def save_label_txt_on_close(self, filename):
+                if not all_labels:
+                    notification("标签文件为空", f"该标签文件没有任何标签。", ToastPreset.INFORMATION)
+                    return
+
+                loaded_count = 0
+                for label in all_labels:
+                    if self.uniqLabelList.findItemByLabel(label) is None:
+                        item = self.uniqLabelList.createItemFromLabel(label)
+                        self.uniqLabelList.addItem(item)
+                        rgb = self._get_rgb_by_label(label)
+                        self.uniqLabelList.setItemLabel(item, label, rgb)
+                        loaded_count += 1
+
+                if loaded_count > 0:
+                    notification("标签加载完成", f"成功加载 {loaded_count} 个新标签。", ToastPreset.SUCCESS)
+                else:
+                    notification("标签加载完成", f"未发现新标签，所有标签已存在。", ToastPreset.INFORMATION)
+            except Exception as e:
+                notification("加载标签文件失败", str(e), ToastPreset.ERROR)
+
+    # 缓存标签列表
+    def save_label_txt(self, filename):
         """
         将当前唯一标签列表（uniqLabelList）保存为txt文件。
         文件名由用户指定，保存在 LABEL_TXT_DIR 目录下。
         :param filename: 用户指定的文件名（不带路径，可带或不带.txt后缀）
         """
-        if not os.path.exists(self.LABEL_TXT_DIR):
-            os.makedirs(self.LABEL_TXT_DIR, exist_ok=True)
         label_set = set()
         for i in range(self.uniqLabelList.count()):
             item = self.uniqLabelList.item(i)
@@ -510,7 +502,7 @@ class MainWindow(MainWindow):
         with open(file_path, 'w', encoding='utf-8') as f:
             for label in sorted(label_set):
                 f.write(label + '\n')
-        print(f'保存标签到 {file_path}')
+        logger.info(f'保存标签到 {file_path}')
         return file_path
 
     # ------------ Ctrl + C 触发函数 复制图片或形状 ------------
