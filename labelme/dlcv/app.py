@@ -489,9 +489,12 @@ class MainWindow(MainWindow):
             item = self.uniqLabelList.item(i)
             label = item.data(Qt.UserRole) if hasattr(item, 'data') else item.text()
             label_set.add(label)
-        # 检查文件名后缀
-        if not filename.lower().endswith('.txt'):
-            filename = filename + '.txt'
+        # 优化文件名后缀处理，确保只保存为txt文件
+        filename = str(filename).strip()
+        suffix = Path(filename).suffix.lower()
+        if suffix != '.txt':
+            # 去除原有后缀，强制添加.txt
+            filename = Path(filename).stem + '.txt'
         file_path = os.path.join(self.LABEL_TXT_DIR, filename)
         with open(file_path, 'w', encoding='utf-8') as f:
             for label in sorted(label_set):
