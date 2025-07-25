@@ -42,6 +42,8 @@ from labelme.dlcv.widget.viewAttribute import get_shape_attribute, get_window_po
 from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
 import os
 from labelme.dlcv.widget.label_count import LabelCountDock
+import os
+import json
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 
@@ -132,6 +134,16 @@ class MainWindow(MainWindow):
 
         self._init_edit_mode_action()  # 初始化编辑模式切换动作
         STORE.set_edit_label_name(self._edit_label)
+
+        # APPData 目录
+        APPDATA_DIR = os.path.expanduser(
+            "~"
+        ) + os.sep + "AppData" + os.sep + "Roaming" + os.sep + "dlcv"  # "C:\Users\{用户名}\AppData\Roaming\dlcv"
+        self.LABEL_TXT_DIR = APPDATA_DIR + os.sep + "labelme_ai"
+
+        # 确保标签txt目录存在
+        if not os.path.exists(self.LABEL_TXT_DIR):
+            os.makedirs(self.LABEL_TXT_DIR, exist_ok=True)
 
     # https://bbs.dlcv.com.cn/t/topic/590
     def _edit_label(self, value=None):
@@ -291,12 +303,41 @@ class MainWindow(MainWindow):
         # 移除 [打开文件] 功能
         self.actions.tool = list(self.actions.tool[1:])
 
+        create_action = functools.partial(utils.newAction, self)
+
+        # 加载读取标签文件
+        load_label_file_action = create_action(
+            self.tr("加载标签文件"),
+            self.load_label_txt,
+            "objects",
+            enabled=True,
+            icon='labels')
+        self.actions.load_label_file = load_label_file_action
+        self.actions.tool.insert(1, self.actions.load_label_file)
+
+        # 新增保存标签文件控件
+        def save_label_txt_file():
+            # 弹出文件名输入框，让用户指定文件名
+            file_name, _ = QtWidgets.QFileDialog.getSaveFileName(
+                self, "保存标签文件", self.LABEL_TXT_DIR, "标签文件 (*.txt)")
+            if file_name:
+                self.save_label_txt(file_name)
+
+        save_label_file_action = create_action(
+            self.tr("保存标签文件"),
+            save_label_txt_file,
+            "objects",
+            enabled=True,
+            icon='save-as')
+        self.actions.save_label_file = save_label_file_action
+        self.actions.tool.insert(2, self.actions.save_label_file)
+
         # 创建AI多边形,添加快捷键文本
         ai_polygon_mode = self.actions.createAiPolygonMode
         ai_polygon_mode.setIconText(
             ai_polygon_mode.text() +
             f"({ai_polygon_mode.shortcut().toString()})")
-        self.actions.tool.insert(7, self.actions.createAiPolygonMode)
+        self.actions.tool.insert(8, self.actions.createAiPolygonMode)
 
         # https://bbs.dlcv.com.cn/t/topic/1050
         # 刷新功能
@@ -314,8 +355,7 @@ class MainWindow(MainWindow):
         self.addAction(self.action_refresh)
         self.actions.tool.insert(14, self.action_refresh)
 
-        # 创建旋转框模式
-        create_action = functools.partial(utils.newAction, self)
+        # 创建旋转框
         createRotationMode = create_action(
             self.tr("创建旋转框"),
             lambda: self.toggleDrawMode(False, createMode="rotation"),
@@ -325,7 +365,7 @@ class MainWindow(MainWindow):
             enabled=False,
         )
         self.actions.createRotationMode = createRotationMode
-        self.actions.tool.insert(7, self.actions.createRotationMode)  # 插入到合适位置
+        self.actions.tool.insert(8, self.actions.createRotationMode)  # 插入到合适位置
 
         # 亮度对比度禁用
         # https://bbs.dlcv.ai/t/topic/328
@@ -408,8 +448,70 @@ class MainWindow(MainWindow):
         self.__store_splitter_sizes()
         # extra End
 
-    # ------------ Ctrl + C 触发函数 复制图片或形状 ------------
+    # 加载标签文件
+    def load_label_txt(self):
+        file_dialog = QtWidgets.QFileDialog(self)
+        file_dialog.setWindowTitle("选择要加载的标签txt文件")
+        file_dialog.setDirectory(self.LABEL_TXT_DIR)
+        file_dialog.setNameFilter("标签文件 (*.txt)")
+        file_dialog.setFileMode(QtWidgets.QFileDialog.ExistingFile)
+        if file_dialog.exec_() == QtWidgets.QFileDialog.Accepted:
+            selected_file = file_dialog.selectedFiles()[0]
+            try:
+                with open(selected_file, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                all_labels = [line.strip() for line in lines if line.strip()]
 
+                if not all_labels:
+                    notification("标签文件为空", f"该标签文件没有任何标签。",
+                                 ToastPreset.INFORMATION)
+                    return
+
+                loaded_count = 0
+                for label in all_labels:
+                    if self.uniqLabelList.findItemByLabel(label) is None:
+                        item = self.uniqLabelList.createItemFromLabel(label)
+                        self.uniqLabelList.addItem(item)
+                        rgb = self._get_rgb_by_label(label)
+                        self.uniqLabelList.setItemLabel(item, label, rgb)
+                        loaded_count += 1
+
+                if loaded_count > 0:
+                    notification("标签加载完成", f"成功加载 {loaded_count} 个新标签。",
+                                 ToastPreset.SUCCESS)
+                else:
+                    notification("标签加载完成", f"未发现新标签，所有标签已存在。",
+                                 ToastPreset.INFORMATION)
+            except Exception as e:
+                notification("加载标签文件失败", str(e), ToastPreset.ERROR)
+
+    # 缓存标签列表
+    def save_label_txt(self, filename):
+        """
+        将当前唯一标签列表（uniqLabelList）保存为txt文件。
+        文件名由用户指定，保存在 LABEL_TXT_DIR 目录下。
+        :param filename: 用户指定的文件名（不带路径，可带或不带.txt后缀）
+        """
+        label_set = set()
+        for i in range(self.uniqLabelList.count()):
+            item = self.uniqLabelList.item(i)
+            label = item.data(Qt.UserRole) if hasattr(item,
+                                                      'data') else item.text()
+            label_set.add(label)
+        # 优化文件名后缀处理，确保只保存为txt文件
+        filename = str(filename).strip()
+        suffix = Path(filename).suffix.lower()
+        if suffix != '.txt':
+            # 去除原有后缀，强制添加.txt
+            filename = Path(filename).stem + '.txt'
+        file_path = os.path.join(self.LABEL_TXT_DIR, filename)
+        with open(file_path, 'w', encoding='utf-8') as f:
+            for label in sorted(label_set):
+                f.write(label + '\n')
+        logger.info(f'保存标签到 {file_path}')
+        return file_path
+
+    # ------------ Ctrl + C 触发函数 复制图片或形状 ------------
     def copySelectedShape(self):
         """
         复制选中的形状或当前图片。
@@ -617,6 +719,7 @@ class MainWindow(MainWindow):
 
         items = self.uniqLabelList.selectedItems()
         text = None
+
         if items:
             text = items[0].data(Qt.UserRole)
         flags = {}
@@ -652,6 +755,7 @@ class MainWindow(MainWindow):
             self.actions.undoLastPoint.setEnabled(False)
             self.actions.undo.setEnabled(True)
             self.setDirty()
+
         else:
             self._cancel_shape_creation()
 
