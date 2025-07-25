@@ -64,6 +64,12 @@ class Canvas(Canvas, CustomCanvasAttr):
         
         # 画笔功能变量
         self.brush_points = []      # 画笔绘制的点集
+        # 画布拖动相关变量
+        self.draggingCanvas = False
+        self.canvasDragStart = None
+        self.canvasOffsetStart = None
+        # 画布偏移初始化
+        self.offset = QtCore.QPointF(0, 0)
 
     # region Mouse Events
     def mouse_left_click(self, ev, pos: QtCore.QPointF):
@@ -249,7 +255,14 @@ class Canvas(Canvas, CustomCanvasAttr):
                                 self.update()
                                 return
             
-            # 如果不是特殊交互元素，则调用常规的点击处理
+            # 如果没有选中顶点和形状，进入画布拖动模式
+            if not self.selectedVertex() and not self.selectedShapes:
+                self.draggingCanvas = True
+                self.canvasDragStart = pos
+                # 画布偏移量变量名根据实际情况调整
+                self.canvasOffsetStart = self.offset if hasattr(self, 'offset') else QtCore.QPointF(0, 0)
+                self.overrideCursor(QtCore.Qt.OpenHandCursor)
+                return
             self.mouse_left_click(ev, pos)
 
         elif ev.button() == QtCore.Qt.RightButton and self.editing():
@@ -393,6 +406,15 @@ class Canvas(Canvas, CustomCanvasAttr):
     def mouseMoveEvent(self, ev):
         """Update line with last point and current coordinates."""
         pos = self.transformPos(ev.pos())
+
+        # 画布拖动处理
+        if self.draggingCanvas and QtCore.Qt.LeftButton & ev.buttons():
+            delta = pos - self.canvasDragStart
+            # 画布偏移量变量名根据实际情况调整
+            if hasattr(self, 'offset'):
+                self.offset = self.canvasOffsetStart + delta
+            self.update()
+            return
 
         # 画笔绘制处理
         if self.brush_enabled and self.brush_drawing and self.drawing():
@@ -984,40 +1006,59 @@ class Canvas(Canvas, CustomCanvasAttr):
 
             self.movingShape = False
 
-    def wheelEvent(self, ev):
-        if QT5:
-            mods = ev.modifiers()
-            delta = ev.angleDelta()
-            if QtCore.Qt.ControlModifier == int(mods):
-                # with Ctrl/Command key
-                # zoom
-                self.zoomRequest.emit(delta.y(), ev.pos())
+        # 画布拖动释放
+        if self.draggingCanvas:
+            self.draggingCanvas = False
+            self.restoreCursor()
+            return
 
-            # extra shift+滚轮横向滚动
-            # https://github.com/wkentaro/labelme/pull/1472
-            elif QtCore.Qt.ShiftModifier == int(mods):
-                # side scroll
-                self.scrollRequest.emit(delta.y(), QtCore.Qt.Horizontal)
-                self.scrollRequest.emit(delta.x(), QtCore.Qt.Vertical)
-            else:
-                # scroll
-                self.scrollRequest.emit(delta.x(), QtCore.Qt.Horizontal)
-                self.scrollRequest.emit(delta.y(), QtCore.Qt.Vertical)
+    def wheelEvent(self, ev):
+        # 优化：注释掉Ctrl依赖，滚轮直接缩放
+        if not hasattr(self, 'pixmap') or self.pixmap is None or self.pixmap.isNull():
+            return
+        if QT5:
+            # mods = ev.modifiers()
+            delta = ev.angleDelta()
+            # if QtCore.Qt.ControlModifier == int(mods):
+            #     # with Ctrl/Command key
+            #     # zoom
+            #     self.zoomRequest.emit(delta.y(), ev.pos())
+            #     # extra shift+滚轮横向滚动
+            #     # https://github.com/wkentaro/labelme/pull/1472
+            #     elif QtCore.Qt.ShiftModifier == int(mods):
+            #         # side scroll
+            #         self.scrollRequest.emit(delta.y(), QtCore.Qt.Horizontal)
+            #         self.scrollRequest.emit(delta.x(), QtCore.Qt.Vertical)
+            #     else:
+            #         # scroll
+            #         self.scrollRequest.emit(delta.x(), QtCore.Qt.Horizontal)
+            #         self.scrollRequest.emit(delta.y(), QtCore.Qt.Vertical)
+            # 现在无论是否按Ctrl，滚轮都缩放
+            self.zoomRequest.emit(delta.y(), ev.pos())
+            # 注释掉所有滚动条相关代码，避免缩放时触发滚动条
+            # mods = ev.modifiers()
+            # if QtCore.Qt.ShiftModifier == int(mods):
+            #     self.scrollRequest.emit(delta.y(), QtCore.Qt.Horizontal)
+            #     self.scrollRequest.emit(delta.x(), QtCore.Qt.Vertical)
+            # else:
+            #     self.scrollRequest.emit(delta.x(), QtCore.Qt.Horizontal)
+            #     self.scrollRequest.emit(delta.y(), QtCore.Qt.Vertical)
         else:
             if ev.orientation() == QtCore.Qt.Vertical:
-                mods = ev.modifiers()
-                if QtCore.Qt.ControlModifier == int(mods):
-                    # with Ctrl/Command key
-                    self.zoomRequest.emit(ev.delta(), ev.pos())
-                else:
-                    self.scrollRequest.emit(
-                        ev.delta(),
-                        QtCore.Qt.Horizontal
-                        if (QtCore.Qt.ShiftModifier == int(mods))
-                        else QtCore.Qt.Vertical,
-                    )
-            else:
-                self.scrollRequest.emit(ev.delta(), QtCore.Qt.Horizontal)
+                # mods = ev.modifiers()
+                # if QtCore.Qt.ControlModifier == int(mods):
+                #     # with Ctrl/Command key
+                #     self.zoomRequest.emit(ev.delta(), ev.pos())
+                # else:
+                #     self.scrollRequest.emit(
+                #         ev.delta(),
+                #         QtCore.Qt.Horizontal
+                #         if (QtCore.Qt.ShiftModifier == int(mods))
+                #         else QtCore.Qt.Vertical,
+                #     )
+                self.zoomRequest.emit(ev.delta(), ev.pos())
+            # else:
+            #     self.scrollRequest.emit(ev.delta(), QtCore.Qt.Horizontal)
         ev.accept()
 
     def mouseDoubleClickEvent(self, ev):
@@ -1064,7 +1105,8 @@ class Canvas(Canvas, CustomCanvasAttr):
         # p.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
 
         p.scale(self.scale, self.scale)
-        p.translate(self.offsetToCenter())
+        # 叠加画布偏移量
+        p.translate(self.offsetToCenter() + self.offset)
 
         p.drawPixmap(0, 0, self.pixmap)
         
