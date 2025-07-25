@@ -56,6 +56,7 @@ class DatasetPathManagerDock(QtWidgets.QDockWidget):
 
     def __init__(self, parent=None):
         super().__init__(tr("常用数据集"), parent)
+        self.setObjectName("dataset_path_manager")
         self.setup_ui()
         self.load_datasets()
 
