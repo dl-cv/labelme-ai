@@ -1035,13 +1035,14 @@ class Canvas(Canvas, CustomCanvasAttr):
             #         self.scrollRequest.emit(delta.y(), QtCore.Qt.Vertical)
             # 现在无论是否按Ctrl，滚轮都缩放
             self.zoomRequest.emit(delta.y(), ev.pos())
-            mods = ev.modifiers()
-            if QtCore.Qt.ShiftModifier == int(mods):
-                self.scrollRequest.emit(delta.y(), QtCore.Qt.Horizontal)
-                self.scrollRequest.emit(delta.x(), QtCore.Qt.Vertical)
-            else:
-                self.scrollRequest.emit(delta.x(), QtCore.Qt.Horizontal)
-                self.scrollRequest.emit(delta.y(), QtCore.Qt.Vertical)
+            # 注释掉所有滚动条相关代码，避免缩放时触发滚动条
+            # mods = ev.modifiers()
+            # if QtCore.Qt.ShiftModifier == int(mods):
+            #     self.scrollRequest.emit(delta.y(), QtCore.Qt.Horizontal)
+            #     self.scrollRequest.emit(delta.x(), QtCore.Qt.Vertical)
+            # else:
+            #     self.scrollRequest.emit(delta.x(), QtCore.Qt.Horizontal)
+            #     self.scrollRequest.emit(delta.y(), QtCore.Qt.Vertical)
         else:
             if ev.orientation() == QtCore.Qt.Vertical:
                 # mods = ev.modifiers()
@@ -1056,8 +1057,8 @@ class Canvas(Canvas, CustomCanvasAttr):
                 #         else QtCore.Qt.Vertical,
                 #     )
                 self.zoomRequest.emit(ev.delta(), ev.pos())
-            else:
-                self.scrollRequest.emit(ev.delta(), QtCore.Qt.Horizontal)
+            # else:
+            #     self.scrollRequest.emit(ev.delta(), QtCore.Qt.Horizontal)
         ev.accept()
 
     def mouseDoubleClickEvent(self, ev):
