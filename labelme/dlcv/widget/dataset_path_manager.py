@@ -47,7 +47,7 @@ class DatasetItem(QtWidgets.QListWidgetItem):
         return self.data(QtCore.Qt.UserRole)
 
 
-class DatasetPathManager(QtWidgets.QDockWidget):
+class DatasetPathManagerDock(QtWidgets.QDockWidget):
     """数据集路径管理器
     用于管理不同类型(分类/检测/分割)的数据集路径，每个数据集信息用单独的yaml文件配置
     """
@@ -205,7 +205,7 @@ class DatasetPathManager(QtWidgets.QDockWidget):
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)
-    widget = DatasetPathManager()
+    widget = DatasetPathManagerDock()
     widget.resize(800, 600)
     widget.show()
     sys.exit(app.exec_())

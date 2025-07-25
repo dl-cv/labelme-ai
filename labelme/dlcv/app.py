@@ -1334,21 +1334,23 @@ class MainWindow(MainWindow):
         self.label_count_dock = LabelCountDock(self)
         self.addDockWidget(Qt.RightDockWidgetArea, self.label_count_dock)
         # 添加到菜单栏->视图->标签数量统计
-        self.menus.view.insertAction(self.menus.view.actions()[3],
+        self.menus.view.insertAction(self.menus.view.actions()[4],
                                      self.label_count_dock.toggleViewAction())
 
     # endregion
 
     def _init_dataset_path_manager(self):
-        from labelme.dlcv.widget.dataset_path_manager import DatasetPathManager, DatasetItem
-        self.dataset_path_manager = DatasetPathManager(self)
-        self.addDockWidget(Qt.LeftDockWidgetArea, self.dataset_path_manager)
+        from labelme.dlcv.widget.dataset_path_manager import DatasetPathManagerDock, DatasetItem
+        self.dataset_path_manager_dock = DatasetPathManagerDock(self)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.dataset_path_manager_dock)
 
         def on_dataset_item_clicked(item: DatasetItem):
             config = item.get_config()
             self.importDirImages(config.dataset_root_path)
 
-        self.dataset_path_manager.item_clicked.connect(
+        self.menus.view.insertAction(self.menus.view.actions()[5],
+                                     self.dataset_path_manager_dock.toggleViewAction())
+        self.dataset_path_manager_dock.item_clicked.connect(
             on_dataset_item_clicked)
 
     # region 设置面板
