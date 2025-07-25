@@ -985,12 +985,27 @@ class Canvas(Canvas, CustomCanvasAttr):
             self.movingShape = False
 
     def wheelEvent(self, ev):
-        # 避免无图片时滚动崩溃
+        # 优化：注释掉Ctrl依赖，滚轮直接缩放
         if not hasattr(self, 'pixmap') or self.pixmap is None or self.pixmap.isNull():
             return
         if QT5:
-            # 使用滚轮缩放 去除ctrl键依赖
+            # mods = ev.modifiers()
             delta = ev.angleDelta()
+            # if QtCore.Qt.ControlModifier == int(mods):
+            #     # with Ctrl/Command key
+            #     # zoom
+            #     self.zoomRequest.emit(delta.y(), ev.pos())
+            #     # extra shift+滚轮横向滚动
+            #     # https://github.com/wkentaro/labelme/pull/1472
+            #     elif QtCore.Qt.ShiftModifier == int(mods):
+            #         # side scroll
+            #         self.scrollRequest.emit(delta.y(), QtCore.Qt.Horizontal)
+            #         self.scrollRequest.emit(delta.x(), QtCore.Qt.Vertical)
+            #     else:
+            #         # scroll
+            #         self.scrollRequest.emit(delta.x(), QtCore.Qt.Horizontal)
+            #         self.scrollRequest.emit(delta.y(), QtCore.Qt.Vertical)
+            # 现在无论是否按Ctrl，滚轮都缩放
             self.zoomRequest.emit(delta.y(), ev.pos())
             mods = ev.modifiers()
             if QtCore.Qt.ShiftModifier == int(mods):
@@ -1001,7 +1016,17 @@ class Canvas(Canvas, CustomCanvasAttr):
                 self.scrollRequest.emit(delta.y(), QtCore.Qt.Vertical)
         else:
             if ev.orientation() == QtCore.Qt.Vertical:
-                # 使用滚轮缩放 去除ctrl键依赖
+                # mods = ev.modifiers()
+                # if QtCore.Qt.ControlModifier == int(mods):
+                #     # with Ctrl/Command key
+                #     self.zoomRequest.emit(ev.delta(), ev.pos())
+                # else:
+                #     self.scrollRequest.emit(
+                #         ev.delta(),
+                #         QtCore.Qt.Horizontal
+                #         if (QtCore.Qt.ShiftModifier == int(mods))
+                #         else QtCore.Qt.Vertical,
+                #     )
                 self.zoomRequest.emit(ev.delta(), ev.pos())
             else:
                 self.scrollRequest.emit(ev.delta(), QtCore.Qt.Horizontal)
