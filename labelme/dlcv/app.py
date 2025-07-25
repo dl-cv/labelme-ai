@@ -42,8 +42,6 @@ from labelme.dlcv.widget.viewAttribute import get_shape_attribute, get_window_po
 from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
 import os
 from labelme.dlcv.widget.label_count import LabelCountDock
-import os
-import json
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 
