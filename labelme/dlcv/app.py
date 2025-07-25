@@ -134,10 +134,10 @@ class MainWindow(MainWindow):
         STORE.set_edit_label_name(self._edit_label)
 
         # APPData 目录
-        self.APPDATA_DIR = os.path.expanduser(
+        APPDATA_DIR = os.path.expanduser(
             "~"
         ) + os.sep + "AppData" + os.sep + "Roaming" + os.sep + "dlcv"  # "C:\Users\{用户名}\AppData\Roaming\dlcv"
-        self.LABEL_TXT_DIR = self.APPDATA_DIR + os.sep + "labelme_ai"
+        self.LABEL_TXT_DIR = APPDATA_DIR + os.sep + "labelme_ai"
 
         # 确保标签txt目录存在
         if not os.path.exists(self.LABEL_TXT_DIR):
