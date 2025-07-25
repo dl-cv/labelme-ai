@@ -37,6 +37,16 @@ class DatasetConfig:
             yaml.dump(self.to_dict(), f, allow_unicode=True)
 
 
+class DatasetItem(QtWidgets.QListWidgetItem):
+
+    def __init__(self, config: DatasetConfig):
+        super().__init__(config.dataset_root_path)
+        self.setData(QtCore.Qt.UserRole, config)
+
+    def get_config(self):
+        return self.data(QtCore.Qt.UserRole)
+
+
 class DatasetPathManager(QtWidgets.QDockWidget):
     """数据集路径管理器
     用于管理不同类型(分类/检测/分割)的数据集路径，每个数据集信息用单独的yaml文件配置
@@ -71,8 +81,6 @@ class DatasetPathManager(QtWidgets.QDockWidget):
 
         # 创建标签页控件
         self.tab_widget = QtWidgets.QTabWidget()
-        # 设置标签页在底部
-        self.tab_widget.setTabPosition(QtWidgets.QTabWidget.South)
 
         # 为每种数据集类型创建列表
         self.dataset_lists = {}
@@ -129,9 +137,7 @@ class DatasetPathManager(QtWidgets.QDockWidget):
             try:
                 config = DatasetConfig.from_dict(yaml_data.copy())
                 # 创建列表项，显示数据集路径
-                item = QtWidgets.QListWidgetItem(config.dataset_root_path)
-                # 存储DatasetConfig对象到item中
-                item.setData(QtCore.Qt.UserRole, config)
+                item = DatasetItem(config)
                 list_widget.addItem(item)
             except KeyError as e:
                 print(f"无效的配置文件 {yaml_file}: 缺少必需字段 {e}")
@@ -157,44 +163,40 @@ class DatasetPathManager(QtWidgets.QDockWidget):
         """添加新的数据集配置"""
         # 获取当前选中的数据集类型
         current_type = DATASET_TYPES[self.tab_widget.currentIndex()]
-        
+
         # 选择数据集文件夹
         folder_path = QtWidgets.QFileDialog.getExistingDirectory(
-            self,
-            tr("选择数据集文件夹"),
-            "",
-            QtWidgets.QFileDialog.ShowDirsOnly
-        )
-        
+            self, tr("选择数据集文件夹"), "", QtWidgets.QFileDialog.ShowDirsOnly)
+
         if folder_path:
             # 创建配置对象
             config = DatasetConfig(dataset_root_path=folder_path)
-            
-            # 生成yaml文件名
-            folder_name = os.path.basename(folder_path)
-            yaml_file = f"{folder_name}.yaml"
-            yaml_path = os.path.join(BASE_DIR, current_type, yaml_file)
-            
-            # 确保目标目录存在
-            os.makedirs(os.path.dirname(yaml_path), exist_ok=True)
-            
-            # 如果文件已存在，添加数字后缀
-            counter = 1
-            while os.path.exists(yaml_path):
-                yaml_file = f"{folder_name}_{counter}.yaml"
+
+            # 获取默认文件名（文件夹名）
+            default_name = os.path.basename(folder_path)
+
+            # 让用户输入yaml文件名
+            yaml_name, ok = QtWidgets.QInputDialog.getText(
+                self, tr("输入配置文件名"), tr("请输入配置文件名（不需要.yaml后缀）："),
+                QtWidgets.QLineEdit.Normal, default_name)
+
+            if ok and yaml_name:
+                # 添加.yaml后缀
+                yaml_file = f"{yaml_name}.yaml"
                 yaml_path = os.path.join(BASE_DIR, current_type, yaml_file)
-                counter += 1
-            
-            # 保存配置文件
-            config.save_to_yaml(yaml_path)
-            
-            # 添加到列表中
-            self.add_dataset_config(current_type, yaml_file, config.to_dict())
+
+                os.makedirs(os.path.dirname(yaml_path), exist_ok=True)
+                config.save_to_yaml(yaml_path)
+
+                # 添加到列表中
+                self.add_dataset_config(current_type, yaml_file,
+                                        config.to_dict())
 
 
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)
     widget = DatasetPathManager()
+    widget.resize(800, 600)
     widget.show()
     sys.exit(app.exec_())
