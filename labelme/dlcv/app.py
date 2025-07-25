@@ -101,7 +101,6 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 class MainWindow(MainWindow):
     canvas: labelme.dlcv.canvas.Canvas
     sig_auto_label_all_update = QtCore.Signal(object)
-    LABEL_TXT_DIR = r'C:\Users\dlcv\AppData\Roaming\dlcv\labelmeai_label'
 
     def __init__(self,
                  config=None,
@@ -133,6 +132,12 @@ class MainWindow(MainWindow):
 
         self._init_edit_mode_action()  # 初始化编辑模式切换动作
         STORE.set_edit_label_name(self._edit_label)
+
+        # APPData 目录
+        APPDATA_DIR = os.path.expanduser(
+            "~"
+        ) + os.sep + "AppData" + os.sep + "Roaming" + os.sep + "dlcv"  # "C:\Users\{用户名}\AppData\Roaming\dlcv"
+        self.LABEL_TXT_DIR = APPDATA_DIR + os.sep + "labelme_ai"
 
         # 确保标签txt目录存在
         if not os.path.exists(self.LABEL_TXT_DIR):
@@ -304,8 +309,7 @@ class MainWindow(MainWindow):
             self.load_label_txt,
             "objects",
             enabled=True,
-            icon='labels'
-        )
+            icon='labels')
         self.actions.load_label_file = load_label_file_action
         self.actions.tool.insert(1, self.actions.load_label_file)
 
@@ -322,8 +326,7 @@ class MainWindow(MainWindow):
             save_label_txt_file,
             "objects",
             enabled=True,
-            icon='save-as'
-        )
+            icon='save-as')
         self.actions.save_label_file = save_label_file_action
         self.actions.tool.insert(2, self.actions.save_label_file)
 
@@ -458,7 +461,8 @@ class MainWindow(MainWindow):
                 all_labels = [line.strip() for line in lines if line.strip()]
 
                 if not all_labels:
-                    notification("标签文件为空", f"该标签文件没有任何标签。", ToastPreset.INFORMATION)
+                    notification("标签文件为空", f"该标签文件没有任何标签。",
+                                 ToastPreset.INFORMATION)
                     return
 
                 loaded_count = 0
@@ -471,9 +475,11 @@ class MainWindow(MainWindow):
                         loaded_count += 1
 
                 if loaded_count > 0:
-                    notification("标签加载完成", f"成功加载 {loaded_count} 个新标签。", ToastPreset.SUCCESS)
+                    notification("标签加载完成", f"成功加载 {loaded_count} 个新标签。",
+                                 ToastPreset.SUCCESS)
                 else:
-                    notification("标签加载完成", f"未发现新标签，所有标签已存在。", ToastPreset.INFORMATION)
+                    notification("标签加载完成", f"未发现新标签，所有标签已存在。",
+                                 ToastPreset.INFORMATION)
             except Exception as e:
                 notification("加载标签文件失败", str(e), ToastPreset.ERROR)
 
@@ -487,7 +493,8 @@ class MainWindow(MainWindow):
         label_set = set()
         for i in range(self.uniqLabelList.count()):
             item = self.uniqLabelList.item(i)
-            label = item.data(Qt.UserRole) if hasattr(item, 'data') else item.text()
+            label = item.data(Qt.UserRole) if hasattr(item,
+                                                      'data') else item.text()
             label_set.add(label)
         # 优化文件名后缀处理，确保只保存为txt文件
         filename = str(filename).strip()
@@ -2230,6 +2237,7 @@ class MainWindow(MainWindow):
         if sizes:
             sizes = int(sizes[0]), int(sizes[1])
             self.centralWidget().setSizes(sizes)
+
 
 class ProjEnum:
     NORMAL = '常规'
