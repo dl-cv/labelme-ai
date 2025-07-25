@@ -64,6 +64,12 @@ class Canvas(Canvas, CustomCanvasAttr):
         
         # 画笔功能变量
         self.brush_points = []      # 画笔绘制的点集
+        # 画布拖动相关变量
+        self.draggingCanvas = False
+        self.canvasDragStart = None
+        self.canvasOffsetStart = None
+        # 画布偏移初始化
+        self.offset = QtCore.QPointF(0, 0)
 
     # region Mouse Events
     def mouse_left_click(self, ev, pos: QtCore.QPointF):
@@ -249,7 +255,14 @@ class Canvas(Canvas, CustomCanvasAttr):
                                 self.update()
                                 return
             
-            # 如果不是特殊交互元素，则调用常规的点击处理
+            # 如果没有选中顶点和形状，进入画布拖动模式
+            if not self.selectedVertex() and not self.selectedShapes:
+                self.draggingCanvas = True
+                self.canvasDragStart = pos
+                # 画布偏移量变量名根据实际情况调整
+                self.canvasOffsetStart = self.offset if hasattr(self, 'offset') else QtCore.QPointF(0, 0)
+                self.overrideCursor(QtCore.Qt.OpenHandCursor)
+                return
             self.mouse_left_click(ev, pos)
 
         elif ev.button() == QtCore.Qt.RightButton and self.editing():
@@ -393,6 +406,15 @@ class Canvas(Canvas, CustomCanvasAttr):
     def mouseMoveEvent(self, ev):
         """Update line with last point and current coordinates."""
         pos = self.transformPos(ev.pos())
+
+        # 画布拖动处理
+        if self.draggingCanvas and QtCore.Qt.LeftButton & ev.buttons():
+            delta = pos - self.canvasDragStart
+            # 画布偏移量变量名根据实际情况调整
+            if hasattr(self, 'offset'):
+                self.offset = self.canvasOffsetStart + delta
+            self.update()
+            return
 
         # 画笔绘制处理
         if self.brush_enabled and self.brush_drawing and self.drawing():
@@ -984,6 +1006,12 @@ class Canvas(Canvas, CustomCanvasAttr):
 
             self.movingShape = False
 
+        # 画布拖动释放
+        if self.draggingCanvas:
+            self.draggingCanvas = False
+            self.restoreCursor()
+            return
+
     def wheelEvent(self, ev):
         # 优化：注释掉Ctrl依赖，滚轮直接缩放
         if not hasattr(self, 'pixmap') or self.pixmap is None or self.pixmap.isNull():
@@ -1076,7 +1104,8 @@ class Canvas(Canvas, CustomCanvasAttr):
         # p.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
 
         p.scale(self.scale, self.scale)
-        p.translate(self.offsetToCenter())
+        # 叠加画布偏移量
+        p.translate(self.offsetToCenter() + self.offset)
 
         p.drawPixmap(0, 0, self.pixmap)
         
