@@ -40,6 +40,8 @@ from labelme.dlcv.shape import Shape
 from typing import List
 from labelme.dlcv.widget.viewAttribute import get_shape_attribute, get_window_position, viewAttribute
 from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
+import os
+from labelme.dlcv.widget.label_count import LabelCountDock
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 
@@ -1220,6 +1222,17 @@ class MainWindow(MainWindow):
             elif (self.lastOpenDir and Path(self.lastOpenDir).exists()
                   and sys.argv[0].endswith(".py")):  # 默认打开上次文件夹
                 self.importDirImages(self.lastOpenDir)
+
+    # region 标签数量统计面板
+    def _init_label_count_dock(self):
+        self.label_count_dock = LabelCountDock(self)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.label_count_dock)
+        # 添加到菜单栏->视图->标签数量统计
+        self.menus.view.insertAction(
+            self.menus.view.actions()[3],
+            self.label_count_dock.toggleViewAction()
+        )
+    # endregion
 
     # region 设置面板
     def _init_setting_dock(self):
