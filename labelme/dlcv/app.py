@@ -1194,6 +1194,7 @@ class MainWindow(MainWindow):
 
     def _init_ui(self):
         self._init_label_count_dock()
+        self._init_dataset_path_manager()
         self._init_setting_dock(
         )  # 必须在所有的 docker widget 都初始化后才执行，否则 docker widget 不会 restore 成上一次退出时的状态
 
@@ -1337,6 +1338,18 @@ class MainWindow(MainWindow):
                                      self.label_count_dock.toggleViewAction())
 
     # endregion
+
+    def _init_dataset_path_manager(self):
+        from labelme.dlcv.widget.dataset_path_manager import DatasetPathManager, DatasetItem
+        self.dataset_path_manager = DatasetPathManager(self)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self.dataset_path_manager)
+
+        def on_dataset_item_clicked(item: DatasetItem):
+            config = item.get_config()
+            self.importDirImages(config.dataset_root_path)
+
+        self.dataset_path_manager.item_clicked.connect(
+            on_dataset_item_clicked)
 
     # region 设置面板
     def _init_setting_dock(self):

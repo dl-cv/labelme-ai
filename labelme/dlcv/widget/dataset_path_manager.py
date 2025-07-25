@@ -51,6 +51,8 @@ class DatasetPathManager(QtWidgets.QDockWidget):
     """数据集路径管理器
     用于管理不同类型(分类/检测/分割)的数据集路径，每个数据集信息用单独的yaml文件配置
     """
+    # 修改信号，发送DatasetItem
+    item_clicked = QtCore.Signal(DatasetItem)
 
     def __init__(self, parent=None):
         super().__init__(tr("常用数据集"), parent)
@@ -86,6 +88,8 @@ class DatasetPathManager(QtWidgets.QDockWidget):
         self.dataset_lists = {}
         for dataset_type in DATASET_TYPES:
             list_widget = QtWidgets.QListWidget()
+            # 连接点击信号
+            list_widget.itemClicked.connect(self.on_item_clicked)
             self.dataset_lists[dataset_type] = list_widget
             self.tab_widget.addTab(list_widget, tr(dataset_type))
 
@@ -191,6 +195,11 @@ class DatasetPathManager(QtWidgets.QDockWidget):
                 # 添加到列表中
                 self.add_dataset_config(current_type, yaml_file,
                                         config.to_dict())
+
+    def on_item_clicked(self, item):
+        """处理列表项点击事件"""
+        if isinstance(item, DatasetItem):
+            self.item_clicked.emit(item)
 
 
 if __name__ == "__main__":
