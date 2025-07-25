@@ -1092,6 +1092,7 @@ class MainWindow(MainWindow):
 
     def _init_ui(self):
         self._init_setting_dock()
+        self._init_label_count_dock()
         self._init_3d_widget()
         self._init_file_list_widget()
         self._init_trigger_action()
