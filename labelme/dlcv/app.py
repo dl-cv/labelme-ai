@@ -101,7 +101,6 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 class MainWindow(MainWindow):
     canvas: labelme.dlcv.canvas.Canvas
     sig_auto_label_all_update = QtCore.Signal(object)
-    LABEL_TXT_DIR = r'C:\Users\dlcv\AppData\Roaming\dlcv\labelmeai_label'
 
     def __init__(self,
                  config=None,
@@ -133,6 +132,12 @@ class MainWindow(MainWindow):
 
         self._init_edit_mode_action()  # 初始化编辑模式切换动作
         STORE.set_edit_label_name(self._edit_label)
+
+        # APPData 目录
+        self.APPDATA_DIR = os.path.expanduser(
+            "~"
+        ) + os.sep + "AppData" + os.sep + "Roaming" + os.sep + "dlcv"  # "C:\Users\{用户名}\AppData\Roaming\dlcv"
+        self.LABEL_TXT_DIR = self.APPDATA_DIR + os.sep + "labelme_ai"
 
         # 确保标签txt目录存在
         if not os.path.exists(self.LABEL_TXT_DIR):
