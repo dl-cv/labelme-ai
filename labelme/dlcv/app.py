@@ -1091,8 +1091,10 @@ class MainWindow(MainWindow):
         self.file_dock.setWidget(self.fileListWidget)
 
     def _init_ui(self):
-        self._init_setting_dock()
         self._init_label_count_dock()
+        self._init_setting_dock(
+        )  # 必须在所有的 docker widget 都初始化后才执行，否则 docker widget 不会 restore 成上一次退出时的状态
+
         self._init_3d_widget()
         self._init_file_list_widget()
         self._init_trigger_action()
@@ -1229,10 +1231,9 @@ class MainWindow(MainWindow):
         self.label_count_dock = LabelCountDock(self)
         self.addDockWidget(Qt.RightDockWidgetArea, self.label_count_dock)
         # 添加到菜单栏->视图->标签数量统计
-        self.menus.view.insertAction(
-            self.menus.view.actions()[3],
-            self.label_count_dock.toggleViewAction()
-        )
+        self.menus.view.insertAction(self.menus.view.actions()[3],
+                                     self.label_count_dock.toggleViewAction())
+
     # endregion
 
     # region 设置面板
