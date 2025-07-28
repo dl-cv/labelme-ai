@@ -28,6 +28,13 @@ class Canvas(Canvas, CustomCanvasAttr):
     # 添加shapeDone信号
     shapeDone = QtCore.Signal()
 
+    def transformPos(self, point):
+        """Convert from widget-logical coordinates to painter-logical ones."""
+        # 继承父类的基本转换，然后减去画布拖动的偏移量
+        transformed = point / self.scale - self.offsetToCenter()
+        # 减去画布拖动产生的偏移量
+        return transformed - self.offset
+
     def __init__(self, *args, **kwargs):
         self.epsilon = kwargs.pop("epsilon", 10.0)
         self.double_click = kwargs.pop("double_click", "close")
@@ -64,6 +71,12 @@ class Canvas(Canvas, CustomCanvasAttr):
         
         # 画笔功能变量
         self.brush_points = []      # 画笔绘制的点集
+        # 画布拖动相关变量
+        self.draggingCanvas = False
+        self.canvasDragStart = None
+        self.canvasOffsetStart = None
+        # 画布偏移初始化
+        self.offset = QtCore.QPointF(0, 0)
 
     # region Mouse Events
     def mouse_left_click(self, ev, pos: QtCore.QPointF):
@@ -153,25 +166,6 @@ class Canvas(Canvas, CustomCanvasAttr):
             self.prevPoint = pos
             self.repaint()
 
-            # extra Edit时,左键多选框开始
-            # 没有单击选中多边形,并且没有选中顶点
-            if not self.selectedShapes and not self.selectedVertex():
-                if not self.current and not self.outOfPixmap(pos):
-                    self.createMode = "rectangle"
-                    self.current = Shape(
-                        shape_type="points"
-                        if self.createMode in ["ai_polygon", "ai_mask"]
-                        else self.createMode
-                    )
-                    self.current.addPoint(pos, label=0 if is_shift_pressed else 1)
-
-                    self.line.points = [pos, pos]
-                    self.line.point_labels = [1, 1]
-                    self.setHiding()
-                    self.update()
-                    self.current.highlightClear()
-            # extra End
-
     def mouse_right_click(self, ev, pos: QtCore.QPointF):
         group_mode = int(ev.modifiers()) == QtCore.Qt.ControlModifier
         if not self.selectedShapes or (
@@ -249,7 +243,42 @@ class Canvas(Canvas, CustomCanvasAttr):
                                 self.update()
                                 return
             
-            # 如果不是特殊交互元素，则调用常规的点击处理
+            # 只有在编辑模式下，且确实没有选中任何形状和顶点时，才启动画布拖动或多选框
+            if (self.editing() and 
+                not self.selectedVertex() and 
+                not self.selectedShapes and
+                not self.hShape and
+                not self.current):
+                
+                # 检查是否按下Shift键
+                shift_pressed = int(ev.modifiers()) == QtCore.Qt.ShiftModifier
+                
+                if shift_pressed:
+                    # Shift+拖动：启动多选框功能
+                    logger.info("[DEBUG] 启动Shift+拖动多选框功能")
+                    self.createMode = "rectangle"
+                    self.current = Shape(
+                        shape_type="points"
+                        if self.createMode in ["ai_polygon", "ai_mask"]
+                        else self.createMode
+                    )
+                    self.current.addPoint(pos, label=0)
+                    
+                    self.line.points = [pos, pos]
+                    self.line.point_labels = [1, 1]
+                    self.setHiding()
+                    self.update()
+                    self.current.highlightClear()
+                    return
+                else:
+                    # 普通拖动：启动画布拖动功能
+                    self.draggingCanvas = True
+                    self.canvasDragStart = ev.pos() / self.scale
+                    # 画布偏移量变量名根据实际情况调整
+                    self.canvasOffsetStart = self.offset if hasattr(self, 'offset') else QtCore.QPointF(0, 0)
+                    self.overrideCursor(QtCore.Qt.OpenHandCursor)
+                    return
+                    
             self.mouse_left_click(ev, pos)
 
         elif ev.button() == QtCore.Qt.RightButton and self.editing():
@@ -393,6 +422,17 @@ class Canvas(Canvas, CustomCanvasAttr):
     def mouseMoveEvent(self, ev):
         """Update line with last point and current coordinates."""
         pos = self.transformPos(ev.pos())
+
+        # 画布拖动处理
+        if self.draggingCanvas and QtCore.Qt.LeftButton & ev.buttons():
+            # 使用原始鼠标坐标计算增量，避免重复转换
+            raw_pos = ev.pos() / self.scale
+            delta = raw_pos - self.canvasDragStart
+            # 画布偏移量变量名根据实际情况调整
+            if hasattr(self, 'offset'):
+                self.offset = self.canvasOffsetStart + delta
+            self.update()
+            return
 
         # 画笔绘制处理
         if self.brush_enabled and self.brush_drawing and self.drawing():
@@ -984,40 +1024,59 @@ class Canvas(Canvas, CustomCanvasAttr):
 
             self.movingShape = False
 
-    def wheelEvent(self, ev):
-        if QT5:
-            mods = ev.modifiers()
-            delta = ev.angleDelta()
-            if QtCore.Qt.ControlModifier == int(mods):
-                # with Ctrl/Command key
-                # zoom
-                self.zoomRequest.emit(delta.y(), ev.pos())
+        # 画布拖动释放
+        if self.draggingCanvas:
+            self.draggingCanvas = False
+            self.restoreCursor()
+            return
 
-            # extra shift+滚轮横向滚动
-            # https://github.com/wkentaro/labelme/pull/1472
-            elif QtCore.Qt.ShiftModifier == int(mods):
-                # side scroll
-                self.scrollRequest.emit(delta.y(), QtCore.Qt.Horizontal)
-                self.scrollRequest.emit(delta.x(), QtCore.Qt.Vertical)
-            else:
-                # scroll
-                self.scrollRequest.emit(delta.x(), QtCore.Qt.Horizontal)
-                self.scrollRequest.emit(delta.y(), QtCore.Qt.Vertical)
+    def wheelEvent(self, ev):
+        # 优化：注释掉Ctrl依赖，滚轮直接缩放
+        if not hasattr(self, 'pixmap') or self.pixmap is None or self.pixmap.isNull():
+            return
+        if QT5:
+            # mods = ev.modifiers()
+            delta = ev.angleDelta()
+            # if QtCore.Qt.ControlModifier == int(mods):
+            #     # with Ctrl/Command key
+            #     # zoom
+            #     self.zoomRequest.emit(delta.y(), ev.pos())
+            #     # extra shift+滚轮横向滚动
+            #     # https://github.com/wkentaro/labelme/pull/1472
+            #     elif QtCore.Qt.ShiftModifier == int(mods):
+            #         # side scroll
+            #         self.scrollRequest.emit(delta.y(), QtCore.Qt.Horizontal)
+            #         self.scrollRequest.emit(delta.x(), QtCore.Qt.Vertical)
+            #     else:
+            #         # scroll
+            #         self.scrollRequest.emit(delta.x(), QtCore.Qt.Horizontal)
+            #         self.scrollRequest.emit(delta.y(), QtCore.Qt.Vertical)
+            # 现在无论是否按Ctrl，滚轮都缩放
+            self.zoomRequest.emit(delta.y(), ev.pos())
+            # 注释掉所有滚动条相关代码，避免缩放时触发滚动条
+            # mods = ev.modifiers()
+            # if QtCore.Qt.ShiftModifier == int(mods):
+            #     self.scrollRequest.emit(delta.y(), QtCore.Qt.Horizontal)
+            #     self.scrollRequest.emit(delta.x(), QtCore.Qt.Vertical)
+            # else:
+            #     self.scrollRequest.emit(delta.x(), QtCore.Qt.Horizontal)
+            #     self.scrollRequest.emit(delta.y(), QtCore.Qt.Vertical)
         else:
             if ev.orientation() == QtCore.Qt.Vertical:
-                mods = ev.modifiers()
-                if QtCore.Qt.ControlModifier == int(mods):
-                    # with Ctrl/Command key
-                    self.zoomRequest.emit(ev.delta(), ev.pos())
-                else:
-                    self.scrollRequest.emit(
-                        ev.delta(),
-                        QtCore.Qt.Horizontal
-                        if (QtCore.Qt.ShiftModifier == int(mods))
-                        else QtCore.Qt.Vertical,
-                    )
-            else:
-                self.scrollRequest.emit(ev.delta(), QtCore.Qt.Horizontal)
+                # mods = ev.modifiers()
+                # if QtCore.Qt.ControlModifier == int(mods):
+                #     # with Ctrl/Command key
+                #     self.zoomRequest.emit(ev.delta(), ev.pos())
+                # else:
+                #     self.scrollRequest.emit(
+                #         ev.delta(),
+                #         QtCore.Qt.Horizontal
+                #         if (QtCore.Qt.ShiftModifier == int(mods))
+                #         else QtCore.Qt.Vertical,
+                #     )
+                self.zoomRequest.emit(ev.delta(), ev.pos())
+            # else:
+            #     self.scrollRequest.emit(ev.delta(), QtCore.Qt.Horizontal)
         ev.accept()
 
     def mouseDoubleClickEvent(self, ev):
@@ -1064,7 +1123,8 @@ class Canvas(Canvas, CustomCanvasAttr):
         # p.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
 
         p.scale(self.scale, self.scale)
-        p.translate(self.offsetToCenter())
+        # 叠加画布偏移量
+        p.translate(self.offsetToCenter() + self.offset)
 
         p.drawPixmap(0, 0, self.pixmap)
         
