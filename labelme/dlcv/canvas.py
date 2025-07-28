@@ -28,6 +28,13 @@ class Canvas(Canvas, CustomCanvasAttr):
     # 添加shapeDone信号
     shapeDone = QtCore.Signal()
 
+    def transformPos(self, point):
+        """Convert from widget-logical coordinates to painter-logical ones."""
+        # 继承父类的基本转换，然后减去画布拖动的偏移量
+        transformed = point / self.scale - self.offsetToCenter()
+        # 减去画布拖动产生的偏移量
+        return transformed - self.offset
+
     def __init__(self, *args, **kwargs):
         self.epsilon = kwargs.pop("epsilon", 10.0)
         self.double_click = kwargs.pop("double_click", "close")
