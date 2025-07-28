@@ -166,25 +166,6 @@ class Canvas(Canvas, CustomCanvasAttr):
             self.prevPoint = pos
             self.repaint()
 
-            # extra Edit时,左键多选框开始
-            # 没有单击选中多边形,并且没有选中顶点
-            if not self.selectedShapes and not self.selectedVertex():
-                if not self.current and not self.outOfPixmap(pos):
-                    self.createMode = "rectangle"
-                    self.current = Shape(
-                        shape_type="points"
-                        if self.createMode in ["ai_polygon", "ai_mask"]
-                        else self.createMode
-                    )
-                    self.current.addPoint(pos, label=0 if is_shift_pressed else 1)
-
-                    self.line.points = [pos, pos]
-                    self.line.point_labels = [1, 1]
-                    self.setHiding()
-                    self.update()
-                    self.current.highlightClear()
-            # extra End
-
     def mouse_right_click(self, ev, pos: QtCore.QPointF):
         group_mode = int(ev.modifiers()) == QtCore.Qt.ControlModifier
         if not self.selectedShapes or (
@@ -262,19 +243,42 @@ class Canvas(Canvas, CustomCanvasAttr):
                                 self.update()
                                 return
             
-            # 只有在编辑模式下，且确实没有选中任何形状和顶点时，才启动画布拖动
+            # 只有在编辑模式下，且确实没有选中任何形状和顶点时，才启动画布拖动或多选框
             if (self.editing() and 
                 not self.selectedVertex() and 
                 not self.selectedShapes and
                 not self.hShape and
                 not self.current):
-
-                self.draggingCanvas = True
-                self.canvasDragStart = pos
-                # 画布偏移量变量名根据实际情况调整
-                self.canvasOffsetStart = self.offset if hasattr(self, 'offset') else QtCore.QPointF(0, 0)
-                self.overrideCursor(QtCore.Qt.OpenHandCursor)
-                return
+                
+                # 检查是否按下Shift键
+                shift_pressed = int(ev.modifiers()) == QtCore.Qt.ShiftModifier
+                
+                if shift_pressed:
+                    # Shift+拖动：启动多选框功能
+                    logger.info("[DEBUG] 启动Shift+拖动多选框功能")
+                    self.createMode = "rectangle"
+                    self.current = Shape(
+                        shape_type="points"
+                        if self.createMode in ["ai_polygon", "ai_mask"]
+                        else self.createMode
+                    )
+                    self.current.addPoint(pos, label=0)
+                    
+                    self.line.points = [pos, pos]
+                    self.line.point_labels = [1, 1]
+                    self.setHiding()
+                    self.update()
+                    self.current.highlightClear()
+                    return
+                else:
+                    # 普通拖动：启动画布拖动功能
+                    self.draggingCanvas = True
+                    self.canvasDragStart = pos
+                    # 画布偏移量变量名根据实际情况调整
+                    self.canvasOffsetStart = self.offset if hasattr(self, 'offset') else QtCore.QPointF(0, 0)
+                    self.overrideCursor(QtCore.Qt.OpenHandCursor)
+                    return
+                    
             self.mouse_left_click(ev, pos)
 
         elif ev.button() == QtCore.Qt.RightButton and self.editing():
