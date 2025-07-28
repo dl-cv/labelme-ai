@@ -273,7 +273,7 @@ class Canvas(Canvas, CustomCanvasAttr):
                 else:
                     # 普通拖动：启动画布拖动功能
                     self.draggingCanvas = True
-                    self.canvasDragStart = pos
+                    self.canvasDragStart = ev.pos() / self.scale
                     # 画布偏移量变量名根据实际情况调整
                     self.canvasOffsetStart = self.offset if hasattr(self, 'offset') else QtCore.QPointF(0, 0)
                     self.overrideCursor(QtCore.Qt.OpenHandCursor)
@@ -425,7 +425,9 @@ class Canvas(Canvas, CustomCanvasAttr):
 
         # 画布拖动处理
         if self.draggingCanvas and QtCore.Qt.LeftButton & ev.buttons():
-            delta = pos - self.canvasDragStart
+            # 使用原始鼠标坐标计算增量，避免重复转换
+            raw_pos = ev.pos() / self.scale
+            delta = raw_pos - self.canvasDragStart
             # 画布偏移量变量名根据实际情况调整
             if hasattr(self, 'offset'):
                 self.offset = self.canvasOffsetStart + delta
