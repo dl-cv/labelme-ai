@@ -255,8 +255,13 @@ class Canvas(Canvas, CustomCanvasAttr):
                                 self.update()
                                 return
             
-            # 如果没有选中顶点和形状，进入画布拖动模式
-            if not self.selectedVertex() and not self.selectedShapes:
+            # 只有在编辑模式下，且确实没有选中任何形状和顶点时，才启动画布拖动
+            if (self.editing() and 
+                not self.selectedVertex() and 
+                not self.selectedShapes and
+                not self.hShape and
+                not self.current):
+
                 self.draggingCanvas = True
                 self.canvasDragStart = pos
                 # 画布偏移量变量名根据实际情况调整
