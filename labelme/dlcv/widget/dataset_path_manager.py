@@ -53,10 +53,12 @@ class DatasetPathManagerDock(QtWidgets.QDockWidget):
     """
     # 修改信号，发送DatasetItem
     item_clicked = QtCore.Signal(DatasetItem)
+    base_dir_changed = QtCore.Signal(str)  # 添加BASE_DIR改变信号
 
     def __init__(self, parent=None):
         super().__init__(tr("常用数据集"), parent)
         self.setObjectName("dataset_path_manager")
+        self.base_dir = BASE_DIR  # 初始化base_dir
         self.setup_ui()
         self.load_datasets()
 
@@ -65,6 +67,26 @@ class DatasetPathManagerDock(QtWidgets.QDockWidget):
         main_widget = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(main_widget)
         layout.setContentsMargins(0, 0, 0, 0)
+
+        # 创建BASE_DIR显示和修改区域
+        base_dir_layout = QtWidgets.QHBoxLayout()
+        base_dir_layout.setContentsMargins(0, 0, 0, 0)
+
+        # BASE_DIR标签
+        base_dir_label = QtWidgets.QLabel(tr("数据集根目录:"))
+        base_dir_layout.addWidget(base_dir_label)
+
+        # BASE_DIR显示框
+        self.base_dir_edit = QtWidgets.QLineEdit(self.base_dir)
+        self.base_dir_edit.setReadOnly(True)
+        base_dir_layout.addWidget(self.base_dir_edit)
+
+        # 修改BASE_DIR按钮
+        self.change_base_dir_button = QtWidgets.QPushButton(tr("修改"))
+        self.change_base_dir_button.clicked.connect(self.change_base_dir)
+        base_dir_layout.addWidget(self.change_base_dir_button)
+
+        layout.addLayout(base_dir_layout)
 
         # 创建顶部工具栏
         toolbar = QtWidgets.QHBoxLayout()
@@ -100,11 +122,25 @@ class DatasetPathManagerDock(QtWidgets.QDockWidget):
         # 连接信号
         self.search_box.textChanged.connect(self.filter_items)
 
+    def change_base_dir(self):
+        """修改BASE_DIR"""
+        new_dir = QtWidgets.QFileDialog.getExistingDirectory(
+            self, tr("选择数据集根目录"), self.base_dir, QtWidgets.QFileDialog.ShowDirsOnly)
+        
+        if new_dir:
+            self.base_dir = new_dir
+            self.base_dir_edit.setText(new_dir)
+            self.base_dir_changed.emit(new_dir)
+            # 重新加载数据集
+            for list_widget in self.dataset_lists.values():
+                list_widget.clear()
+            self.load_datasets()
+
     def load_datasets(self):
         """加载数据集配置"""
-        if os.path.exists(BASE_DIR):
+        if os.path.exists(self.base_dir):
             for dataset_type in DATASET_TYPES:
-                type_dir = os.path.join(BASE_DIR, dataset_type)
+                type_dir = os.path.join(self.base_dir, dataset_type)
                 if os.path.exists(type_dir):
                     self.load_yaml_files(dataset_type, type_dir)
 
@@ -188,7 +224,7 @@ class DatasetPathManagerDock(QtWidgets.QDockWidget):
             if ok and yaml_name:
                 # 添加.yaml后缀
                 yaml_file = f"{yaml_name}.yaml"
-                yaml_path = os.path.join(BASE_DIR, current_type, yaml_file)
+                yaml_path = os.path.join(self.base_dir, current_type, yaml_file)
 
                 os.makedirs(os.path.dirname(yaml_path), exist_ok=True)
                 config.save_to_yaml(yaml_path)
