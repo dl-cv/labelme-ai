@@ -319,7 +319,7 @@ class MainWindow(MainWindow):
             file_name, _ = QtWidgets.QFileDialog.getSaveFileName(
                 self, "保存标签文件", self.LABEL_TXT_DIR, "标签文件 (*.txt)")
             if file_name:
-                self.save_label_txt(file_name)
+                self._save_label_txt(file_name)
 
         save_label_file_action = create_action(
             self.tr("保存标签文件"),
@@ -487,7 +487,7 @@ class MainWindow(MainWindow):
             notification("加载标签文件失败", str(e), ToastPreset.ERROR)
 
     # 缓存标签列表
-    def save_label_txt(self, filename):
+    def _save_label_txt(self, filename):
         """
         将当前唯一标签列表（uniqLabelList）保存为txt文件。
         文件名由用户指定，保存在 LABEL_TXT_DIR 目录下。
