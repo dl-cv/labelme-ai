@@ -306,7 +306,7 @@ class MainWindow(MainWindow):
         # 加载读取标签文件
         load_label_file_action = create_action(
             self.tr("加载标签文件"),
-            self.load_label_txt,
+            self.load_label_txt_action_callback,
             "objects",
             enabled=True,
             icon='labels')
@@ -319,7 +319,7 @@ class MainWindow(MainWindow):
             file_name, _ = QtWidgets.QFileDialog.getSaveFileName(
                 self, "保存标签文件", self.LABEL_TXT_DIR, "标签文件 (*.txt)")
             if file_name:
-                self.save_label_txt(file_name)
+                self._save_label_txt(file_name)
 
         save_label_file_action = create_action(
             self.tr("保存标签文件"),
@@ -447,44 +447,47 @@ class MainWindow(MainWindow):
         # extra End
 
     # 加载标签文件
-    def load_label_txt(self):
+    def load_label_txt_action_callback(self):
         file_dialog = QtWidgets.QFileDialog(self)
         file_dialog.setWindowTitle("选择要加载的标签txt文件")
         file_dialog.setDirectory(self.LABEL_TXT_DIR)
         file_dialog.setNameFilter("标签文件 (*.txt)")
         file_dialog.setFileMode(QtWidgets.QFileDialog.ExistingFile)
         if file_dialog.exec_() == QtWidgets.QFileDialog.Accepted:
-            selected_file = file_dialog.selectedFiles()[0]
-            try:
-                with open(selected_file, 'r', encoding='utf-8') as f:
-                    lines = f.readlines()
-                all_labels = [line.strip() for line in lines if line.strip()]
+            file_path = file_dialog.selectedFiles()[0]
+            self._load_label_txt(file_path)
 
-                if not all_labels:
-                    notification("标签文件为空", f"该标签文件没有任何标签。",
-                                 ToastPreset.INFORMATION)
-                    return
+    def _load_label_txt(self, file_path):
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            all_labels = [line.strip() for line in lines if line.strip()]
 
-                loaded_count = 0
-                for label in all_labels:
-                    if self.uniqLabelList.findItemByLabel(label) is None:
-                        item = self.uniqLabelList.createItemFromLabel(label)
-                        self.uniqLabelList.addItem(item)
-                        rgb = self._get_rgb_by_label(label)
-                        self.uniqLabelList.setItemLabel(item, label, rgb)
-                        loaded_count += 1
+            if not all_labels:
+                notification("标签文件为空", f"该标签文件没有任何标签。",
+                             ToastPreset.INFORMATION)
+                return
 
-                if loaded_count > 0:
-                    notification("标签加载完成", f"成功加载 {loaded_count} 个新标签。",
-                                 ToastPreset.SUCCESS)
-                else:
-                    notification("标签加载完成", f"未发现新标签，所有标签已存在。",
-                                 ToastPreset.INFORMATION)
-            except Exception as e:
-                notification("加载标签文件失败", str(e), ToastPreset.ERROR)
+            loaded_count = 0
+            for label in all_labels:
+                if self.uniqLabelList.findItemByLabel(label) is None:
+                    item = self.uniqLabelList.createItemFromLabel(label)
+                    self.uniqLabelList.addItem(item)
+                    rgb = self._get_rgb_by_label(label)
+                    self.uniqLabelList.setItemLabel(item, label, rgb)
+                    loaded_count += 1
+
+            if loaded_count > 0:
+                notification("标签加载完成", f"成功加载 {loaded_count} 个新标签。",
+                             ToastPreset.SUCCESS)
+            else:
+                notification("标签加载完成", f"未发现新标签，所有标签已存在。",
+                             ToastPreset.INFORMATION)
+        except Exception as e:
+            notification("加载标签文件失败", str(e), ToastPreset.ERROR)
 
     # 缓存标签列表
-    def save_label_txt(self, filename):
+    def _save_label_txt(self, filename):
         """
         将当前唯一标签列表（uniqLabelList）保存为txt文件。
         文件名由用户指定，保存在 LABEL_TXT_DIR 目录下。
@@ -754,6 +757,11 @@ class MainWindow(MainWindow):
             self.actions.undo.setEnabled(True)
             self.setDirty()
 
+            # https://bbs2.dlcv.com.cn/t/topic/1048/3
+            # 保存 label.txt
+            label_txt_path = Path(self.lastOpenDir) / "label.txt"
+            self._save_label_txt(label_txt_path)
+            # extra end
         else:
             self._cancel_shape_creation()
 
@@ -1164,6 +1172,13 @@ class MainWindow(MainWindow):
         self.fileListWidget.clear()
 
         self.fileListWidget.set_root_dir(dirpath)
+
+        # https://bbs2.dlcv.com.cn/t/topic/1048/3
+        dirpath = Path(dirpath)
+        label_txt_path = Path(dirpath) / "label.txt"
+        if label_txt_path.exists():
+            self._load_label_txt(label_txt_path)
+        # End
 
         self.openNextImg(load=load)
 
