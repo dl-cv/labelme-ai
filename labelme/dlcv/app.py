@@ -757,6 +757,11 @@ class MainWindow(MainWindow):
             self.actions.undo.setEnabled(True)
             self.setDirty()
 
+            # https://bbs2.dlcv.com.cn/t/topic/1048/3
+            # 保存 label.txt
+            label_txt_path = Path(self.lastOpenDir) / "label.txt"
+            self._save_label_txt(label_txt_path)
+            # extra end
         else:
             self._cancel_shape_creation()
 
@@ -1167,6 +1172,13 @@ class MainWindow(MainWindow):
         self.fileListWidget.clear()
 
         self.fileListWidget.set_root_dir(dirpath)
+
+        # https://bbs2.dlcv.com.cn/t/topic/1048/3
+        dirpath = Path(dirpath)
+        label_txt_path = Path(dirpath) / "label.txt"
+        if label_txt_path.exists():
+            self._load_label_txt(label_txt_path)
+        # End
 
         self.openNextImg(load=load)
 
