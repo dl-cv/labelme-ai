@@ -37,7 +37,6 @@ from shapely.geometry import Polygon
 from labelme.dlcv.shape import ShapeType
 from labelme.utils import print_time  # noqa
 from labelme.dlcv.shape import Shape
-from typing import List
 from labelme.dlcv.widget.viewAttribute import get_shape_attribute, get_window_position, viewAttribute
 from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
 import os
@@ -1760,11 +1759,12 @@ class MainWindow(MainWindow):
         try:
             if labelme_data:
                 if hasattr(labelme_data, 'shapes') and labelme_data.shapes:
-                    notification("预测完成, 开始自动标注", "请稍等...", ToastPreset.INFORMATION)
+                    notification("预测完成, 开始自动标注", "请稍等...",
+                                 ToastPreset.INFORMATION)
                     for shape_data in labelme_data.shapes:
                         shape = Shape(**shape_data)
                         self.loadShapes([shape], replace=False)
-                
+
                 elif hasattr(labelme_data, 'flags') and labelme_data.flags:
                     # get the first key
                     first_key = list(labelme_data.flags.keys())[0]
