@@ -126,8 +126,6 @@ class MainWindow(MainWindow):
 
         # 
         self.menus.help.actions()[0].setText("使用文档")
-        # 打印使用文档位置
-        print("使用文档位置:", os.path.abspath("docs/"))
 
         self._init_dev_mode()
         self._init_ui()
