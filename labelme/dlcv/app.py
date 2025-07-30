@@ -1753,7 +1753,7 @@ class MainWindow(MainWindow):
             notification("预测失败", "请检查模型文件是否正确", ToastPreset.ERROR)
 
     def auto_label(self, labelme_data):
-        from private.dlcv_ai_widget import LabelmeData
+        from labelme.private.dlcv_ai_widget import LabelmeData
         labelme_data: LabelmeData
 
         try:
