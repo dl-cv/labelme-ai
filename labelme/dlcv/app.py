@@ -1753,22 +1753,23 @@ class MainWindow(MainWindow):
             logger.error(error_msg)
             notification("预测失败", "请检查模型文件是否正确", ToastPreset.ERROR)
 
-    def auto_label(self, shape_list: List[dict[str, any]]):
-        # response_data: BaseResponse
-        # {'sample_results': [{'results': [{'area': 520, 'bbox': [309.0119323730469, 35.99763488769531,
-        # 338.2671813964844, 73.18121337890625], 'category_id': 0, 'category_name': '气球',
-        # 'mask': 'i/yDEkyJJMmQJEOSDEky60EoA9/A',
-        # 'score': 0.05747972056269646, 'with_mask': True}]}], 'code': '00000', 'task_type': '检测'}
-        # print(response_data)
+    def auto_label(self, labelme_data):
+        from private.dlcv_ai_widget import LabelmeData
+        labelme_data: LabelmeData
+
         try:
-            if shape_list:
-                notification("预测完成, 开始自动标注", "请稍等...", ToastPreset.INFORMATION)
-
-                for shape_data in shape_list:
-                    shape = Shape(**shape_data)
-                    self.loadShapes([shape], replace=False)
-
-                notification("自动标注完成", "请检查标注结果", ToastPreset.SUCCESS)
+            if labelme_data:
+                if hasattr(labelme_data, 'shapes') and labelme_data.shapes:
+                    notification("预测完成, 开始自动标注", "请稍等...", ToastPreset.INFORMATION)
+                    for shape_data in labelme_data.shapes:
+                        shape = Shape(**shape_data)
+                        self.loadShapes([shape], replace=False)
+                
+                elif hasattr(labelme_data, 'flags') and labelme_data.flags:
+                    # get the first key
+                    first_key = list(labelme_data.flags.keys())[0]
+                    self.set_text_flag(first_key)
+            notification("自动标注完成", "请检查标注结果", ToastPreset.SUCCESS)
         except Exception as e:
             traceback_msg = traceback.format_exc()
             logger.error(traceback_msg)
