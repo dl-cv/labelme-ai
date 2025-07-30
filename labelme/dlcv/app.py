@@ -124,6 +124,7 @@ class MainWindow(MainWindow):
         # https://bbs.dlcv.ai/t/topic/86
         self.addDockWidget(Qt.LeftDockWidgetArea, self.file_dock)
 
+        # 
         self.menus.help.actions()[0].setText("使用文档")
 
         self._init_dev_mode()
@@ -290,7 +291,8 @@ class MainWindow(MainWindow):
     # endregion
 
     def tutorial(self):
-        url = 'https://github.com/labelmeai/labelme/tree/main/examples/tutorial'
+        # url = 'https://github.com/labelmeai/labelme/tree/main/examples/tutorial'
+        url = r'https://docs.dlcv.com.cn/labelme/basic%20function/'
         # url = "https://bbs.dlcv.com.cn/labelmeai"  # NOQA
         webbrowser.open(url)
 
