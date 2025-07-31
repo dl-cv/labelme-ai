@@ -715,9 +715,9 @@ class MainWindow(MainWindow):
             last_shape = self.canvas.shapes[-1]
             if last_shape.shape_type == "polygon" and len(
                     last_shape.points) > 3:
-                # print('简化前点数: ', len(last_shape.points))
+                print('简化前点数: ', len(last_shape.points))
                 self.simplifyShapePoints(last_shape)
-                # print('简化后点数: ', len(last_shape.points))
+                print('简化后点数: ', len(last_shape.points))
 
         items = self.uniqLabelList.selectedItems()
         text = None
@@ -1501,21 +1501,21 @@ class MainWindow(MainWindow):
                     "name":
                     "ai_polygon_simplify_epsilon",
                     "title":
-                    tr("AI多边形简化参数设置"),
+                    tr("AI多边形点数简化设置"),
                     "type":
                     "float",
                     "value":
-                    0.002,
+                    0.005,
                     "default":
-                    0.002,
+                    0.005,
                     "min":
                     0.001,
                     "max":
-                    0.01,
+                    0.1,
                     "step":
-                    0.001,
+                    0.005,
                     "tip":
-                    "简化程度，值越大简化越多\n0.001: 轻微简化\n0.002: 默认简化\n0.005: 较多简化\n0.01: 大量简化",
+                    "简化程度，值越大简化越多\n0.001: 轻微简化\n0.005: 默认简化\n0.01: 较多简化\n0.05: 大量简化 \n0.1: 极度简化",
                 }],
             },
         ]
@@ -1619,7 +1619,7 @@ class MainWindow(MainWindow):
                                      "ai_polygon_simplify_epsilon").setValue(
                                          setting_store.get(
                                              "ai_polygon_simplify_epsilon",
-                                             0.002))
+                                             0.005))
                 # 更新STORE中的值
                 STORE.set_canvas_brush_fill_region(
                     setting_store.get("canvas_brush_fill_region", True))
@@ -2012,7 +2012,7 @@ class MainWindow(MainWindow):
             # 如果简化后的点数仍然足够，则使用简化后的点
             if len(simplified_points) >= 3:
                 # original_count = len(shape.points)
-                # logger.info(f"简化前点数: {len(shape.points)}, 简化后点数: {len(simplified_points)}, 简化程度: {epsilon_factor}")
+                logger.info(f"简化前点数: {len(shape.points)}, 简化后点数: {len(simplified_points)}, 简化程度: {epsilon_factor}")
                 shape.points = simplified_points
 
         except ImportError:
