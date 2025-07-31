@@ -24,7 +24,7 @@ labelme.ai = labelme.dlcv.ai
 import cv2
 from pyqtgraph.parametertree import Parameter, ParameterTree
 from pyqttoast import Toast, ToastPreset
-from PIL import ImageFile
+from PIL import ImageFile, Image
 import yaml
 
 from labelme import __appname__
@@ -42,7 +42,9 @@ from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
 import os
 from labelme.dlcv.widget.label_count import LabelCountDock
 
+Image.MAX_IMAGE_PIXELS = None  # Image 最大像素限制, 防止加载大图时报错
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
+
 
 # 2025年6月17日 已弃用
 # class ImageScanner(QtCore.QThread):
@@ -920,12 +922,29 @@ class MainWindow(MainWindow):
         from labelme.utils.image import numpy_to_qimage
 
         file_path = filename
-        if isinstance(filename, str):
-            file_path = filename.encode("utf-8")
-        cv_img = cv2.imdecode(
-            np.fromfile(file_path, dtype=np.uint8),
-            cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH,
-        )
+        if osp.getsize(file_path) <= 0:
+            self.errorMessage(
+                self.tr("Error opening file"),
+                self.tr("文件大小为0"),
+            )
+            return True
+
+        try:
+            if osp.getsize(file_path) < 100000000:
+                if isinstance(file_path, str):
+                    file_path_encode = file_path.encode("utf-8")
+                cv_img = cv2.imdecode(
+                    np.fromfile(file_path_encode, dtype=np.uint8),
+                    cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH,
+                )
+            else:
+                image = Image.open(f'{file_path}')
+                image = np.array(image)
+                cv_img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        except:
+            notification("提示", f"无法打开图片，请检查文件是否已损坏", ToastPreset.ERROR)
+            return False
+
         cv_img = normalize_16b_gray_to_uint8(cv_img)
         if len(cv_img.shape) == 2:
             cv_rgb_img = cv2.cvtColor(cv_img, cv2.COLOR_GRAY2RGB)
