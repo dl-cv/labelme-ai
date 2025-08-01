@@ -1828,7 +1828,7 @@ class MainWindow(MainWindow):
 
     def _init_text_flag_wgt(self):
         self.flag_dock.setWindowTitle(tr("Flags"))
-        self.add_text_flag_action = QtWidgets.QAction("添加文本标记", self)
+        self.add_text_flag_action = QtWidgets.QAction("创建文本标记", self)
         self.add_text_flag_action.setShortcut(
             self._config["shortcuts"]["add_text_flag"])
         self.addAction(self.add_text_flag_action)
@@ -1946,11 +1946,11 @@ class MainWindow(MainWindow):
         self.uniqLabelList.customContextMenuRequested.connect(
             show_uniq_label_menu)
 
-        # 添加文本标记到右键菜单
+        # 添加创建文本标记到右键菜单
         if hasattr(self.actions, 'menu'):
             # 检查是否已经添加过，避免重复添加
             if self.add_text_flag_action not in self.actions.menu:
-                # 在菜单最顶部插入文本标记
+                # 在菜单最顶部插入创建文本标记
                 self.actions.menu.insert(0, self.add_text_flag_action)
                 # self.actions.menu.insert(1, None)  # 分割线
 
