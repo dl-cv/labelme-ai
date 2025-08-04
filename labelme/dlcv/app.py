@@ -131,6 +131,7 @@ class MainWindow(MainWindow):
 
         self._init_dev_mode()
         self._init_ui()
+        self.actions.copy.setEnabled(True)
 
         self._init_edit_mode_action()  # 初始化编辑模式切换动作
         STORE.set_edit_label_name(self._edit_label)
@@ -522,16 +523,16 @@ class MainWindow(MainWindow):
         如果有选中的形状,则复制形状;
         如果没有选中形状,则复制当前图片。
         """
-        if self.canvas.selectedShapes:
+        if not self.canvas.selectedShapes:
+            self.copy_image_to_clipboard()
+        else:
             super().copySelectedShape()
             notification(
                 "复制成功",
                 f"已复制 {len(self.canvas.selectedShapes)} 个形状",
                 ToastPreset.SUCCESS,
             )
-        else:
-            self.copy_image_to_clipboard()
-
+            
     def shapeSelectionChanged(self, selected_shapes):
         super().shapeSelectionChanged(selected_shapes)
         self.actions.copy.setEnabled(True)
