@@ -131,7 +131,6 @@ class MainWindow(MainWindow):
 
         self._init_dev_mode()
         self._init_ui()
-        self.actions.copy.setEnabled(True)
 
         self._init_edit_mode_action()  # 初始化编辑模式切换动作
         STORE.set_edit_label_name(self._edit_label)
@@ -516,7 +515,6 @@ class MainWindow(MainWindow):
         logger.info(f'保存标签到 {file_path}')
         return file_path
 
-
     # ------------ Ctrl + C 触发函数 复制图片或形状 ------------
     def copySelectedShape(self):
         """
@@ -533,6 +531,10 @@ class MainWindow(MainWindow):
                 f"已复制 {len(self.canvas.selectedShapes)} 个形状",
                 ToastPreset.SUCCESS,
             )
+            
+    def shapeSelectionChanged(self, selected_shapes):
+        super().shapeSelectionChanged(selected_shapes)
+        self.actions.copy.setEnabled(True)
 
     # 复制图片到剪贴板
     def copy_image_to_clipboard(self):
@@ -547,6 +549,8 @@ class MainWindow(MainWindow):
                 ToastPreset.WARNING,
             )
             return
+
+        print(f'触发复制图片')
 
         try:
             copy_file_to_clipboard(file_path)
