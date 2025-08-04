@@ -131,6 +131,7 @@ class MainWindow(MainWindow):
 
         self._init_dev_mode()
         self._init_ui()
+        self.actions.copy.setEnabled(True)
 
         self._init_edit_mode_action()  # 初始化编辑模式切换动作
         STORE.set_edit_label_name(self._edit_label)
@@ -549,8 +550,6 @@ class MainWindow(MainWindow):
                 ToastPreset.WARNING,
             )
             return
-
-        print(f'触发复制图片')
 
         try:
             copy_file_to_clipboard(file_path)
