@@ -366,7 +366,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             return -1
 
         current_path = current_item.get_path()
-        return self.image_list.index(current_path)
+        return self.image_list.index(current_path) if current_path in self.image_list else -1
 
     def setCurrentRow(self, row):
         """ load file 的时候，使用了该函数 """
