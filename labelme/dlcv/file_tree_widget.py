@@ -97,12 +97,21 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         Args:
             item: 被展开的树节点
         """
-        if item.childCount() == 1 and item.child(0).text(0) == "":  # 占位符节点
-            item.takeChild(0)  # 移除占位符
-            dir_path = item.data(0, Qt.UserRole)
-            self._load_directory_contents(dir_path, item)
+        if item.childCount() == 1:  # 可能是占位符节点
+            child_item = item.child(0)
+            # 检查子节点是否为占位符（兼容FileTreeItem和QTreeWidgetItem两种类型）
+            child_text = ""
+            if isinstance(child_item, FileTreeItem):
+                child_text = child_item.super_text(0)
+            else:  # QTreeWidgetItem
+                child_text = child_item.text(0)
+                
+            if child_text == "":  # 确认是占位符节点
+                item.takeChild(0)  # 移除占位符
+                dir_path = item.data(0, Qt.UserRole)
+                self._load_directory_contents(dir_path, item)
 
-    def _load_directory_contents(self, dir_path: str, parent_item: QtWidgets.QTreeWidgetItem):
+    def _load_directory_contents(self, dir_path: str, parent_item: FileTreeItem):
         """加载指定目录的内容
         
         加载指定目录下的所有子文件夹和图片文件。
@@ -145,7 +154,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         for file, file_path, checked in file_items:
             self._add_file(file_path, checked, parent_item)
 
-    def _add_file(self, file_path: str, checked: bool = False, parent_item: QtWidgets.QTreeWidgetItem = None):
+    def _add_file(self, file_path: str, checked: bool = False, parent_item: FileTreeItem = None):
         """添加文件到树中
         
         创建文件节点并设置其属性，包括文本、图标、复选框状态等。
@@ -159,8 +168,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         if file_path in self._file_items:
             return
 
-        if parent_item is None:
-            parent_item = self._get_or_create_dir_item(str(Path(file_path).parent))
+        assert parent_item is not None
 
         file_name = Path(file_path).name
 
@@ -168,55 +176,13 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         file_item = FileTreeItem(parent_item)
         file_item.setText(0, file_name)
         file_item.setData(0, Qt.UserRole, file_path)
-        file_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsUserCheckable)
+        file_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
         file_item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
         # file_item.setIcon(0, self._file_icon)
 
         # 存储映射关系
         self._file_items[file_path] = file_item
         self.image_list.add(file_path)  # 使用 add 方法添加元素到有序集合
-
-    def _get_or_create_dir_item(self, dir_path: str) -> QtWidgets.QTreeWidgetItem:
-        """获取或创建目录节点
-        
-        根据给定的目录路径，在树中创建或获取对应的目录节点。
-        如果目录节点不存在，则逐级创建所有父目录节点。
-        每个新创建的目录节点都会添加一个占位符子节点。
-        
-        Args:
-            dir_path: 目录路径
-            
-        Returns:
-            目录节点对象
-        """
-        # 从根目录开始逐级创建
-        current_path = ""
-        current_item = self.invisibleRootItem()
-
-        for part in Path(dir_path).parts:
-            current_path = str(Path(current_path) / part)
-
-            # 查找是否已存在该目录节点
-            found = False
-            for i in range(current_item.childCount()):
-                child = current_item.child(i)
-                if child.text(0) == part and child.childCount() > 0:
-                    current_item = child
-                    found = True
-                    break
-
-            if not found:
-                # 创建新的目录节点
-                dir_item = FileTreeItem(current_item)
-                dir_item.setText(0, part)
-                dir_item.setData(0, Qt.UserRole, current_path)
-                dir_item.setFlags(Qt.ItemIsEnabled)
-                dir_item.setIcon(0, self._folder_icon)
-                current_item = dir_item
-                # 添加占位符子节点
-                QtWidgets.QTreeWidgetItem(current_item)
-
-        return current_item
 
     # ----------- 处理项目展开事件 End ----------
 
