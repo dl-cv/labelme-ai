@@ -97,10 +97,19 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         Args:
             item: 被展开的树节点
         """
-        if item.childCount() == 1 and item.child(0).text(0) == "":  # 占位符节点
-            item.takeChild(0)  # 移除占位符
-            dir_path = item.data(0, Qt.UserRole)
-            self._load_directory_contents(dir_path, item)
+        if item.childCount() == 1:  # 可能是占位符节点
+            child_item = item.child(0)
+            # 检查子节点是否为占位符（兼容FileTreeItem和QTreeWidgetItem两种类型）
+            child_text = ""
+            if isinstance(child_item, FileTreeItem):
+                child_text = child_item.super_text(0)
+            else:  # QTreeWidgetItem
+                child_text = child_item.text(0)
+                
+            if child_text == "":  # 确认是占位符节点
+                item.takeChild(0)  # 移除占位符
+                dir_path = item.data(0, Qt.UserRole)
+                self._load_directory_contents(dir_path, item)
 
     def _load_directory_contents(self, dir_path: str, parent_item: FileTreeItem):
         """加载指定目录的内容
