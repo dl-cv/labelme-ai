@@ -1324,7 +1324,7 @@ class Canvas(Canvas, CustomCanvasAttr):
             # 设置字体
             font = painter.font()
             font.setBold(True)
-            font.setPointSize(12)
+            font.setPointSize(20)
             painter.setFont(font)
             
             # 计算文本位置 - 画布左上角
@@ -1335,7 +1335,7 @@ class Canvas(Canvas, CustomCanvasAttr):
             # 创建文本区域 - 位于画布左上角
             text_rect = QtCore.QRectF(
                 padding, 
-                padding, 
+                200,
                 text_width + 20,  # 额外宽度用于背景
                 text_height + 10   # 额外高度用于背景
             )
