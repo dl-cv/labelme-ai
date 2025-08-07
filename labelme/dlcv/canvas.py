@@ -1275,6 +1275,9 @@ class Canvas(Canvas, CustomCanvasAttr):
             drawing_shape.selected = True
             drawing_shape.paint(p)
 
+        # 绘制文本标记到画布左上角
+        self._draw_text_flag_on_canvas(p)
+
         p.end()
         
     # 添加清理画笔绘制内容的方法
@@ -1296,6 +1299,56 @@ class Canvas(Canvas, CustomCanvasAttr):
         
         # 强制重新绘制
         self.update()
+
+    def _draw_text_flag_on_canvas(self, painter):
+        """在画布左上角绘制文本标记"""
+        try:
+            # 获取主窗口实例以访问文本标记
+            main_window = self.parent()
+            while main_window and not hasattr(main_window, 'get_text_flag'):
+                main_window = main_window.parent()
+            
+            if not main_window:
+                return
+            
+            text_flag = main_window.get_text_flag()
+            if not text_flag:
+                return
+            
+            # 设置字体
+            font = painter.font()
+            font.setBold(True)
+            font.setPointSize(12)
+            painter.setFont(font)
+            
+            # 计算文本位置 - 左上角，留一些边距
+            padding = 10
+            text_width = painter.fontMetrics().width(text_flag)
+            text_height = painter.fontMetrics().height()
+            
+            # 创建文本区域
+            text_rect = QtCore.QRectF(
+                padding, 
+                padding, 
+                text_width + 20,  # 额外宽度用于背景
+                text_height + 10   # 额外高度用于背景
+            )
+            
+            # 绘制背景
+            painter.fillRect(text_rect, QtGui.QColor(30, 31, 34, int(255 * 0.8)))
+            
+            # 绘制边框
+            painter.setPen(QtGui.QPen(QtGui.QColor(105, 170, 88), 2))
+            painter.drawRect(text_rect)
+            
+            # 绘制文字
+            font_color = QtGui.QColor(105, 170, 88)  # 绿色
+            painter.setPen(font_color)
+            painter.drawText(text_rect, QtCore.Qt.AlignCenter, text_flag)
+            
+        except Exception as e:
+            # 如果出现错误，静默处理，不影响其他绘制
+            pass
 
     def resetState(self):
         self.restoreCursor()
