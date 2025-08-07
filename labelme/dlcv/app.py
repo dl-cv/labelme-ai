@@ -2095,6 +2095,9 @@ class MainWindow(MainWindow):
                 draw_action.setEnabled(createMode != draw_mode)
         self.actions.editMode.setEnabled(not edit)
 
+        if self.canvas.drawing() and self.canvas.current:
+            self.canvas.current.shape_type = self.canvas.createMode
+
     # ------------ zx触发事件动作 ------------
     def _init_trigger_action(self):
         # 创建逆时针旋转动作
