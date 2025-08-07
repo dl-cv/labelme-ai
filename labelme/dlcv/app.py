@@ -1834,6 +1834,31 @@ class MainWindow(MainWindow):
             return item.text()
         return ""
 
+    def edit_text_flag(self):
+        """编辑文本标记的方法，供画布双击调用"""
+        item = self.flag_widget.item(0)
+        if item:
+            # 读取 dialog_text_flag 的位置
+            dialog_pos = self.settings.value("dialog_text_flag_pos", None)
+            if dialog_pos:
+                self.dialog_text_flag.move(dialog_pos)
+            
+            # 设置当前文本作为默认值
+            self.dialog_text_flag.setTextValue(item.text())
+            
+            # 显示对话框并等待用户输入
+            ok = self.dialog_text_flag.exec_()
+            if ok:
+                new_text = self.dialog_text_flag.textValue()
+                if new_text.strip():  # 确保不是空文本
+                    self.set_text_flag(new_text)
+                    self.canvas.shapeMoved.emit()
+            
+            # 记录 dialog_text_flag 的位置
+            dialog_pos = self.dialog_text_flag.pos()
+            self.settings.setValue("dialog_text_flag_pos", dialog_pos)
+
+
     def _init_text_flag_wgt(self):
         self.flag_dock.setWindowTitle(tr("Flags"))
         self.add_text_flag_action = QtWidgets.QAction("创建文本标记", self)
@@ -1876,17 +1901,21 @@ class MainWindow(MainWindow):
         self.add_text_flag_action.triggered.connect(add_text_flag)
 
         # 双击后 item check 状态改变
-        def change_flag_state(index: QtCore.QModelIndex):
-            item = self.flag_widget.item(index.row())
-            if item.checkState() == Qt.Checked:
-                item.setCheckState(Qt.Unchecked)
-            else:
-                item.setCheckState(Qt.Checked)
+        # def change_flag_state(index: QtCore.QModelIndex):
+        #     item = self.flag_widget.item(index.row())
+        #     if item.checkState() == Qt.Checked:
+        #         item.setCheckState(Qt.Unchecked)
+        #     else:
+        #         item.setCheckState(Qt.Checked)
 
-        self.flag_widget.itemClicked.connect(
-            lambda _: self.actions.delete.setEnabled(True))
-        self.flag_widget.doubleClicked.connect(change_flag_state)
+        # self.flag_widget.itemClicked.connect(
+        #     lambda _: self.actions.delete.setEnabled(True))
+        # self.flag_widget.doubleClicked.connect(change_flag_state)
 
+        # 双击编辑文本标记
+        self.flag_widget.itemDoubleClicked.connect(self.edit_text_flag)
+
+        
         def show_flag_menu(pos: QtCore.QPoint):
             menu = QtWidgets.QMenu()
             delete_action = QtWidgets.QAction("删除", self)
