@@ -1080,6 +1080,52 @@ class Canvas(Canvas, CustomCanvasAttr):
         ev.accept()
 
     def mouseDoubleClickEvent(self, ev):
+        # 检查是否双击了文本标记区域
+        if ev.button() == QtCore.Qt.LeftButton:
+            # 获取点击位置
+            click_pos = ev.pos()
+            
+            # 检查是否点击在文本标记区域
+            try:
+                # 获取主窗口实例
+                main_window = self.parent()
+                while main_window and not hasattr(main_window, 'get_text_flag'):
+                    main_window = main_window.parent()
+                
+                if main_window and hasattr(main_window, 'get_text_flag'):
+                    text_flag = main_window.get_text_flag()
+                    if text_flag:
+                        # 计算文本标记区域
+                        padding = 10
+                        # 创建临时painter来计算文本尺寸
+                        temp_painter = QtGui.QPainter()
+                        font = temp_painter.font()
+                        font.setBold(True)
+                        font.setPointSize(12)
+                        temp_painter.setFont(font)
+                        
+                        text_width = temp_painter.fontMetrics().width(text_flag)
+                        text_height = temp_painter.fontMetrics().height()
+                        temp_painter.end()
+                        
+                        # 文本标记区域
+                        text_rect = QtCore.QRectF(
+                            padding, 
+                            padding, 
+                            text_width + 20,  # 额外宽度用于背景
+                            text_height + 10   # 额外高度用于背景
+                        )
+                        
+                        # 检查点击位置是否在文本标记区域内
+                        if text_rect.contains(click_pos):
+                            # 触发编辑文本标记
+                            if hasattr(main_window, 'edit_text_flag'):
+                                main_window.edit_text_flag()
+                            return
+            except Exception as e:
+                # 如果出现错误，静默处理，继续执行其他双击逻辑
+                pass
+        
         # extra 双击 shape 编辑其名称
         if ev.button() == QtCore.Qt.LeftButton and self.editing() and len(self.selectedShapes or []) == 1:
             STORE.edit_label_name()
