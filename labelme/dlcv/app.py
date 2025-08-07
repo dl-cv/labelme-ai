@@ -976,6 +976,9 @@ class MainWindow(MainWindow):
         self.filename = filename
         if self._config["keep_prev"]:
             prev_shapes = self.canvas.shapes
+
+        # 2025年8月7日 切换图片后，重置绘制的x,y位置
+        self.canvas.offset = QtCore.QPointF(0, 0)
         self.canvas.loadPixmap(QtGui.QPixmap.fromImage(image))
 
         if QtCore.QFile.exists(label_file) and LabelFile.is_label_file(
@@ -2094,6 +2097,9 @@ class MainWindow(MainWindow):
             for draw_mode, draw_action in draw_actions.items():
                 draw_action.setEnabled(createMode != draw_mode)
         self.actions.editMode.setEnabled(not edit)
+
+        if self.canvas.drawing() and self.canvas.current:
+            self.canvas.current.shape_type = self.canvas.createMode
 
     # ------------ zx触发事件动作 ------------
     def _init_trigger_action(self):
