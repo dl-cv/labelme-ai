@@ -1300,8 +1300,8 @@ class Canvas(Canvas, CustomCanvasAttr):
         # 强制重新绘制
         self.update()
 
+    # """在画布左上角绘制文本标记"""
     def _draw_text_flag_on_canvas(self, painter):
-        """在画布左上角绘制文本标记"""
         try:
             # 获取主窗口实例以访问文本标记
             main_window = self.parent()

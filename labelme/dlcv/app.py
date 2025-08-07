@@ -1821,7 +1821,7 @@ class MainWindow(MainWindow):
             rgb = self._get_rgb_by_label(new_text_flag)
             self.uniqLabelList.setItemLabel(item, new_text_flag, rgb)
         
-        # 触发画布重绘以显示文本标记
+        # 画布重绘以显示文本标记
         if hasattr(self, 'canvas') and self.canvas:
             self.canvas.update()
 
@@ -1895,7 +1895,7 @@ class MainWindow(MainWindow):
                     self.flag_widget.takeItem(self.flag_widget.row(item))
 
                 self.canvas.shapeMoved.emit()
-                # 触发画布重绘以更新文本标记显示
+                # 画布重绘以更新文本标记显示
                 if hasattr(self, 'canvas') and self.canvas:
                     self.canvas.update()
 
