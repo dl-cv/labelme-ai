@@ -217,9 +217,13 @@ class MainWindow(MainWindow):
             return
         # extra 修复编辑标签后,标签不更新问题
         else:
-            # 用户确认了编辑，清除保存的绘制状态
+            # 用户确认了编辑，清除保存的绘制状态并完成形状绘制
             if hasattr(self.canvas, 'clearSavedDrawingState'):
                 self.canvas.clearSavedDrawingState()
+            
+            # 如果当前正在绘制多边形，完成绘制
+            if self.canvas.current and self.canvas.createMode == "polygon":
+                self.canvas.finalise()
             
             self.labelDialog.addLabelHistory(text)
             if self.uniqLabelList.findItemByLabel(text) is None:
@@ -778,6 +782,12 @@ class MainWindow(MainWindow):
 
     def _cancel_shape_creation(self):
         """彻底清理取消标签输入后的残留状态"""
+        # 检查是否有保存的绘制状态，如果有则恢复
+        if hasattr(self.canvas, '_saved_drawing_state') and self.canvas._saved_drawing_state:
+            self.canvas.restoreDrawingState()
+            return
+        
+        # 如果没有保存的状态，则执行原有的清理逻辑
         try:
             # 恢复绘图状态
             self.canvas.undoLastLine()
