@@ -211,9 +211,16 @@ class MainWindow(MainWindow):
             assert flags is None
             assert group_id is None
             assert description is None
+            # 用户取消了编辑对话框，恢复绘制状态
+            if hasattr(self.canvas, 'restoreDrawingState'):
+                self.canvas.restoreDrawingState()
             return
         # extra 修复编辑标签后,标签不更新问题
         else:
+            # 用户确认了编辑，清除保存的绘制状态
+            if hasattr(self.canvas, 'clearSavedDrawingState'):
+                self.canvas.clearSavedDrawingState()
+            
             self.labelDialog.addLabelHistory(text)
             if self.uniqLabelList.findItemByLabel(text) is None:
                 item = self.uniqLabelList.createItemFromLabel(text)
