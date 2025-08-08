@@ -77,10 +77,6 @@ class Canvas(Canvas, CustomCanvasAttr):
         self.canvasOffsetStart = None
         # 画布偏移初始化
         self.offset = QtCore.QPointF(0, 0)
-        
-        # 防止快速双击意外完成多边形的变量
-        self.last_double_click_time = 0
-        self.double_click_threshold = 500  # 毫秒，500ms内的双击被认为是快速双击
 
     # region Mouse Events
     def mouse_left_click(self, ev, pos: QtCore.QPointF):
@@ -1084,15 +1080,6 @@ class Canvas(Canvas, CustomCanvasAttr):
         ev.accept()
 
     def mouseDoubleClickEvent(self, ev):
-        # 检查是否是快速双击（防止意外完成多边形）
-        current_time = QtCore.QDateTime.currentMSecsSinceEpoch()
-        time_diff = current_time - self.last_double_click_time
-        
-        if time_diff < self.double_click_threshold:
-            return
-        
-        self.last_double_click_time = current_time
-        
         # 检查是否双击了文本标记区域
         if ev.button() == QtCore.Qt.LeftButton:
             # 获取点击位置
@@ -1140,14 +1127,7 @@ class Canvas(Canvas, CustomCanvasAttr):
                 pass
         
         # extra 双击 shape 编辑其名称
-        # 修改条件：允许在绘制模式下也能编辑当前正在绘制的形状
-        # 在绘制模式下，self.selectedShapes为空，但self.current存在
-        can_edit = (
-            ev.button() == QtCore.Qt.LeftButton and 
-            (self.editing() or (self.current and self.createMode == "polygon")) and 
-            (len(self.selectedShapes or []) == 1 or (self.current and not self.editing()))
-        )
-        if can_edit:
+        if ev.button() == QtCore.Qt.LeftButton and self.editing() and len(self.selectedShapes or []) == 1:
             # 保存当前形状状态，以便取消时恢复
             if self.current and self.createMode == "polygon":
                 # 保存当前绘制状态
@@ -1157,12 +1137,12 @@ class Canvas(Canvas, CustomCanvasAttr):
                     'createMode': self.createMode,
                     'drawingPolygon': True
                 }
-            else:
-                pass
+            
             STORE.edit_label_name()
             self.selectShapes([])  # 防止点击后不修改名称,再次点击时不会触发
             return
         # extra End
+
         if self.double_click != "close":
             return
 
@@ -1399,14 +1379,13 @@ class Canvas(Canvas, CustomCanvasAttr):
                 
                 # 更新显示
                 self.update()
+                logger.info("[DEBUG] 已恢复绘制状态")
                 
             except Exception as e:
                 logger.error(f"恢复绘制状态时出错: {str(e)}")
                 # 如果恢复失败，清理状态
                 self._saved_drawing_state = None
                 self.cancelBrushDrawing()
-        else:
-            logger.warning("[DEBUG] _saved_drawing_state 不存在或为空")
 
     def clearSavedDrawingState(self):
         """清除保存的绘制状态"""
@@ -1845,124 +1824,6 @@ class Canvas(Canvas, CustomCanvasAttr):
 
         # 调用父类的finalise方法完成提交
         super().finalise()
-
-        # 绘制完成后，清除保存的绘制状态
-        self.clearSavedDrawingState()
-
-        # 如果仍在绘图模式，为下一次绘制准备好line
-        if self.createMode == "polygon":
-            if self.current is not None:
-                self.line.points = [self.current[-1], self.current[0]]
-                self.current = None
-                self.drawingPolygon.emit(False)
-        elif self.createMode == "linestrip":
-            self.current = None
-            self.drawingPolygon.emit(False)
-            self.line.points = []
-            self.line.point_labels = []
-        else:
-            self.current = None
-            self.line.points = []
-            self.line.point_labels = []
-            self.drawingPolygon.emit(False)
-
-    def finaliseWithoutNewShape(self):
-        """完成绘制但不触发newShape信号，用于编辑确认后的绘制完成"""
-        # 如果是旋转框，需要特殊处理..
-        if self.current and self.current.shape_type == "rotation":
-            # 确保当前形状有足够的点来创建旋转框
-            if len(self.current.points) >= 2:
-                # 从当前的矩形创建旋转框，保存原始图形的位置信息
-                x1, y1 = self.current.points[0].x(), self.current.points[0].y()
-                x2, y2 = self.current.points[1].x(), self.current.points[1].y()
-
-                # 确保矩形的四个角点
-                points = [
-                    QtCore.QPointF(x1, y1),  # 左上
-                    QtCore.QPointF(x2, y1),  # 右上
-                    QtCore.QPointF(x2, y2),  # 右下
-                    QtCore.QPointF(x1, y2),  # 左下
-                ]
-
-                self.current.points = points
-                self.current.point_labels = [1, 1, 1, 1]
-                self.current.fill = False
-                
-                # 计算宽度和高度
-                width = abs(x2 - x1)
-                height = abs(y2 - y1)
-                
-                # 计算中心点
-                center_x = (x1 + x2) / 2
-                center_y = (y1 + y2) / 2
-                self.current.arrow_center = QtCore.QPointF(center_x, center_y)
-                
-                # 设置初始方向，根据宽高比确定朝向短边还是长边
-                if width < height:
-                    self.current.direction = 90  # 水平方向（朝向短边）
-                else:
-                    self.current.direction = 0  # 垂直方向（朝向短边）
-                
-                # 计算旋转方向向量
-                angle_rad = math.radians(self.current.direction)
-                dir_vector = QtCore.QPointF(math.cos(angle_rad), math.sin(angle_rad))
-                
-                # 计算与箭头方向平行的边的长度
-                parallel_edge_length = width if self.current.direction == 0 else height
-                
-                # 计算箭头起始点：从中心点向箭头方向移动平行边长度的一半
-                arrow_start_x = center_x + (dir_vector.x() * parallel_edge_length * 0.5)
-                arrow_start_y = center_y + (dir_vector.y() * parallel_edge_length * 0.5)
-                self.current.arrow_center = QtCore.QPointF(arrow_start_x, arrow_start_y)
-                
-                # 计算箭头长度：与箭头平行的边的长度的0.3
-                arrow_length = parallel_edge_length * 0.3
-                
-                # 计算箭头终点
-                end_x = arrow_start_x + arrow_length * dir_vector.x()
-                end_y = arrow_start_y + arrow_length * dir_vector.y()
-                self.current.arrow_end = QtCore.QPointF(end_x, end_y)
-            else:
-                # 如果点不够，取消创建旋转框
-                self.current = None
-                return
-
-        # 保存当前形状，但不触发newShape信号
-        assert self.current
-        if self.createMode == "ai_polygon":
-            # convert points to polygon by an AI model
-            assert self.current.shape_type == "points"
-            points = self._ai_model.predict_polygon_from_points(
-                points=[[point.x(), point.y()] for point in self.current.points],
-                point_labels=self.current.point_labels,
-            )
-            self.current.setShapeRefined(
-                points=[QtCore.QPointF(point[0], point[1]) for point in points],
-                point_labels=[1] * len(points),
-                shape_type="polygon",
-            )
-        elif self.createMode == "ai_mask":
-            # convert points to mask by an AI model
-            assert self.current.shape_type == "points"
-            mask = self._ai_model.predict_mask_from_points(
-                points=[[point.x(), point.y()] for point in self.current.points],
-                point_labels=self.current.point_labels,
-            )
-            y1, x1, y2, x2 = imgviz.instances.masks_to_bboxes([mask])[0].astype(int)
-            self.current.setShapeRefined(
-                shape_type="mask",
-                points=[QtCore.QPointF(x1, y1), QtCore.QPointF(x2, y2)],
-                point_labels=[1, 1],
-                mask=mask[y1 : y2 + 1, x1 : x2 + 1],
-            )
-        self.current.close()
-
-        self.shapes.append(self.current)
-        self.storeShapes()
-        self.current = None
-        self.setHiding(False)
-        # 不触发newShape信号，因为标签已经在_edit_label中设置过了
-        self.update()
 
         # 绘制完成后，清除保存的绘制状态
         self.clearSavedDrawingState()
