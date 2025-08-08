@@ -154,29 +154,44 @@ class MainWindow(MainWindow):
         # extra end
 
         items = self.labelList.selectedItems()
-        if not items:
+        shape = None
+        
+        # 检查是否有选中的标签项
+        if items:
+            shape = items[0].shape()
+        # 如果没有选中的标签项，检查是否有正在绘制的形状
+        elif hasattr(self.canvas, 'current') and self.canvas.current:
+            shape = self.canvas.current
+            logger.info(f"[DEBUG] 使用正在绘制的形状进行编辑: {shape}")
+        else:
             logger.warning("No label is selected, so cannot edit label.")
             return
 
-        shape = items[0].shape()
-
-        if len(items) == 1:
+        # 检查是否有选中的标签项
+        if items:
+            if len(items) == 1:
+                edit_text = True
+                edit_flags = True
+                edit_group_id = True
+                edit_description = True
+            else:
+                # extra 修复多个标签名称不同时无法批量修改
+                # https://bbs.dlcv.com.cn/t/topic/1057
+                edit_text = True
+                # extra end
+                edit_flags = all(item.shape().flags == shape.flags
+                                 for item in items[1:])
+                edit_group_id = all(item.shape().group_id == shape.group_id
+                                    for item in items[1:])
+                edit_description = all(
+                    item.shape().description == shape.description
+                    for item in items[1:])
+        else:
+            # 处理正在绘制的形状
             edit_text = True
             edit_flags = True
             edit_group_id = True
             edit_description = True
-        else:
-            # extra 修复多个标签名称不同时无法批量修改
-            # https://bbs.dlcv.com.cn/t/topic/1057
-            edit_text = True
-            # extra end
-            edit_flags = all(item.shape().flags == shape.flags
-                             for item in items[1:])
-            edit_group_id = all(item.shape().group_id == shape.group_id
-                                for item in items[1:])
-            edit_description = all(
-                item.shape().description == shape.description
-                for item in items[1:])
 
         if not edit_text:
             self.labelDialog.edit.setDisabled(True)
@@ -207,19 +222,42 @@ class MainWindow(MainWindow):
         if not edit_description:
             self.labelDialog.editDescription.setDisabled(False)
 
+        # 检查是否是正在绘制的形状（双击完成绘制的情况）
+        is_drawing_shape = not items and hasattr(self.canvas, 'current') and self.canvas.current
+        
         if text is None:
             assert flags is None
             assert group_id is None
             assert description is None
-            # 用户取消了编辑对话框，恢复绘制状态
-            if hasattr(self.canvas, 'restoreDrawingState'):
-                self.canvas.restoreDrawingState()
+            # 用户取消了编辑对话框
+            if is_drawing_shape:
+                # 如果是正在绘制的形状，恢复绘制状态
+                if hasattr(self.canvas, 'restoreDrawingState'):
+                    self.canvas.restoreDrawingState()
             return
         # extra 修复编辑标签后,标签不更新问题
         else:
-            # 用户确认了编辑，清除保存的绘制状态
-            if hasattr(self.canvas, 'clearSavedDrawingState'):
-                self.canvas.clearSavedDrawingState()
+            # 用户确认了编辑
+            if is_drawing_shape:
+                # 如果是正在绘制的形状，先设置标签信息，然后完成绘制
+                self.canvas.current.label = text if edit_text else self.canvas.current.label
+                self.canvas.current.flags = flags if edit_flags else self.canvas.current.flags
+                self.canvas.current.group_id = group_id if edit_group_id else self.canvas.current.group_id
+                self.canvas.current.description = description if edit_description else self.canvas.current.description
+                
+                # 完成绘制，使用不触发newShape信号的方法
+                if hasattr(self.canvas, 'finaliseWithoutNewShape'):
+                    self.canvas.finaliseWithoutNewShape()
+                else:
+                    # 如果没有新方法，使用原来的方法
+                    if hasattr(self.canvas, 'finalise'):
+                        self.canvas.finalise()
+                    if hasattr(self.canvas, 'clearSavedDrawingState'):
+                        self.canvas.clearSavedDrawingState()
+            else:
+                # 如果是已存在的形状，只清除保存的绘制状态
+                if hasattr(self.canvas, 'clearSavedDrawingState'):
+                    self.canvas.clearSavedDrawingState()
             
             self.labelDialog.addLabelHistory(text)
             if self.uniqLabelList.findItemByLabel(text) is None:
@@ -230,14 +268,21 @@ class MainWindow(MainWindow):
         # extra End
 
         self.canvas.storeShapes()
-        for item in items:
-            self._update_item(
-                item=item,
-                text=text if edit_text else None,
-                flags=flags if edit_flags else None,
-                group_id=group_id if edit_group_id else None,
-                description=description if edit_description else None,
-            )
+        
+        # 更新形状
+        if items:
+            # 更新选中的标签项
+            for item in items:
+                self._update_item(
+                    item=item,
+                    text=text if edit_text else None,
+                    flags=flags if edit_flags else None,
+                    group_id=group_id if edit_group_id else None,
+                    description=description if edit_description else None,
+                )
+        else:
+            # 更新正在绘制的形状（这种情况在finalise后已经处理了）
+            pass
 
     def labelSelectionChanged(self):
         if self._noSelectionSlot:
