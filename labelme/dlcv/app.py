@@ -1176,6 +1176,11 @@ class MainWindow(MainWindow):
 
     # https://bbs.dlcv.com.cn/t/topic/421
     def setDirty(self):
+        if self.imagePath is not None and self.imagePath != self.filename:
+            notification("Json 文件数据错误！",
+                         "当前 Json 文件中的 imagePath 与图片路径不一致，请检查！",
+                         ToastPreset.ERROR)
+            return
         super().setDirty()
 
         # extra 保存标签文件后,支持 ctrl+Delete 删除标签文件
