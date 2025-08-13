@@ -1832,6 +1832,7 @@ class MainWindow(MainWindow):
         # 画布重绘以显示文本标记
         if hasattr(self, 'canvas') and self.canvas:
             self.canvas.update()
+        self.canvas.shapeMoved.emit()
 
     def get_text_flag(self) -> str:
         if self.flag_widget.count() > 0:
@@ -1857,7 +1858,6 @@ class MainWindow(MainWindow):
                 new_text = self.dialog_text_flag.textValue()
                 if new_text.strip():  # 确保不是空文本
                     self.set_text_flag(new_text)
-                    self.canvas.shapeMoved.emit()
             
             # 记录 dialog_text_flag 的位置
             dialog_pos = self.dialog_text_flag.pos()
