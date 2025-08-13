@@ -1176,12 +1176,13 @@ class MainWindow(MainWindow):
 
     # https://bbs.dlcv.com.cn/t/topic/421
     def setDirty(self):
-        if self.imagePath is not None and self.imagePath != self.filename:
+        super().setDirty()
+
+        if self.imagePath is not None and Path(self.imagePath) != Path(self.filename):
             notification("Json 文件数据错误！",
                          "当前 Json 文件中的 imagePath 与图片路径不一致，请检查！",
                          ToastPreset.ERROR)
             return
-        super().setDirty()
 
         # extra 保存标签文件后,支持 ctrl+Delete 删除标签文件
         if self.hasLabelFile():
@@ -1792,13 +1793,20 @@ class MainWindow(MainWindow):
                     notification("预测完成, 开始自动标注", "请稍等...",
                                  ToastPreset.INFORMATION)
                     for shape_data in labelme_data.shapes:
+                        if self.ai_controller.category_filter_list and shape_data['label'] not in self.ai_controller.category_filter_list:
+                            continue
+
                         shape = Shape(**shape_data)
                         self.loadShapes([shape], replace=False)
 
                 elif hasattr(labelme_data, 'flags') and labelme_data.flags:
                     # get the first key
                     first_key = list(labelme_data.flags.keys())[0]
-                    self.set_text_flag(first_key)
+
+                    if self.ai_controller.category_filter_list and first_key not in self.ai_controller.category_filter_list:
+                        pass
+                    else:
+                        self.set_text_flag(first_key)
             notification("自动标注完成", "请检查标注结果", ToastPreset.SUCCESS)
         except Exception as e:
             traceback_msg = traceback.format_exc()
