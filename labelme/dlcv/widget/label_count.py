@@ -7,7 +7,7 @@ import json
 
 class LabelCountDock(QtWidgets.QDockWidget):
     def __init__(self, parent=None):
-        super().__init__(tr("标签数量统计"), parent)
+        super().__init__(tr("标签/文本标记数量统计"), parent)
         self.setObjectName("label_count_dock")
         self.setWindowIcon(newIcon("label_count"))
 
@@ -22,7 +22,7 @@ class LabelCountDock(QtWidgets.QDockWidget):
         layout.addWidget(self.label_count_text)
 
         # 添加统计按钮
-        self.label_count_btn = QtWidgets.QPushButton("统计当前文件夹标签总数", main_widget)
+        self.label_count_btn = QtWidgets.QPushButton("统计当前文件夹标签/文本标记总数", main_widget)
         layout.addWidget(self.label_count_btn)
 
         # 去除控件间间距
@@ -36,7 +36,7 @@ class LabelCountDock(QtWidgets.QDockWidget):
 
     def count_labels_in_dir(self):
         """
-        递归统计当前文件夹及所有子文件夹下json文件中的标签数量，并在文本框中显示结果
+        递归统计当前文件夹及所有子文件夹下json文件中的标签/文本标记数量，并在文本框中显示结果
         """
         label_counter = Counter()
         # 假设parent有lastOpenDir属性
@@ -57,10 +57,19 @@ class LabelCountDock(QtWidgets.QDockWidget):
                         with open(json_path, "r", encoding="utf-8") as f:
                             data = json.load(f)
                         shapes = data.get("shapes", [])
+                        flags = data.get("flags", {})
+
+                        # 统计标签
                         for shape in shapes:
                             label = shape.get("label", "")
                             if label:
                                 label_counter[label] += 1
+
+                        # 统计文本标记（只统计值为True的flag文本）
+                        if isinstance(flags, dict):
+                            for flag_name, flag_value in flags.items():
+                                if flag_value is True:
+                                    label_counter[flag_name] += 1
                     except Exception as e:
                         continue
 
