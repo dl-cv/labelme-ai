@@ -1154,7 +1154,10 @@ class Canvas(Canvas, CustomCanvasAttr):
         ) or self.createMode in ["ai_polygon", "ai_mask"]:
             # extra ai_polygon 时, 双击结束多边形绘制, 防止点击了 canvas 之外的地方
             if self.current:
-                self.finalise()
+                # 保存当前状态
+                self._save_current_drawing_state()
+                # 发出信号让 app 处理标签对话框
+                self.shapeDone.emit()  # finalise() 将在 app 中根据对话框结果调用
             # extra End
 
     # endregion
