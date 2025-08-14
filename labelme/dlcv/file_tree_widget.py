@@ -314,10 +314,15 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         super().mousePressEvent(event)
 
     def search(self, text: str):
-        """ 根据字符串隐藏 items """
+        """ 根据字符串隐藏 items
+
+        Args:
+            text (str): 用于过滤的字符串，只有路径中包含该字符串的文件会显示，其余隐藏
+        """
+        # 先全部显示
         for img_path, file_item in self._file_items.items():
             file_item.setHidden(False)
-
+        # 隐藏不包含关键字的项
         for img_path in self.image_list:
             if text not in img_path:
                 item = self._file_items[img_path]
@@ -402,8 +407,24 @@ class FileTreeWidget(QtWidgets.QWidget):
         self.tree_widget = _FileTreeWidget(self)
         self.layout.addWidget(self.tree_widget)
 
-        self.search_box.returnPressed.connect(lambda: self.tree_widget.search(self.search_box.text()))
+        # 连接搜索信号
+        self.search_box.returnPressed.connect(self._on_search)
+        # 监听文本变化，当清空时自动显示所有文件
+        self.search_box.textChanged.connect(self._on_text_changed)
 
+    def _on_search(self):
+        """处理搜索事件"""
+        search_text = self.search_box.text().strip()
+        print(f"搜索关键词: '{search_text}'")
+        self.tree_widget.search(search_text)
+
+    def _on_text_changed(self, text):
+        """处理文本变化事件"""
+        # 当搜索框被清空时，自动显示所有文件
+        if not text.strip():
+            print("搜索框已清空，显示所有文件")
+            self.tree_widget.search("")
+ 
     def __getattr__(self, name):
         """
         代理属性访问，将属性访问转发给 tree_widget 对象
