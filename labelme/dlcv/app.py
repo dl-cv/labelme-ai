@@ -1848,6 +1848,7 @@ class MainWindow(MainWindow):
             return item.text()
         return ""
 
+    # 双击编辑文本标记
     def edit_text_flag(self):
         """编辑文本标记的方法，供画布双击调用"""
         item = self.flag_widget.item(0)
