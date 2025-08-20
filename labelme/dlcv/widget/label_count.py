@@ -92,6 +92,7 @@ class LabelCountDock(QtWidgets.QDockWidget):
             if label_counter:
                 result += "\n标签统计:\n"
                 total_labels = sum(label_counter.values())
+                # 使用most_common()方法按数量降序排列， 返回从高到低排序的元组列表
                 for label, count in label_counter.most_common():
                     result += f"{label}: {count}\n"
                 result += f"标签总数: {total_labels}"
