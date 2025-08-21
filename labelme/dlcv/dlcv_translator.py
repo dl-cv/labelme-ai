@@ -41,6 +41,7 @@ tr_map = {
         'convert img to gray': '将标注图片转换为灰度图',
         'keep prev scale': '图片缩放',
         'label setting': '标注设置',
+        'auto setting': '自动标注设置',
         'other setting': '其他设置',
         'slide label': '滑动标注多边形',
         'slide distance': '滑动标注距离',
