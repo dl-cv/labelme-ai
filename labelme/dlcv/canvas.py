@@ -88,6 +88,8 @@ class Canvas(Canvas, CustomCanvasAttr):
                 if self.createMode == "polygon":
                     self.current.addPoint(self.line[1])
                     self.line[0] = self.current[-1]
+                    # 实时保存绘制状态，以便误点时能恢复
+                    self._save_current_drawing_state()
                     if self.current.isClosed():
                         self.finalise()
                 elif self.createMode in ["rectangle", "circle", "line", "rotation"]:  # 添加rotation
@@ -110,6 +112,8 @@ class Canvas(Canvas, CustomCanvasAttr):
                 elif self.createMode == "linestrip":
                     self.current.addPoint(self.line[1])
                     self.line[0] = self.current[-1]
+                    # 实时保存绘制状态
+                    self._save_current_drawing_state()
                     if int(ev.modifiers()) == QtCore.Qt.ControlModifier:
                         self.finalise()
                 elif self.createMode in ["ai_polygon", "ai_mask"]:
@@ -119,6 +123,8 @@ class Canvas(Canvas, CustomCanvasAttr):
                     )
                     self.line.points[0] = self.current.points[-1]
                     self.line.point_labels[0] = self.current.point_labels[-1]
+                    # 实时保存绘制状态
+                    self._save_current_drawing_state()
                     if ev.modifiers() & QtCore.Qt.ControlModifier:
                         self.finalise()
             elif not self.outOfPixmap(pos):
@@ -149,6 +155,8 @@ class Canvas(Canvas, CustomCanvasAttr):
                         self.line.point_labels = [1, 1]
                     self.setHiding()
                     self.drawingPolygon.emit(True)
+                    # 实时保存绘制状态
+                    self._save_current_drawing_state()
                     self.update()
         elif self.editing():
             if self.selectedEdge():
@@ -1127,7 +1135,12 @@ class Canvas(Canvas, CustomCanvasAttr):
                 pass
         
         # extra 双击 shape 编辑其名称
-        if ev.button() == QtCore.Qt.LeftButton and self.editing() and len(self.selectedShapes or []) == 1:
+        if ev.button() == QtCore.Qt.LeftButton and len(self.selectedShapes or []) == 1:
+            # 保存当前形状状态，以便取消时恢复
+            if self.current and self.createMode == "polygon":
+                # 保存当前绘制状态 - 实时保存，确保状态完整
+                self._save_current_drawing_state()
+            
             STORE.edit_label_name()
             self.selectShapes([])  # 防止点击后不修改名称,再次点击时不会触发
             return
@@ -1141,7 +1154,10 @@ class Canvas(Canvas, CustomCanvasAttr):
         ) or self.createMode in ["ai_polygon", "ai_mask"]:
             # extra ai_polygon 时, 双击结束多边形绘制, 防止点击了 canvas 之外的地方
             if self.current:
-                self.finalise()
+                # 保存当前状态
+                self._save_current_drawing_state()
+                # 发出信号让 app 处理标签对话框
+                self.shapeDone.emit()  # finalise() 将在 app 中根据对话框结果调用
             # extra End
 
     # endregion
@@ -1345,6 +1361,81 @@ class Canvas(Canvas, CustomCanvasAttr):
         
         # 强制重新绘制
         self.update()
+
+    def _save_current_drawing_state(self):
+        """保存当前绘制状态，用于取消编辑对话框时恢复"""
+        try:
+            # 深度复制当前形状
+            saved_current = None
+            if self.current:
+                saved_current = self.current.copy()
+                # 确保形状处于开放状态，以便继续绘制
+                saved_current.setOpen()
+            
+            # 保存线条状态
+            saved_line = None
+            if hasattr(self.line, 'points') and self.line.points:
+                saved_line = type(self.line)()  # 创建新的线条对象
+                saved_line.points = [QtCore.QPointF(p.x(), p.y()) for p in self.line.points]
+                if hasattr(self.line, 'point_labels'):
+                    saved_line.point_labels = self.line.point_labels.copy()
+            
+            # 保存完整的绘制状态
+            self._saved_drawing_state = {
+                'current': saved_current,
+                'line': saved_line,
+                'createMode': self.createMode,
+                'drawingPolygon': True,
+                'shapesBackups': self.shapesBackups.copy() if hasattr(self, 'shapesBackups') else []
+            }
+            
+            logger.info("[DEBUG] 已保存绘制状态，当前点数: " + 
+                       (str(len(self.current.points)) if self.current else "0"))
+            
+        except Exception as e:
+            logger.error(f"保存绘制状态时出错: {str(e)}")
+            self._saved_drawing_state = None
+
+    def restoreDrawingState(self):
+        """恢复保存的绘制状态，用于取消编辑对话框时恢复误点前的形状"""
+        if hasattr(self, '_saved_drawing_state') and self._saved_drawing_state:
+            try:
+                # 恢复保存的状态
+                if self._saved_drawing_state.get('current'):
+                    self.current = self._saved_drawing_state['current']
+                
+                if self._saved_drawing_state.get('line'):
+                    self.line = self._saved_drawing_state['line']
+                
+                if self._saved_drawing_state.get('createMode'):
+                    self.createMode = self._saved_drawing_state['createMode']
+                
+                # 恢复shapesBackups
+                if self._saved_drawing_state.get('shapesBackups'):
+                    self.shapesBackups = self._saved_drawing_state['shapesBackups']
+                
+                # 恢复绘制状态
+                if self._saved_drawing_state.get('drawingPolygon'):
+                    self.drawingPolygon.emit(True)
+                
+                # 清除保存的状态
+                self._saved_drawing_state = None
+                
+                # 更新显示
+                self.update()
+                logger.info("[DEBUG] 已恢复绘制状态，恢复后点数: " + 
+                           (str(len(self.current.points)) if self.current else "0"))
+                
+            except Exception as e:
+                logger.error(f"恢复绘制状态时出错: {str(e)}")
+                # 如果恢复失败，清理状态
+                self._saved_drawing_state = None
+                self.cancelBrushDrawing()
+
+    def clearSavedDrawingState(self):
+        """清除保存的绘制状态"""
+        if hasattr(self, '_saved_drawing_state'):
+            self._saved_drawing_state = None
 
     # 在画布左上角绘制文本标记
     def _draw_text_flag_on_canvas(self, painter):
@@ -1778,6 +1869,9 @@ class Canvas(Canvas, CustomCanvasAttr):
 
         # 调用父类的finalise方法完成提交
         super().finalise()
+
+        # 绘制完成后，清除保存的绘制状态
+        self.clearSavedDrawingState()
 
         # 如果仍在绘图模式，为下一次绘制准备好line
         if self.createMode == "polygon":
