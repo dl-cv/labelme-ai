@@ -1545,6 +1545,19 @@ class MainWindow(MainWindow):
                         0.005,
                     "tip":
                         "简化程度，值越大简化越多\n0.001: 轻微简化\n0.005: 默认简化\n0.01: 较多简化\n0.05: 大量简化 \n0.1: 极度简化",
+                },{
+                    "name": "use_bbox",
+                    "title": tr("使用Bbox进行标注"),
+                    "type": "bool",
+                    "value": False,
+                    "default": False,
+                },{
+                    "name": "category_filter_list",
+                    "title": tr("请输入需要标注的类别"),
+                    "type": "text",
+                    "placeholder": "请输入需要标注的类别，多个类别用,或，隔开",
+                    "value": "",
+                    "tip": "请输入需要标注的类别，多个类别用,或，隔开",
                 }],
             },
         ]
