@@ -290,8 +290,8 @@
     </message>
     <message>
         <location filename="../app.py" line="418"/>
-        <source>Copy Polygons</source>
-        <translation>复制多边形</translation>
+        <source>Copy Images</source>
+        <translation>复制图片</translation>
     </message>
     <message>
         <location filename="../app.py" line="418"/>

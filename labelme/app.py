@@ -423,7 +423,7 @@ class MainWindow(QtWidgets.QMainWindow):
             enabled=False,
         )
         copy = action(
-            self.tr("Copy Polygons"),
+            self.tr("Copy Images"),
             self.copySelectedShape,
             shortcuts["copy_polygon"],
             "copy_clipboard",

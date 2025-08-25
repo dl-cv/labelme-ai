@@ -1,3 +1,4 @@
+from labelme.logger import logger
 def copy_files_to_clipboard(file_paths):
     """
     将多个文件复制到剪贴板
@@ -151,10 +152,6 @@ def copy_shapes_to_clipboard(shapes_data, source_image_path=None):
     import os
     
     try:
-        print("=== DEBUG: copy_shapes_to_clipboard开始 ===")
-        print(f"=== DEBUG: 输入形状数据数量: {len(shapes_data)} ===")
-        print(f"=== DEBUG: 源图像路径: {source_image_path} ===")
-        
         # 为每个形状添加源图像路径信息
         shapes_data_with_source = []
         for shape_data in shapes_data:
@@ -164,28 +161,22 @@ def copy_shapes_to_clipboard(shapes_data, source_image_path=None):
         
         # 将形状数据序列化为JSON
         json_data = json.dumps(shapes_data_with_source, ensure_ascii=False, indent=2)
-        print(f"=== DEBUG: JSON数据长度: {len(json_data)} ===")
         
         # 创建临时文件
         temp_dir = tempfile.gettempdir()
         temp_path = os.path.join(temp_dir, "copied_shapes.json")
-        print(f"=== DEBUG: 临时文件路径: {temp_path} ===")
         
         # 写入JSON数据
         with open(temp_path, 'w', encoding='utf-8') as temp_file:
             temp_file.write(json_data)
-        print("=== DEBUG: JSON数据写入临时文件完成 ===")
         
         try:
             # 使用现有的copy_file_to_clipboard函数复制临时文件
             copy_file_to_clipboard(temp_path)
-            print("=== DEBUG: 临时文件复制到剪贴板完成 ===")
         finally:
             all_temp_files.append(temp_path)
-            print("=== DEBUG: 临时文件已添加到清理列表 ===")
             
     except Exception as e:
-        print(f"=== DEBUG: 复制形状到剪贴板失败: {e} ===")
         import traceback
         traceback.print_exc()
         raise
@@ -203,36 +194,22 @@ def paste_shapes_from_clipboard():
     import os
     
     try:
-        print("=== DEBUG: paste_shapes_from_clipboard开始 ===")
         # 检查临时文件是否存在
         temp_dir = tempfile.gettempdir()
         temp_path = os.path.join(temp_dir, "copied_shapes.json")
-        print(f"=== DEBUG: 检查临时文件: {temp_path} ===")
         
         if not os.path.exists(temp_path):
-            print("=== DEBUG: 临时文件不存在 ===")
             return None
             
-        print("=== DEBUG: 临时文件存在，开始读取 ===")
         # 读取JSON数据
         with open(temp_path, 'r', encoding='utf-8') as temp_file:
             content = temp_file.read()
-            print(f"=== DEBUG: 读取到内容长度: {len(content)} ===")
             shapes_data = json.loads(content)
-            print(f"=== DEBUG: 解析出形状数据数量: {len(shapes_data)} ===")
-            
-            # 详细检查每个形状的数据
-            for i, shape_data in enumerate(shapes_data):
-                print(f"=== DEBUG: 形状 {i} 标签: {shape_data.get('label', 'unknown')} ===")
-                print(f"=== DEBUG: 形状 {i} 类型: {shape_data.get('shape_type', 'unknown')} ===")
-                points = shape_data.get('points', [])
-                print(f"=== DEBUG: 形状 {i} 点数: {len(points)} ===")
-                print(f"=== DEBUG: 形状 {i} 点坐标: {points} ===")
             
         return shapes_data
         
     except Exception as e:
-        print(f"=== DEBUG: 从剪贴板读取形状数据失败: {e} ===")
+        logger.info(f"=== DEBUG: 从剪贴板读取形状数据失败: {e} ===")
         import traceback
         traceback.print_exc()
         return None

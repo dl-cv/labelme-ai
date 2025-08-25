@@ -56,6 +56,8 @@ tr_map = {
         'highlight start point': '高亮起始点',
         'ai polygon simplify epsilon': 'AI多边形简化参数设置',
 
+        'copy images': '复制图片',
+
         # 项目类型
         'project setting': '项目设置',
         'project type': '项目类型',
