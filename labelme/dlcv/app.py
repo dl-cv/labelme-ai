@@ -123,7 +123,7 @@ class MainWindow(MainWindow):
         # 移除 [更改输出目录] 功能
         removeAction(self.menus.file, self.actions.changeOutputDir)
 
-        # https://bbs.dlcv.com.cn/t/topic/86
+        # https://bbs.dlcv.ai/t/topic/86
         self.addDockWidget(Qt.LeftDockWidgetArea, self.file_dock)
 
         # 
@@ -145,9 +145,6 @@ class MainWindow(MainWindow):
         # 确保标签txt目录存在
         if not os.path.exists(self.LABEL_TXT_DIR):
             os.makedirs(self.LABEL_TXT_DIR, exist_ok=True)
-
-        # 连接 canvas 的 shapeDone 信号
-        self.canvas.shapeDone.connect(self.handleShapeDone)
 
     # https://bbs.dlcv.com.cn/t/topic/590
     def _edit_label(self, value=None):
@@ -214,20 +211,9 @@ class MainWindow(MainWindow):
             assert flags is None
             assert group_id is None
             assert description is None
-            # 用户取消了编辑对话框，恢复绘制状态
-            if hasattr(self.canvas, 'restoreDrawingState'):
-                self.canvas.restoreDrawingState()
             return
         # extra 修复编辑标签后,标签不更新问题
         else:
-            # 用户确认了编辑，清除保存的绘制状态并完成形状绘制
-            if hasattr(self.canvas, 'clearSavedDrawingState'):
-                self.canvas.clearSavedDrawingState()
-            
-            # 如果当前正在绘制多边形，完成绘制
-            if self.canvas.current and self.canvas.createMode == "polygon":
-                self.canvas.finalise()
-            
             self.labelDialog.addLabelHistory(text)
             if self.uniqLabelList.findItemByLabel(text) is None:
                 item = self.uniqLabelList.createItemFromLabel(text)
@@ -785,12 +771,6 @@ class MainWindow(MainWindow):
 
     def _cancel_shape_creation(self):
         """彻底清理取消标签输入后的残留状态"""
-        # 检查是否有保存的绘制状态，如果有则恢复
-        if hasattr(self.canvas, '_saved_drawing_state') and self.canvas._saved_drawing_state:
-            self.canvas.restoreDrawingState()
-            return
-        
-        # 如果没有保存的状态，则执行原有的清理逻辑
         try:
             # 恢复绘图状态
             self.canvas.undoLastLine()
@@ -2402,51 +2382,6 @@ class MainWindow(MainWindow):
         if sizes:
             sizes = int(sizes[0]), int(sizes[1])
             self.centralWidget().setSizes(sizes)
-
-    # ------------ 处理 shapeDone 信号 ------------
-    def handleShapeDone(self):
-        """处理 canvas 的 shapeDone 信号：弹出标签对话框，根据结果决定闭合或恢复"""
-        # 弹出标签对话框
-        text, flags, group_id, description = self.labelDialog.popUp()
-
-        if text:
-            # 用户确认
-            if self.canvas.current:
-                # 闭合当前形状
-                self.canvas.current.close()
-                self.canvas.shapes.append(self.canvas.current)
-                self.canvas.storeShapes()
-                
-                # 设置标签
-                shape = self.canvas.setLastLabel(text, flags)
-                shape.group_id = group_id
-                shape.description = description
-                self.addLabel(shape)
-                self.setDirty()
-                
-                # 清理状态
-                self.canvas.current = None
-                self.canvas.setHiding(False)
-                self.canvas.clearSavedDrawingState()
-                
-                # 如果仍在绘图模式，为下一次绘制准备好line
-                if self.canvas.createMode == "polygon":
-                    if self.canvas.current is None:
-                        self.canvas.line.points = []
-                        self.canvas.drawingPolygon.emit(False)
-                elif self.canvas.createMode == "linestrip":
-                    self.canvas.line.points = []
-                    self.canvas.line.point_labels = []
-                    self.canvas.drawingPolygon.emit(False)
-                else:
-                    self.canvas.line.points = []
-                    self.canvas.line.point_labels = []
-                    self.canvas.drawingPolygon.emit(False)
-                
-                self.canvas.update()
-        else:
-            # 用户取消，恢复状态
-            self.canvas.restoreDrawingState()
 
 
 class ProjEnum:
