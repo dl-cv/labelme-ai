@@ -565,6 +565,7 @@ class MainWindow(MainWindow):
 
         # ------------ Ctrl + C 触发函数 end ------------
     
+    # 复制选中的形状到剪贴板
     def duplicateSelectedShape(self):
         """重写父类方法：复制选中的形状到剪贴板"""
         if not self.canvas.selectedShapes:
@@ -572,7 +573,7 @@ class MainWindow(MainWindow):
             return
             
         try:
-            # 将选中的形状转换为可序列化的格式
+            # 将选中的形状转换为可序列化的字典数据
             shapes_data = []
             for shape in self.canvas.selectedShapes:
                 shape_data = self.format_shape_for_clipboard(shape)
@@ -594,6 +595,7 @@ class MainWindow(MainWindow):
         except Exception as e:
             notification("复制失败", str(e), ToastPreset.ERROR)
     
+    # 将形状对象格式化为可序列化的字典
     def format_shape_for_clipboard(self, shape):
         """将形状对象格式化为可序列化的字典"""
         
@@ -616,6 +618,7 @@ class MainWindow(MainWindow):
             data["direction"] = getattr(shape, "direction", 0.0)
         return data
     
+    # 从形状数据创建Shape对象
     def create_shape_from_data(self, shape_data):
         """从形状数据创建Shape对象"""
         try:
@@ -654,51 +657,29 @@ class MainWindow(MainWindow):
             traceback.print_exc()
             raise
     
+    # 为形状添加偏移，避免与原形状重合
     def add_offset_to_shape(self, shape):
         """为形状添加偏移，避免与原形状重合"""
         from PyQt5 import QtCore
-        
+
+        # 偏移量
+        offset_x, offset_y = 20, 20
+
         # 计算形状的边界
         min_x = min(p.x() for p in shape.points)
         max_shape_x = max(p.x() for p in shape.points)
         min_y = min(p.y() for p in shape.points)
         max_shape_y = max(p.y() for p in shape.points)
-        
-        # 检查是否需要调整偏移以避免出界
+
         max_x = self.image.width() - 0.001
         max_y = self.image.height() - 0.001
-        
-        # 检查形状是否超出当前图像边界
-        if max_shape_x > max_x or max_shape_y > max_y or min_x < 0 or min_y < 0:
-            # 如果形状超出边界，给出警告并调整到边界内
-            notification("警告", "粘贴的形状超出当前图像边界，已自动调整", ToastPreset.WARNING)
-            
-            # 计算缩放比例以适应新图像
-            scale_x = max_x / max_shape_x if max_shape_x > max_x else 1.0
-            scale_y = max_y / max_shape_y if max_shape_y > max_y else 1.0
-            scale = min(scale_x, scale_y, 1.0)  # 不放大，只缩小
-            
-            # 应用缩放
-            for point in shape.points:
-                new_x = point.x() * scale
-                new_y = point.y() * scale
-                # 确保不超出边界
-                new_x = max(0, min(new_x, max_x))
-                new_y = max(0, min(new_y, max_y))
-                point.setX(new_x)
-                point.setY(new_y)
-            
-            return
-        
-        # 偏移量
-        offset_x, offset_y = 20, 20
-        
+
         # 检查偏移后是否会出界
         if max_shape_x + offset_x > max_x:
             offset_x = max(0, max_x - max_shape_x - 10)
         if max_shape_y + offset_y > max_y:
             offset_y = max(0, max_y - max_shape_y - 10)
-        
+
         # 如果偏移太小，尝试向左上偏移
         if offset_x < 10:
             if min_x - 20 >= 0:
@@ -710,7 +691,7 @@ class MainWindow(MainWindow):
                 offset_y = -20
             else:
                 offset_y = 0
-        
+
         # 应用偏移
         for point in shape.points:
             new_x = point.x() + offset_x
@@ -720,8 +701,11 @@ class MainWindow(MainWindow):
             new_y = max(0, min(new_y, max_y))
             point.setX(new_x)
             point.setY(new_y)
-        
-    
+
+        # 偏移后直接检查边界并自动调整
+        self.check_and_adjust_shape_bounds(shape)
+
+    # 检查形状是否超出当前图像边界，如果超出则调整
     def check_and_adjust_shape_bounds(self, shape):
         """检查形状是否超出当前图像边界，如果超出则调整"""
         # 计算形状的边界
@@ -729,20 +713,20 @@ class MainWindow(MainWindow):
         max_shape_x = max(p.x() for p in shape.points)
         min_y = min(p.y() for p in shape.points)
         max_shape_y = max(p.y() for p in shape.points)
-        
+
         # 检查形状是否超出当前图像边界
         max_x = self.image.width() - 0.001
         max_y = self.image.height() - 0.001
-        
+
         if max_shape_x > max_x or max_shape_y > max_y or min_x < 0 or min_y < 0:
             # 如果形状超出边界，给出警告并调整到边界内
             notification("警告", "粘贴的形状超出当前图像边界，已自动调整", ToastPreset.WARNING)
-            
+
             # 计算缩放比例以适应新图像
             scale_x = max_x / max_shape_x if max_shape_x > max_x else 1.0
             scale_y = max_y / max_shape_y if max_shape_y > max_y else 1.0
             scale = min(scale_x, scale_y, 1.0)  # 不放大，只缩小
-            
+
             # 应用缩放
             for point in shape.points:
                 new_x = point.x() * scale
@@ -752,9 +736,6 @@ class MainWindow(MainWindow):
                 new_y = max(0, min(new_y, max_y))
                 point.setX(new_x)
                 point.setY(new_y)
-            
-        else:
-            pass
     
     def fileSelectionChanged(self):
         if not self.is_all_shapes_valid():
