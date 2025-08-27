@@ -132,6 +132,9 @@ class MainWindow(MainWindow):
         self._init_dev_mode()
         self._init_ui()
         self.actions.copy.setEnabled(True)
+        
+        # 修改复制动作的文本为"复制图片"
+        self.actions.copy.setText("复制图片")
 
         self._init_edit_mode_action()  # 初始化编辑模式切换动作
         STORE.set_edit_label_name(self._edit_label)
@@ -145,7 +148,7 @@ class MainWindow(MainWindow):
         # 确保标签txt目录存在
         if not os.path.exists(self.LABEL_TXT_DIR):
             os.makedirs(self.LABEL_TXT_DIR, exist_ok=True)
-
+        
     # https://bbs.dlcv.com.cn/t/topic/590
     def _edit_label(self, value=None):
         # extra 绘制模式下, 也允许编辑标签
@@ -526,12 +529,7 @@ class MainWindow(MainWindow):
         if not self.canvas.selectedShapes:
             self.copy_image_to_clipboard()
         else:
-            super().copySelectedShape()
-            notification(
-                "复制成功",
-                f"已复制 {len(self.canvas.selectedShapes)} 个形状",
-                ToastPreset.SUCCESS,
-            )
+            pass
             
     def shapeSelectionChanged(self, selected_shapes):
         super().shapeSelectionChanged(selected_shapes)
@@ -565,8 +563,180 @@ class MainWindow(MainWindow):
                 ToastPreset.ERROR,
             )
 
-    # ------------ Ctrl + C 触发函数 end ------------
+        # ------------ Ctrl + C 触发函数 end ------------
+    
+    # 复制选中的形状到剪贴板
+    def duplicateSelectedShape(self):
+        """重写父类方法：复制选中的形状到剪贴板"""
+        if not self.canvas.selectedShapes:
+            notification("提示", "请先选中要复制的形状", ToastPreset.WARNING)
+            return
+            
+        try:
+            # 将选中的形状转换为可序列化的字典数据
+            shapes_data = []
+            for shape in self.canvas.selectedShapes:
+                shape_data = self.format_shape_for_clipboard(shape)
+                shapes_data.append(shape_data)
+            
+            # 记录源图像路径
+            source_image_path = self.filename
+            logger.info(f"=== DEBUG: 记录源图像路径: {source_image_path} ===")
+            
+            # 复制到剪贴板
+            from labelme.dlcv.widget.clipboard import copy_shapes_to_clipboard
+            copy_shapes_to_clipboard(shapes_data, source_image_path)
+            
+            # 启用粘贴动作
+            self.actions.paste.setEnabled(True)
+            
+            notification("复制成功", f"已复制 {len(shapes_data)} 个形状到剪贴板", ToastPreset.SUCCESS)
+            
+        except Exception as e:
+            notification("复制失败", str(e), ToastPreset.ERROR)
+    
+    # 将形状对象格式化为可序列化的字典
+    def format_shape_for_clipboard(self, shape):
+        """将形状对象格式化为可序列化的字典"""
+        
+        # 创建新的数据字典，不从other_data复制，避免冲突
+        data = {}
+        points_data = [(p.x(), p.y()) for p in shape.points]
+        
+        data.update({
+            'label': shape.label,
+            'points': points_data,
+            'group_id': shape.group_id,
+            'description': shape.description,
+            'shape_type': shape.shape_type,
+            'flags': shape.flags,
+            'mask': None if shape.mask is None else shape.mask.tolist(),
+        })
+        
+        # 如果是旋转框，添加direction属性
+        if shape.shape_type == "rotation":
+            data["direction"] = getattr(shape, "direction", 0.0)
+        return data
+    
+    # 从形状数据创建Shape对象
+    def create_shape_from_data(self, shape_data):
+        """从形状数据创建Shape对象"""
+        try:
+            from labelme.dlcv.shape import Shape
+            from PyQt5 import QtCore
+            
+            # 创建Shape对象
+            shape = Shape()
+            
+            # 设置基本属性
+            shape.label = shape_data.get('label', '')
+            shape.shape_type = shape_data.get('shape_type', 'polygon')
+            shape.group_id = shape_data.get('group_id')
+            shape.description = shape_data.get('description', '')
+            shape.flags = shape_data.get('flags', {})
+            
+            # 设置点坐标
+            points = shape_data.get('points', [])
+            for point in points:
+                shape.addPoint(QtCore.QPointF(point[0], point[1]))
+            
+            # 设置mask
+            mask_data = shape_data.get('mask')
+            if mask_data is not None:
+                import numpy as np
+                shape.mask = np.array(mask_data)
+            
+            # 如果是旋转框，设置direction属性
+            if shape.shape_type == "rotation":
+                shape.direction = shape_data.get("direction", 0.0)
+            
+            return shape
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise
+    
+    # 为形状添加偏移，避免与原形状重合
+    def add_offset_to_shape(self, shape):
+        """为形状添加偏移，避免与原形状重合"""
+        from PyQt5 import QtCore
 
+        # 偏移量
+        offset_x, offset_y = 20, 20
+
+        # 计算形状的边界
+        min_x = min(p.x() for p in shape.points)
+        max_shape_x = max(p.x() for p in shape.points)
+        min_y = min(p.y() for p in shape.points)
+        max_shape_y = max(p.y() for p in shape.points)
+
+        max_x = self.image.width() - 0.001
+        max_y = self.image.height() - 0.001
+
+        # 检查偏移后是否会出界
+        if max_shape_x + offset_x > max_x:
+            offset_x = max(0, max_x - max_shape_x - 10)
+        if max_shape_y + offset_y > max_y:
+            offset_y = max(0, max_y - max_shape_y - 10)
+
+        # 如果偏移太小，尝试向左上偏移
+        if offset_x < 10:
+            if min_x - 20 >= 0:
+                offset_x = -20
+            else:
+                offset_x = 0
+        if offset_y < 10:
+            if min_y - 20 >= 0:
+                offset_y = -20
+            else:
+                offset_y = 0
+
+        # 应用偏移
+        for point in shape.points:
+            new_x = point.x() + offset_x
+            new_y = point.y() + offset_y
+            # 确保不超出边界
+            new_x = max(0, min(new_x, max_x))
+            new_y = max(0, min(new_y, max_y))
+            point.setX(new_x)
+            point.setY(new_y)
+
+        # 偏移后直接检查边界并自动调整
+        self.check_and_adjust_shape_bounds(shape)
+
+    # 检查形状是否超出当前图像边界，如果超出则调整
+    def check_and_adjust_shape_bounds(self, shape):
+        """检查形状是否超出当前图像边界，如果超出则调整"""
+        # 计算形状的边界
+        min_x = min(p.x() for p in shape.points)
+        max_shape_x = max(p.x() for p in shape.points)
+        min_y = min(p.y() for p in shape.points)
+        max_shape_y = max(p.y() for p in shape.points)
+
+        # 检查形状是否超出当前图像边界
+        max_x = self.image.width() - 0.001
+        max_y = self.image.height() - 0.001
+
+        if max_shape_x > max_x or max_shape_y > max_y or min_x < 0 or min_y < 0:
+            # 如果形状超出边界，给出警告并调整到边界内
+            notification("警告", "粘贴的形状超出当前图像边界，已自动调整", ToastPreset.WARNING)
+
+            # 计算缩放比例以适应新图像
+            scale_x = max_x / max_shape_x if max_shape_x > max_x else 1.0
+            scale_y = max_y / max_shape_y if max_shape_y > max_y else 1.0
+            scale = min(scale_x, scale_y, 1.0)  # 不放大，只缩小
+
+            # 应用缩放
+            for point in shape.points:
+                new_x = point.x() * scale
+                new_y = point.y() * scale
+                # 确保不超出边界
+                new_x = max(0, min(new_x, max_x))
+                new_y = max(0, min(new_y, max_y))
+                point.setX(new_x)
+                point.setY(new_y)
+    
     def fileSelectionChanged(self):
         if not self.is_all_shapes_valid():
             # 弹窗询问是否切换图片
@@ -718,9 +888,9 @@ class MainWindow(MainWindow):
             last_shape = self.canvas.shapes[-1]
             if last_shape.shape_type == "polygon" and len(
                     last_shape.points) > 3:
-                print('简化前点数: ', len(last_shape.points))
+                logger.info(f'简化前点数: {len(last_shape.points)}')
                 self.simplifyShapePoints(last_shape)
-                print('简化后点数: ', len(last_shape.points))
+                logger.info(f'简化后点数: {len(last_shape.points)}')
 
         items = self.uniqLabelList.selectedItems()
         text = None
@@ -844,21 +1014,72 @@ class MainWindow(MainWindow):
             self.actions.deleteFile.setEnabled(False)
 
     def pasteSelectedShape(self):
-        if not self._copied_shapes:
-            return
+        """从剪贴板粘贴形状或图像"""
+        try:
+            # 首先尝试从剪贴板读取形状数据
+            from labelme.dlcv.widget.clipboard import paste_shapes_from_clipboard
+            shapes_data = paste_shapes_from_clipboard()
+            
+            if shapes_data is not None:
+                logger.info(f"=== DEBUG: 当前图像路径: {self.filename} ===")
+                
+                # 将形状数据转换为Shape对象并添加偏移
+                shapes = []
+                for i, shape_data in enumerate(shapes_data):
+                    shape = self.create_shape_from_data(shape_data)
+                    
+                    # 检查是否需要应用偏移（只在同一张图片上粘贴时应用偏移）
+                    source_image_path = shape_data.get('source_image_path')
+                    current_image_path = self.filename
+                    
+                    if source_image_path == current_image_path:
+                        logger.info(f"=== DEBUG: 在同一张图片上粘贴，应用偏移 ===")
+                        # 添加偏移以避免与原形状重合
+                        self.add_offset_to_shape(shape)
+                    else:
+                        logger.info(f"=== DEBUG: 在不同图片上粘贴，不应用偏移，保持原始坐标 ===")
+                        # 检查形状是否超出当前图像边界，如果超出则调整
+                        self.check_and_adjust_shape_bounds(shape)
+                    
+                    shapes.append(shape)
+                
+                # 加载形状到画布
+                self.loadShapes(shapes, replace=False)
+                self.setDirty()
+                
+                notification("粘贴成功", f"已粘贴 {len(shapes)} 个形状", ToastPreset.SUCCESS)
+                return
+            
+            # 如果没有形状数据，尝试粘贴图像
+            try:
+                # 调用父类的粘贴图像功能
+                super().pasteSelectedShape()
+                return
+            except Exception as e:
+                pass
+            
+            # 如果图像粘贴也失败，尝试使用原有的_copied_shapes机制
+            if not self._copied_shapes:
+                notification("提示", "剪贴板中没有可粘贴的内容", ToastPreset.WARNING)
+                return
 
-        nee_copy_shape = []
-        for copy_shape in self._copied_shapes:
-            for shape in self.canvas.shapes:
-                if copy_shape.points == shape.points:
-                    nee_copy_shape.append(shape)
+            nee_copy_shape = []
+            for copy_shape in self._copied_shapes:
+                for shape in self.canvas.shapes:
+                    if copy_shape.points == shape.points:
+                        nee_copy_shape.append(shape)
 
-        if nee_copy_shape:
-            self.canvas.selectShapes(nee_copy_shape)
-            self.duplicateSelectedShape()
-        else:
-            self.loadShapes(self._copied_shapes, replace=False)
-            self.setDirty()
+            if nee_copy_shape:
+                self.canvas.selectShapes(nee_copy_shape)
+                self.duplicateSelectedShape()
+            else:
+                self.loadShapes(self._copied_shapes, replace=False)
+                self.setDirty()
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            notification("粘贴失败", str(e), ToastPreset.ERROR)
 
     def getLabelFile(self) -> str:
         try:
