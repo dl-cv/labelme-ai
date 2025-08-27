@@ -278,7 +278,7 @@ class Shape(Shape):
                 # 显示Label（如果有）- 优化旋转框标签显示
                 if self.label and getattr(STORE, 'canvas_display_rotation_label', True):
                     try:
-                        # 使用与普通形状相同的标签绘制逻辑
+                        # 之前没有对字体进行缩放， 现在对字体进行中心缩放
                         label = self.label
                         center = self.get_label_paint_point()
                         scaled_center = self._scale_point(center)
@@ -301,10 +301,6 @@ class Shape(Shape):
                         # 绘制背景 - 增加透明度
                         painter.fillRect(bg_rect, QtGui.QColor(30, 31, 34, int(255 * 0.8)))
                         
-                        # 绘制边框 - 添加边框提高可见性
-                        # painter.setPen(QtGui.QPen(QtGui.QColor(105, 170, 88), 1))
-                        # painter.drawRect(bg_rect)
-
                         # 设置字体颜色
                         font_color = QtGui.QColor(105, 170, 88)
                         painter.setPen(font_color)
