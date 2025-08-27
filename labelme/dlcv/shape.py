@@ -275,39 +275,40 @@ class Shape(Shape):
                 # 恢复原来的画笔
                 painter.setPen(pen)
                     
-                # 显示Label（如果有）
-                if self.label and getattr(STORE, 'canvas_display_shape_label', True):
+                # 显示Label（如果有）- 优化旋转框标签显示
+                if self.label and getattr(STORE, 'canvas_display_rotation_label', True):
                     try:
-                        # 设置字体
+                        # 使用与普通形状相同的标签绘制逻辑
+                        label = self.label
+                        center = self.get_label_paint_point()
+                        scaled_center = self._scale_point(center)
+
+                        # 设置粗体
                         font = painter.font()
                         font.setBold(True)
                         font.setPointSize(8 if self.scale < 1 else int(8 * self.scale))
                         painter.setFont(font)
-                        
-                        # 计算文本位置 - 直接放在中心点上方
+
+                        # 计算矩形宽度
                         padding = 5
-                        text_width = painter.fontMetrics().width(self.label)
+                        text_width = painter.fontMetrics().width(label)
                         text_height = painter.fontMetrics().height()
+                        bg_rect = QtCore.QRectF(scaled_center, scaled_center)
+                        bg_rect.setWidth(text_width + padding * 2)
+                        bg_rect.setHeight(text_height + padding * 2)
+                        bg_rect.moveCenter(scaled_center)
+
+                        # 绘制背景 - 增加透明度
+                        painter.fillRect(bg_rect, QtGui.QColor(30, 31, 34, int(255 * 0.8)))
                         
-                        # 创建简单的标签矩形，使其置于中心点上方
-                        rect_x = center_x - text_width/2 - padding
-                        rect_y = center_y - text_height - padding*2
-                        rect_width = text_width + padding*2
-                        rect_height = text_height + padding*2
-                        
-                        # 创建文本区域
-                        label_rect = QtCore.QRectF(
-                            self._scale_point(QtCore.QPointF(rect_x, rect_y)),
-                            QtCore.QSizeF(rect_width * self.scale, rect_height * self.scale)
-                        )
-                        
-                        # 绘制背景
-                        painter.fillRect(label_rect, QtGui.QColor(30, 31, 34, int(255 * 0.7)))
-                        
-                        # 绘制文字
-                        font_color = QtGui.QColor(105, 170, 88)  # 绿色
+                        # 绘制边框 - 添加边框提高可见性
+                        # painter.setPen(QtGui.QPen(QtGui.QColor(105, 170, 88), 1))
+                        # painter.drawRect(bg_rect)
+
+                        # 设置字体颜色
+                        font_color = QtGui.QColor(105, 170, 88)
                         painter.setPen(font_color)
-                        painter.drawText(label_rect, QtCore.Qt.AlignCenter, self.label)
+                        painter.drawText(bg_rect, QtCore.Qt.AlignCenter, label)
                         
                         # 恢复原来的画笔
                         painter.setPen(pen)
