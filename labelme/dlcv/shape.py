@@ -442,6 +442,7 @@ class Shape(Shape):
         while self.points:
             self.points.pop()
 
+    # 获取中心点， 用于绘制标签
     def get_center_point(self) -> QtCore.QPointF:
         if self.shape_type == ShapeType.RECTANGLE:
             center_x = (self.points[0].x() + self.points[1].x()) / 2
@@ -485,12 +486,15 @@ class Shape(Shape):
         else:
             return self.points[0]
 
+    # 获取标签绘制点， 用于绘制标签
     def get_label_paint_point(self) -> QtCore.QPointF:
         import shapely
         from shapely.geometry import Polygon
 
+        # 获取中心点
         center_point = self.get_center_point()
 
+        # 如果是多边形， 则需要计算离中心点最近的点
         if self.shape_type == ShapeType.POLYGON:
             geo_polygon = Polygon([(point.x(), point.y()) for point in self.points])
 
