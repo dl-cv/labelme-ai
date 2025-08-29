@@ -235,6 +235,7 @@ class MainWindow(MainWindow):
                 description=description if edit_description else None,
             )
 
+    # 选中不同标签时, 同步选中画布上的形状
     def labelSelectionChanged(self):
         if self._noSelectionSlot:
             return
@@ -530,7 +531,8 @@ class MainWindow(MainWindow):
             self.copy_image_to_clipboard()
         else:
             pass
-            
+
+    # 选中形状变化时,启用复制动作
     def shapeSelectionChanged(self, selected_shapes):
         super().shapeSelectionChanged(selected_shapes)
         self.actions.copy.setEnabled(True)
@@ -736,7 +738,8 @@ class MainWindow(MainWindow):
                 new_y = max(0, min(new_y, max_y))
                 point.setX(new_x)
                 point.setY(new_y)
-    
+
+    # 文件变化时,检查是否有不合法多边形
     def fileSelectionChanged(self):
         if not self.is_all_shapes_valid():
             # 弹窗询问是否切换图片
@@ -878,6 +881,7 @@ class MainWindow(MainWindow):
                 ToastPreset.ERROR,
             )
 
+    # 创建新形状时，弹窗输入标签
     def newShape(self):
         """Pop-up and give focus to the label editor.
 
@@ -892,52 +896,118 @@ class MainWindow(MainWindow):
                 self.simplifyShapePoints(last_shape)
                 logger.info(f'简化后点数: {len(last_shape.points)}')
 
-        items = self.uniqLabelList.selectedItems()
-        text = None
+        # 检查是否有待定形状（多边形模式）
+        if hasattr(self.canvas, '_pendingShapeForLabel') and self.canvas._pendingShapeForLabel:
+            # 处理待定形状的标签输入
+            items = self.uniqLabelList.selectedItems()
+            text = None
 
-        if items:
-            text = items[0].data(Qt.UserRole)
-        flags = {}
-        group_id = None
-        description = ""
-        if self._config["display_label_popup"] or not text:
-            previous_text = self.labelDialog.edit.text()
-            text, flags, group_id, description = self.labelDialog.popUp(text)
-            if not text:
-                self.labelDialog.edit.setText(previous_text)
-                # 彻底清理取消标签输入后的状态
-                self._cancel_shape_creation()
-                return
+            # 如果有选中的标签，则默认使用该标签
+            if items:
+                text = items[0].data(Qt.UserRole)
 
-        if text and not self.validateLabel(text):
-            self.errorMessage(
-                self.tr("Invalid label"),
-                self.tr("Invalid label '{}' with validation type '{}'").format(
-                    text, self._config["validate_label"]),
-            )
-            text = ""
-        if text:
-            self.labelList.clearSelection()
-            shape = self.canvas.setLastLabel(text, flags)
-            shape.group_id = group_id
-            shape.description = description
+            flags = {}
+            group_id = None
+            description = ""
+            print(f'当前标签为：{text}')
+            if self._config["display_label_popup"] or not text:
+                previous_text = self.labelDialog.edit.text()
+                text, flags, group_id, description = self.labelDialog.popUp(text)
+                if not text:
+                    self.labelDialog.edit.setText(previous_text)
+                    # 取消标签输入，恢复绘制状态
+                    self.canvas.resumeDrawingPendingShape()
+                    return
 
-            # extra AI自动标注，有可能出现不合法的多边形
-            if self.canvas.createMode == "ai_polygon":
-                shape = self.fix_shape(shape)
-            self.addLabel(shape)
-            self.actions.editMode.setEnabled(True)
-            self.actions.undoLastPoint.setEnabled(False)
-            self.actions.undo.setEnabled(True)
-            self.setDirty()
+            if text and not self.validateLabel(text):
+                self.errorMessage(
+                    self.tr("Invalid label"),
+                    self.tr("Invalid label '{}' with validation type '{}'").format(
+                        text, self._config["validate_label"]),
+                )
+                text = ""
+            if text:
+                self.labelList.clearSelection()
+                # 为待定形状设置标签
+                pending_shape = self.canvas._pendingShapeForLabel
+                pending_shape.label = text
+                pending_shape.flags = flags
+                pending_shape.group_id = group_id
+                pending_shape.description = description
 
-            # https://bbs2.dlcv.com.cn/t/topic/1048/3
-            # 保存 label.txt
-            label_txt_path = Path(self.lastOpenDir) / "label.txt"
-            self._save_label_txt(label_txt_path)
-            # extra end
+                print(f'待定形状的标签为：{pending_shape.label}')
+                
+                # 将待定形状添加到shapes中
+                self.canvas.addPendingShapeToShapes()
+                
+                # 添加到标签列表
+                self.addLabel(pending_shape)
+                self.actions.editMode.setEnabled(True)
+                self.actions.undoLastPoint.setEnabled(False)
+                self.actions.undo.setEnabled(True)
+                self.setDirty()
+
+                # https://bbs2.dlcv.com.cn/t/topic/1048/3
+                # 保存 label.txt
+                label_txt_path = Path(self.lastOpenDir) / "label.txt"
+                self._save_label_txt(label_txt_path)
+                # extra end
+            else:
+                # 标签为空，恢复绘制状态
+                self.canvas.resumeDrawingPendingShape()
         else:
-            self._cancel_shape_creation()
+            # 处理其他模式的形状（非多边形模式）
+            items = self.uniqLabelList.selectedItems()
+            text = None
+
+            # 如果有选中的标签，则默认使用该标签
+            if items:
+                text = items[0].data(Qt.UserRole)
+
+            flags = {}
+            group_id = None
+            description = ""
+            if self._config["display_label_popup"] or not text:
+                previous_text = self.labelDialog.edit.text()
+                text, flags, group_id, description = self.labelDialog.popUp(text)
+                if not text:
+                    self.labelDialog.edit.setText(previous_text)
+                    # 其他模式仍然彻底清理
+                    self._cancel_shape_creation()
+                    return
+
+            if text and not self.validateLabel(text):
+                self.errorMessage(
+                    self.tr("Invalid label"),
+                    self.tr("Invalid label '{}' with validation type '{}'").format(
+                        text, self._config["validate_label"]),
+                )
+                text = ""
+            if text:
+                self.labelList.clearSelection()
+                shape = self.canvas.setLastLabel(text, flags)
+                shape.group_id = group_id
+                shape.description = description
+
+                # extra AI自动标注，有可能出现不合法的多边形
+                if self.canvas.createMode == "ai_polygon":
+                    shape = self.fix_shape(shape)
+                self.addLabel(shape)
+                self.actions.editMode.setEnabled(True)
+                self.actions.undoLastPoint.setEnabled(False)
+                self.actions.undo.setEnabled(True)
+                self.setDirty()
+
+                # https://bbs2.dlcv.com.cn/t/topic/1048/3
+                # 保存 label.txt
+                label_txt_path = Path(self.lastOpenDir) / "label.txt"
+                self._save_label_txt(label_txt_path)
+                # extra end
+            else:
+                # 其他模式仍然彻底清理
+                self._cancel_shape_creation()
+
+
 
     def _cancel_shape_creation(self):
         """彻底清理取消标签输入后的残留状态"""
@@ -2505,7 +2575,6 @@ class MainWindow(MainWindow):
         )
         attr_widget.show()
         attr_widget.raise_()
-
     # ------------ 属性查看方法 end ------------
 
     # ------------ 编辑和绘制状态切换新动作 ------------
@@ -2532,7 +2601,6 @@ class MainWindow(MainWindow):
             else:
                 notification("请先进行一次标注", "请先进行一次标注后再切换编辑模式",
                              ToastPreset.WARNING)
-
     # ------------ 编辑和绘制状态切换新动作 end ------------
 
     # ------------ 3D 视图 ------------
