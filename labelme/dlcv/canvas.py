@@ -77,6 +77,9 @@ class Canvas(Canvas, CustomCanvasAttr):
         self.canvasOffsetStart = None
         # 画布偏移初始化
         self.offset = QtCore.QPointF(0, 0)
+        
+        # 添加待定形状属性，用于多边形标签取消时的恢复
+        self._pendingShapeForLabel = None
 
     # region Mouse Events
     def mouse_left_click(self, ev, pos: QtCore.QPointF):
@@ -1253,6 +1256,12 @@ class Canvas(Canvas, CustomCanvasAttr):
                 p.drawPath(path)
 
         Shape.scale = self.scale
+        
+        # 绘制待定形状（标签编辑时保持可见）
+        if self._pendingShapeForLabel:
+            self._pendingShapeForLabel.fill = False  # 待定形状不填充
+            self._pendingShapeForLabel.paint(p)
+        
         for shape in self.shapes:
             if (shape.selected or not self._hideBackround) and self.isVisible(shape):
                 shape.fill = shape.selected or shape == self.hShape
@@ -1776,7 +1785,19 @@ class Canvas(Canvas, CustomCanvasAttr):
                 self.current = None
                 return
 
-        # 调用父类的finalise方法完成提交
+        # 对于多边形模式，到标签输入完成再进行finalise
+        if self.createMode == "polygon" and self.current:
+            # 将当前形状存储为待定形状
+            self._pendingShapeForLabel = self.current
+            self.current.close()
+            self.current = None
+            # 保持多边形可见，不隐藏背景
+            self.setHiding(False)
+            self.newShape.emit()
+            self.update()
+            return
+
+        # 对于其他模式，调用父类的finalise方法完成提交
         super().finalise()
 
         # 如果仍在绘图模式，为下一次绘制准备好line
@@ -1795,6 +1816,32 @@ class Canvas(Canvas, CustomCanvasAttr):
             self.line.points = []
             self.line.point_labels = []
             self.drawingPolygon.emit(False)
+
+    def addPendingShapeToShapes(self):
+        """将待定形状添加到shapes列表中，完成最终化"""
+        if self._pendingShapeForLabel:
+            self.shapes.append(self._pendingShapeForLabel)
+            self.storeShapes()
+            self._pendingShapeForLabel = None
+            self.update()
+
+    def resumeDrawingPendingShape(self):
+        """恢复待定形状到绘制状态，允许继续绘制"""
+        if self._pendingShapeForLabel:
+            # 将待定形状恢复为当前绘制形状
+            self.current = self._pendingShapeForLabel
+            self.current.setOpen()  # 重新打开形状以便继续绘制
+            self._pendingShapeForLabel = None
+            
+            # 设置line.points为从最后一个点到当前位置的线段
+            if len(self.current.points) > 0:
+                last_point = self.current.points[-1]
+                self.line.points = [last_point, last_point]  # 初始时两个点相同
+                self.line.point_labels = [1, 1]
+            
+            # 确保绘制状态正确
+            self.drawingPolygon.emit(True)
+            self.update()
 
     # 添加角度输入对话框方法
     def showAngleInputDialog(self, shape):
