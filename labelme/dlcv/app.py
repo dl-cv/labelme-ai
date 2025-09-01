@@ -905,9 +905,6 @@ class MainWindow(MainWindow):
             text, flags, group_id, description = self.labelDialog.popUp(text)
             if not text:
                 self.labelDialog.edit.setText(previous_text)
-                # 彻底清理取消标签输入后的状态
-                self._cancel_shape_creation()
-                return
 
         if text and not self.validateLabel(text):
             self.errorMessage(
@@ -949,19 +946,20 @@ class MainWindow(MainWindow):
             pass
 
         # 强制清除所有绘制状态
-        self.canvas.cancelBrushDrawing()
+        if STORE.canvas_brush_enabled:
+            self.canvas.cancelBrushDrawing()
 
-        # 重置画布状态
-        self.canvas.current = None
-        self.canvas.line.points = []
-        self.canvas.line.point_labels = []
-        self.canvas.drawingPolygon.emit(False)
+            # 重置画布状态
+            self.canvas.current = None
+            self.canvas.line.points = []
+            self.canvas.line.point_labels = []
+            self.canvas.drawingPolygon.emit(False)
 
-        # 切换到编辑模式 - 使用toggleDrawMode确保完全切换UI状态
-        self.toggleDrawMode(edit=True)
+            # 切换到编辑模式 - 使用toggleDrawMode确保完全切换UI状态
+            self.toggleDrawMode(edit=True)
 
-        # 强制刷新界面
-        self.canvas.update()
+            # 强制刷新界面
+            self.canvas.update()
 
     def loadShapes(self, shapes: [Shape], replace=True):
         # extra 修复 points 少于 3 个点, 加载标签失败, 导致程序崩溃
