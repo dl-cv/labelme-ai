@@ -1779,22 +1779,22 @@ class Canvas(Canvas, CustomCanvasAttr):
         # 调用父类的finalise方法完成提交
         super().finalise()
 
-        # 如果仍在绘图模式，为下一次绘制准备好line
-        if self.createMode == "polygon":
-            if self.current is not None:
-                self.line.points = [self.current[-1], self.current[0]]
-                self.current = None
-                self.drawingPolygon.emit(False)
-        elif self.createMode == "linestrip":
-            self.current = None
-            self.drawingPolygon.emit(False)
-            self.line.points = []
-            self.line.point_labels = []
-        else:
-            self.current = None
-            self.line.points = []
-            self.line.point_labels = []
-            self.drawingPolygon.emit(False)
+        # # 如果仍在绘图模式，为下一次绘制准备好line
+        # if self.createMode == "polygon":
+        #     if self.current is not None:
+        #         self.line.points = [self.current[-1], self.current[0]]
+        #         self.current = None
+        #         self.drawingPolygon.emit(False)
+        # elif self.createMode == "linestrip":
+        #     self.current = None
+        #     self.drawingPolygon.emit(False)
+        #     self.line.points = []
+        #     self.line.point_labels = []
+        # else:
+        #     self.current = None
+        #     self.line.points = []
+        #     self.line.point_labels = []
+        #     self.drawingPolygon.emit(False)
 
     # 添加角度输入对话框方法
     def showAngleInputDialog(self, shape):
