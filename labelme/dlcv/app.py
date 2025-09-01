@@ -519,12 +519,10 @@ class MainWindow(MainWindow):
         logger.info(f'保存标签到 {file_path}')
         return file_path
 
-    # ------------ Ctrl + C 触发函数 复制图片或形状 ------------
+    # ------------ Ctrl + C 触发函数 复制图片 ------------
     def copySelectedShape(self):
         """
-        复制选中的形状或当前图片。
-        如果有选中的形状,则复制形状;
-        如果没有选中形状,则复制当前图片。
+        复制选中的图片。
         """
         if not self.canvas.selectedShapes:
             self.copy_image_to_clipboard()
@@ -565,7 +563,7 @@ class MainWindow(MainWindow):
 
         # ------------ Ctrl + C 触发函数 end ------------
     
-    # 复制选中的形状到剪贴板
+    # ctrl+D 复制选中的形状到剪贴板
     def duplicateSelectedShape(self):
         """重写父类方法：复制选中的形状到剪贴板"""
         if not self.canvas.selectedShapes:
