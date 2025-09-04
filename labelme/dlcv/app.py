@@ -2128,6 +2128,9 @@ class MainWindow(MainWindow):
         # 对话框大一点
         self.dialog_text_flag.resize(400, 300)
         self.dialog_text_flag.setWindowTitle(tr("Add Text Flag"))
+        # 去掉标题栏的 ?
+        self.dialog_text_flag.setWindowFlags(self.dialog_text_flag.windowFlags() & ~QtCore.Qt.WindowContextHelpButtonHint)
+
         self.dialog_text_flag.setLabelText(tr("Please enter the text flag"))
 
         def add_text_flag():
