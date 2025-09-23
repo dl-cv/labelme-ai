@@ -639,6 +639,10 @@ class MainWindow(MainWindow):
             points = shape_data.get('points', [])
             for point in points:
                 shape.addPoint(QtCore.QPointF(point[0], point[1]))
+
+            # 对于多边形等需要闭合的形状，手动调用close()
+            if shape.shape_type in ['polygon', 'linestrip'] and len(points) > 0:
+                shape.close()
             
             # 设置mask
             mask_data = shape_data.get('mask')
