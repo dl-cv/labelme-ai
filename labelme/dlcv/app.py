@@ -522,9 +522,7 @@ class MainWindow(MainWindow):
     # ------------ Ctrl + C 触发函数 复制图片或形状 ------------
     def copySelectedShape(self):
         """
-        复制选中的形状或当前图片。
-        如果有选中的形状,则复制形状;
-        如果没有选中形状,则复制当前图片。
+        复制选中图片
         """
         if not self.canvas.selectedShapes:
             self.copy_image_to_clipboard()
@@ -565,7 +563,7 @@ class MainWindow(MainWindow):
 
         # ------------ Ctrl + C 触发函数 end ------------
     
-    # 复制选中的形状到剪贴板
+    # ctrl+d 复制选中的形状到剪贴板
     def duplicateSelectedShape(self):
         """重写父类方法：复制选中的形状到剪贴板"""
         if not self.canvas.selectedShapes:
@@ -635,10 +633,15 @@ class MainWindow(MainWindow):
             shape.description = shape_data.get('description', '')
             shape.flags = shape_data.get('flags', {})
             
-            # 设置点坐标
+            # 设置点坐标 - 直接添加点避免addPoint的自动闭合逻辑
             points = shape_data.get('points', [])
             for point in points:
-                shape.addPoint(QtCore.QPointF(point[0], point[1]))
+                shape.points.append(QtCore.QPointF(point[0], point[1]))
+                shape.point_labels.append(1)
+            
+            # 对于多边形等需要闭合的形状，手动调用close()
+            if shape.shape_type in ['polygon', 'linestrip'] and len(points) > 0:
+                shape.close()
             
             # 设置mask
             mask_data = shape_data.get('mask')
@@ -2294,7 +2297,10 @@ class MainWindow(MainWindow):
 
                 shape.clear_points()
                 for i, point in enumerate(max_polygon.exterior.coords):
-                    shape.addPoint(QtCore.QPointF(point[0], point[1]))
+                    shape.points.append(QtCore.QPointF(point[0], point[1]))
+                    shape.point_labels.append(1)
+                # 修复后的多边形需要闭合
+                shape.close()
         return shape
 
     def simplifyShapePoints(self, shape):

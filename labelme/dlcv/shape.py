@@ -55,14 +55,14 @@ class ShapeType:
     @classmethod
     def fromShapeData(cls, shape_data):
         shape = super().fromShapeData(shape_data)
-        
+
         # 如果是旋转框，设置direction属性
         if shape.shape_type == ShapeType.ROTATION and "direction" in shape_data:
             shape.direction = shape_data["direction"]
         elif shape.shape_type == ShapeType.ROTATION:
             # 如果没有direction属性，设置默认值
             shape.direction = 0.0
-            
+
         return shape
 
 
@@ -70,17 +70,17 @@ class Shape(Shape):
     points: List[QtCore.QPointF]
 
     def __init__(
-        self,
-        label=None,
-        line_color=None,
-        shape_type=None,
-        flags=None,
-        group_id=None,
-        description=None,
-        mask=None,
-        direction=0.0,
-        points: List[QtCore.QPointF] | List[List[float]]=None,
-        **kwargs,
+            self,
+            label=None,
+            line_color=None,
+            shape_type=None,
+            flags=None,
+            group_id=None,
+            description=None,
+            mask=None,
+            direction=0.0,
+            points: List[QtCore.QPointF] | List[List[float]] = None,
+            **kwargs,
     ):
         super().__init__(
             label=label,
@@ -94,15 +94,20 @@ class Shape(Shape):
         self.direction = direction
         # 用于记录旋转框的箭头位置和角度数字位置，用于命中检测
         self.arrow_center = None  # 箭头中心点
-        self.arrow_end = None     # 箭头终点
+        self.arrow_end = None  # 箭头终点
         self.angle_text_rect = None  # 角度数字区域
 
         if points is not None:
             for point in points:
                 if isinstance(point, list):
-                    self.addPoint(QtCore.QPointF(*point))
+                    # 直接添加点，避免addPoint中的自动闭合逻辑
+                    self.points.append(QtCore.QPointF(*point))
+                    self.point_labels.append(1)
                 else:
-                    self.addPoint(point)
+                    # 直接添加点，避免addPoint中的自动闭合逻辑
+                    self.points.append(point)
+                    self.point_labels.append(1)
+            # 添加所有点后再闭合形状
             self.close()
 
     def addPoint(self, point: QtCore.QPointF, label=1):
@@ -169,22 +174,22 @@ class Shape(Shape):
                 if len(self.points) < 4:
                     # 如果点数不足4个，则不绘制或返回
                     return
-                
+
                 # 绘制旋转框的四条边
                 line_path.moveTo(self._scale_point(self.points[0]))
                 for i in range(1, 5):
                     line_path.lineTo(self._scale_point(self.points[i % 4]))
-                
+
                 # 绘制顶点
                 for i in range(len(self.points)):
                     self.drawVertex(vrtx_path, i)
-                
+
                 # 计算中心点
                 center_x = sum(p.x() for p in self.points) / 4
                 center_y = sum(p.y() for p in self.points) / 4
                 center = QtCore.QPointF(center_x, center_y)
                 self.arrow_center = center  # 保存中心点用于命中检测
-                
+
                 # 绘制中心点（新增）
                 center_pen = QtGui.QPen(QtGui.QColor(255, 255, 0))  # 黄色
                 center_pen.setWidth(self.PEN_WIDTH)
@@ -195,11 +200,11 @@ class Shape(Shape):
                     center_size,
                     center_size
                 )
-                
+
                 # 计算旋转方向向量
                 angle_rad = math.radians(self.direction)
                 dir_vector = QtCore.QPointF(math.cos(angle_rad), math.sin(angle_rad))
-                
+
                 # 计算与箭头方向平行的边的长度
                 # 计算各个边的方向向量
                 edge_vectors = []
@@ -210,38 +215,38 @@ class Shape(Shape):
                         self.points[next_i].y() - self.points[i].y()
                     )
                     edge_vectors.append(edge_vec)
-                
+
                 # 找出与箭头方向最平行的边
                 max_dot_product = -1
                 parallel_edge_length = 0
                 for edge_vec in edge_vectors:
                     # 计算单位向量
-                    edge_length = math.sqrt(edge_vec.x()**2 + edge_vec.y()**2)
+                    edge_length = math.sqrt(edge_vec.x() ** 2 + edge_vec.y() ** 2)
                     if edge_length > 0:
-                        edge_unit_vec = QtCore.QPointF(edge_vec.x()/edge_length, edge_vec.y()/edge_length)
+                        edge_unit_vec = QtCore.QPointF(edge_vec.x() / edge_length, edge_vec.y() / edge_length)
                         # 计算点积的绝对值（平行度）
-                        dot_product = abs(edge_unit_vec.x()*dir_vector.x() + edge_unit_vec.y()*dir_vector.y())
+                        dot_product = abs(edge_unit_vec.x() * dir_vector.x() + edge_unit_vec.y() * dir_vector.y())
                         if dot_product > max_dot_product:
                             max_dot_product = dot_product
                             parallel_edge_length = edge_length
-                
+
                 # 计算箭头起始点：从中心点向箭头方向移动平行边长度的一半
                 arrow_start_x = center_x + (dir_vector.x() * parallel_edge_length * 0.5)
                 arrow_start_y = center_y + (dir_vector.y() * parallel_edge_length * 0.5)
                 arrow_start = QtCore.QPointF(arrow_start_x, arrow_start_y)
-                
+
                 # 计算箭头长度：与箭头平行的边的长度的0.1
                 arrow_length = parallel_edge_length * 0.2
-                
+
                 # 计算箭头终点
                 end_x = arrow_start_x + arrow_length * dir_vector.x()
                 end_y = arrow_start_y + arrow_length * dir_vector.y()
                 arrow_end = QtCore.QPointF(end_x, end_y)
-                
+
                 # 保存箭头起始点和终点用于命中检测
                 self.arrow_center = arrow_start
                 self.arrow_end = arrow_end
-                
+
                 # 判断是否显示箭头
                 if getattr(STORE, 'canvas_display_rotation_arrow', True):
                     # 绘制箭头线段
@@ -252,17 +257,17 @@ class Shape(Shape):
                         self._scale_point(arrow_start),
                         self._scale_point(arrow_end)
                     )
-                    
+
                     # 绘制箭头头部
                     arrow_head_angle1 = math.radians(self.direction + 150)
                     arrow_head_angle2 = math.radians(self.direction - 150)
                     arrow_head_length = arrow_length * 0.2
-                    
+
                     arrow_head1_x = end_x + arrow_head_length * math.cos(arrow_head_angle1)
                     arrow_head1_y = end_y + arrow_head_length * math.sin(arrow_head_angle1)
                     arrow_head2_x = end_x + arrow_head_length * math.cos(arrow_head_angle2)
                     arrow_head2_y = end_y + arrow_head_length * math.sin(arrow_head_angle2)
-                    
+
                     painter.drawLine(
                         self._scale_point(arrow_end),
                         self._scale_point(QtCore.QPointF(arrow_head1_x, arrow_head1_y))
@@ -271,10 +276,10 @@ class Shape(Shape):
                         self._scale_point(arrow_end),
                         self._scale_point(QtCore.QPointF(arrow_head2_x, arrow_head2_y))
                     )
-                    
+
                 # 恢复原来的画笔
                 painter.setPen(pen)
-                    
+
                 # 显示Label（如果有）- 优化旋转框标签显示
                 if self.label and getattr(STORE, 'canvas_display_rotation_label', True):
                     try:
@@ -300,12 +305,12 @@ class Shape(Shape):
 
                         # 绘制背景 - 增加透明度
                         painter.fillRect(bg_rect, QtGui.QColor(30, 31, 34, int(255 * 0.8)))
-                        
+
                         # 设置字体颜色
                         font_color = QtGui.QColor(105, 170, 88)
                         painter.setPen(font_color)
                         painter.drawText(bg_rect, QtCore.Qt.AlignCenter, label)
-                        
+
                         # 恢复原来的画笔
                         painter.setPen(pen)
                     except Exception as e:
@@ -396,9 +401,9 @@ class Shape(Shape):
                 if self.shape_type == "rotation":
                     pass
                 elif (
-                    ShapeType.can_display_label(self.shape_type)
-                    and self.label
-                    and STORE.canvas_display_shape_label
+                        ShapeType.can_display_label(self.shape_type)
+                        and self.label
+                        and STORE.canvas_display_shape_label
                 ):
                     label = self.label
                     center = self.get_label_paint_point()
@@ -499,7 +504,7 @@ class Shape(Shape):
             geo_polygon = Polygon([(point.x(), point.y()) for point in self.points])
 
             if geo_polygon.contains(
-                shapely.geometry.Point(center_point.x(), center_point.y())
+                    shapely.geometry.Point(center_point.x(), center_point.y())
             ):
                 return center_point
             else:
@@ -563,13 +568,13 @@ class Shape(Shape):
                 ),
             )
         )
-        
+
         # 如果是旋转框，添加direction属性
         if shape.shape_type == "rotation":
             # 确保direction值是浮点数且在0-360度之间
             direction = float(getattr(shape, "direction", 0.0)) % 360
             data["direction"] = direction
-            
+
         return data
 
     def isFillable(self):
@@ -582,25 +587,26 @@ class Shape(Shape):
         # 如果关闭了箭头显示，不允许拖拽箭头
         if not getattr(STORE, 'canvas_display_rotation_arrow', True):
             return False
-            
+
         if self.shape_type != "rotation":
             return False
-            
+
         # 确保必要的属性已经初始化
-        if not hasattr(self, 'arrow_center') or not hasattr(self, 'arrow_end') or self.arrow_center is None or self.arrow_end is None:
+        if not hasattr(self, 'arrow_center') or not hasattr(self,
+                                                            'arrow_end') or self.arrow_center is None or self.arrow_end is None:
             # 如果箭头相关属性未初始化，临时计算
             if len(self.points) < 4:
                 return False
-                
+
             # 计算中心点
             center_x = sum(p.x() for p in self.points) / 4
             center_y = sum(p.y() for p in self.points) / 4
             center = QtCore.QPointF(center_x, center_y)
-            
+
             # 计算旋转方向向量
             angle_rad = math.radians(self.direction)
             dir_vector = QtCore.QPointF(math.cos(angle_rad), math.sin(angle_rad))
-            
+
             # 计算与箭头方向平行的边的长度
             # 计算各个边的方向向量
             edge_vectors = []
@@ -611,73 +617,73 @@ class Shape(Shape):
                     self.points[next_i].y() - self.points[i].y()
                 )
                 edge_vectors.append(edge_vec)
-            
+
             # 找出与箭头方向最平行的边
             max_dot_product = -1
             parallel_edge_length = 0
             for edge_vec in edge_vectors:
                 # 计算单位向量
-                edge_length = math.sqrt(edge_vec.x()**2 + edge_vec.y()**2)
+                edge_length = math.sqrt(edge_vec.x() ** 2 + edge_vec.y() ** 2)
                 if edge_length > 0:
-                    edge_unit_vec = QtCore.QPointF(edge_vec.x()/edge_length, edge_vec.y()/edge_length)
+                    edge_unit_vec = QtCore.QPointF(edge_vec.x() / edge_length, edge_vec.y() / edge_length)
                     # 计算点积的绝对值（平行度）
-                    dot_product = abs(edge_unit_vec.x()*dir_vector.x() + edge_unit_vec.y()*dir_vector.y())
+                    dot_product = abs(edge_unit_vec.x() * dir_vector.x() + edge_unit_vec.y() * dir_vector.y())
                     if dot_product > max_dot_product:
                         max_dot_product = dot_product
                         parallel_edge_length = edge_length
-            
+
             # 计算箭头起始点：从中心点向箭头方向移动平行边长度的一半
             arrow_start_x = center_x + (dir_vector.x() * parallel_edge_length * 0.5)
             arrow_start_y = center_y + (dir_vector.y() * parallel_edge_length * 0.5)
             arrow_start = QtCore.QPointF(arrow_start_x, arrow_start_y)
-            
+
             # 计算箭头长度：与箭头平行的边的长度的0.3
             arrow_length = parallel_edge_length * 0.3
-            
+
             # 计算箭头终点
             end_x = arrow_start_x + arrow_length * dir_vector.x()
             end_y = arrow_start_y + arrow_length * dir_vector.y()
             arrow_end = QtCore.QPointF(end_x, end_y)
-            
+
             # 临时设置箭头属性
             self.arrow_center = arrow_start
             self.arrow_end = arrow_end
-            
+
         # 增大命中检测区域，使箭头更容易点击
         epsilon = max(epsilon, 10.0)  # 降低最小检测半径从20.0到10.0
-            
+
         # 首先检查点击位置是否在箭头终点附近
         end_point = self.arrow_end
         if QtCore.QLineF(point, end_point).length() < epsilon * 1.2:  # 降低倍数从1.5到1.2
             return True
-            
+
         # 然后检查是否在箭头起点附近
         start_point = self.arrow_center
         if QtCore.QLineF(point, start_point).length() < epsilon * 0.8:  # 缩小起点检测范围
             return True
-            
+
         # 最后检查是否在箭头线段上
         line = QtCore.QLineF(start_point, end_point)
         len_line = line.length()
-        
+
         if len_line == 0:
             return False
-            
+
         # 计算点到线段的投影
-        t = ((point.x() - start_point.x()) * (end_point.x() - start_point.x()) + 
+        t = ((point.x() - start_point.x()) * (end_point.x() - start_point.x()) +
              (point.y() - start_point.y()) * (end_point.y() - start_point.y())) / (len_line * len_line)
-             
+
         if t < 0 or t > 1:
             # 点的投影在线段之外
             return False
-            
+
         # 点的投影在线段上，计算距离
         px = start_point.x() + t * (end_point.x() - start_point.x())
         py = start_point.y() + t * (end_point.y() - start_point.y())
         dist = QtCore.QLineF(point, QtCore.QPointF(px, py)).length()
-        
+
         return dist < epsilon
-        
+
     def isAngleTextHit(self, point):
         """检测是否点击在角度数字上"""
         # 角度文本已被移除，始终返回False
