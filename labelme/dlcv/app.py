@@ -1465,6 +1465,20 @@ class MainWindow(MainWindow):
         self._init_setting_dock(
         )  # 必须在所有的 docker widget 都初始化后才执行，否则 docker widget 不会 restore 成上一次退出时的状态
 
+        def reset_all_view():
+            # 重置 docker 位置
+            self.file_dock.setFloating(False)
+            self.setting_dock.setFloating(False)
+            self.label_count_dock.setFloating(False)
+            self.flag_dock.setFloating(False)
+            self.shape_dock.setFloating(False)
+            self.label_dock.setFloating(False)
+
+        # 添加到菜单栏->视图->重置所有视图位置
+        action_reset_view = QtWidgets.QAction("重置所有视图位置", self)
+        action_reset_view.triggered.connect(reset_all_view)
+        self.menus.view.insertAction(self.menus.view.actions()[6], action_reset_view)
+
         self._init_3d_widget()
         self._init_file_list_widget()
         self._init_trigger_action()
