@@ -1169,6 +1169,10 @@ class MainWindow(MainWindow):
             notification("提示", f"无法打开图片，请检查文件是否已损坏", ToastPreset.ERROR)
             return False
 
+        if cv_img is None:
+            notification("提示", f"无法打开图片，请检查文件是否已损坏", ToastPreset.ERROR)
+            return False
+
         cv_img = normalize_16b_gray_to_uint8(cv_img)
         if len(cv_img.shape) == 2:
             cv_rgb_img = cv2.cvtColor(cv_img, cv2.COLOR_GRAY2RGB)
