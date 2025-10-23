@@ -326,6 +326,13 @@ class Canvas(CustomCanvas):
         # 画布偏移初始化
         self.offset = QtCore.QPointF(0, 0)
 
+    def canCloseShape(self):
+        can = super().canCloseShape()  # fix ai标注时候，直接按下回车导致程序闪退
+        if self.current is None:
+            return False
+        else:
+            return can
+
     # region Mouse Events
     def mouse_left_click(self, ev, pos: QtCore.QPointF):
         is_shift_pressed = ev.modifiers() & QtCore.Qt.ShiftModifier
