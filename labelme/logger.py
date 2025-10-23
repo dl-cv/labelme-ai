@@ -101,8 +101,8 @@ def _handle_exception(exc_type, exc_value, exc_traceback):
         f"An unexpected error occurred. The application will close.<br/><br/>Please report issues following the <a href='https://labelme.io/docs/troubleshoot'>Troubleshoot</a>.<br/><br/>{traceback_html}",  # noqa: E501
     )
 
-    app.quit()
-    sys.exit(1)
+    # app.quit()
+    # sys.exit(1)
 
 
 sys.excepthook = _handle_exception
