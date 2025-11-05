@@ -1930,7 +1930,7 @@ class MainWindow(MainWindow):
                     setting_store.get(
                         "ai_polygon_simplify_epsilon",
                         0.005))
-                # 更新STORE中的值
+                # 参数变化时， 更新store中的值
                 STORE.set_canvas_brush_fill_region(
                     setting_store.get("canvas_brush_fill_region", True))
                 STORE.set_canvas_brush_enabled(
@@ -1938,7 +1938,7 @@ class MainWindow(MainWindow):
                 STORE.set_canvas_brush_size(
                     setting_store.get("canvas_brush_size", 3))
 
-                # 参数变化时， 更新STORE中的值
+                # 参数变化时， 更新store中的值
                 STORE.set_canvas_points_to_crosshair(
                     setting_store.get("canvas_points_to_crosshair", True))
 
@@ -2034,7 +2034,7 @@ class MainWindow(MainWindow):
                     self.canvas.update()
                 elif param_name == "convert_img_to_gray":
                     STORE.set_convert_img_to_gray(new_value)
-                # 点转十字： 当参数发生变化时，更新画布
+                # 点转十字： 当参数发生变化时，更新store中的值
                 elif param_name == "points_to_crosshair":
                     STORE.set_canvas_points_to_crosshair(new_value)
                     self.canvas.update()
