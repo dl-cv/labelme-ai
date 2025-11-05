@@ -758,7 +758,7 @@ class MainWindow(MainWindow):
         return super().fileSelectionChanged()
 
     # https://bbs.dlcv.ai/t/topic/99
-    # 保存 json 的函数
+    # 保存 json 的函数： 自动保存标签
     def saveLabels(self, filename: str):
         """ filename: json 文件路径 """
         # extra 保存 3d json
@@ -809,6 +809,9 @@ class MainWindow(MainWindow):
                 for item in items:
                     item.setCheckState(Qt.Unchecked)
                 logger.info(f"删除{label_file}")
+            # 实时更新统计信息
+            if hasattr(self, 'label_count_dock'):
+                self.label_count_dock.count_labels_in_file([], {})
             return True
 
         # 不需要保存 False 的 flag
@@ -849,6 +852,11 @@ class MainWindow(MainWindow):
                 #     raise RuntimeError("There are duplicate files.")
                 for item in items:
                     item.setCheckState(Qt.Checked)
+            
+            # 实时更新统计信息
+            if hasattr(self, 'label_count_dock'):
+                self.label_count_dock.count_labels_in_file(self.canvas.shapes, flags)
+            
             # disable allows next and previous image to proceed
             # self.filename = filename
             return True

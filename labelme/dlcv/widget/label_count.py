@@ -1,6 +1,7 @@
 from PyQt5 import QtWidgets
 from openpyxl.styles.builtins import total
 
+from labelme.dlcv.shape import Shape
 from labelme.dlcv import tr
 from labelme.utils.qt import newIcon
 from collections import Counter
@@ -36,6 +37,7 @@ class LabelCountDock(QtWidgets.QDockWidget):
         # 按钮点击事件
         self.label_count_btn.clicked.connect(self.count_labels_in_dir)
 
+    # 统计当前文件夹内的标签/标记数量
     def count_labels_in_dir(self):
         """
         递归统计当前文件夹及所有子文件夹下json文件中的标签/文本标记数量，并在文本框中显示结果
@@ -100,3 +102,43 @@ class LabelCountDock(QtWidgets.QDockWidget):
             total = sum(label_counter.values()) + sum(flag_counter.values())
             result += f'\n\n总数: {total}'
             self.label_count_text.setText(result)
+
+    # 统计当前文件的标签/标记数量; 在画布的save函数中调用
+    def count_labels_in_file(self, shapes: list[Shape], flags: dict):
+        label_counter = Counter()
+        flag_counter = Counter()
+
+        # 统计标签
+        for shape in shapes:
+            label = shape.label
+            if label:
+                label_counter[label] += 1
+                
+        # 统计文本标记（只统计值为True的flag文本）
+        if isinstance(flags, dict):
+            for flag_name, flag_value in flags.items():
+                if flag_value is True:
+                    flag_counter[flag_name] += 1
+
+        result = "当前文件统计结果：\n"
+        if flag_counter:
+            result += "\n文本标记统计:\n"
+            total_flags = sum(flag_counter.values())
+            for flag, count in flag_counter.most_common():
+                result += f"{flag}: {count}\n"
+            result += f"文本标记总数: {total_flags}\n"
+        if label_counter:
+            result += "\n标签统计:\n"
+            total_labels = sum(label_counter.values())
+            for label, count in label_counter.most_common():
+                result += f"{label}: {count}\n"
+            result += f"标签总数: {total_labels}\n"
+
+        total = sum(label_counter.values()) + sum(flag_counter.values())
+        if total > 0:
+            result += f'\n总数: {total}'
+        else:
+            result += '\n当前文件暂无标注数据'
+        self.label_count_text.setText(result)
+
+        return result
