@@ -143,6 +143,9 @@ def main():
             filename = None
         elif os.path.isdir(filename):
             filename = None
+        # https://bbs2.dlcv.com.cn/t/topic/1532
+        elif len(filename) == 3 and filename[1] == ':' and filename[0].isalpha():
+            filename = None
     # extra End
     output = config_from_args.pop("output")
     config_file_or_yaml = config_from_args.pop("config")

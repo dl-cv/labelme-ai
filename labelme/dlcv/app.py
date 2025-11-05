@@ -1610,6 +1610,11 @@ class MainWindow(MainWindow):
             self.lastOpenDir = self.settings.value("lastOpenDir", None)
             if len(sys.argv) > 1:  # 右键打开文件夹
                 path_dir = sys.argv[1]
+
+                # https://bbs2.dlcv.com.cn/t/topic/1532
+                if len(path_dir) == 3 and path_dir[1] == ':' and path_dir[0].isalpha():
+                    path_dir = f"{path_dir[0]}:"
+
                 if Path(path_dir).is_dir() and Path(path_dir).exists():
                     self.importDirImages(path_dir)
             elif (self.lastOpenDir and Path(self.lastOpenDir).exists()
