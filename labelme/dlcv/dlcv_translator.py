@@ -37,9 +37,13 @@ tr_map = {
         'ai processing...': 'ai分析中...',
         'ai process done': 'ai分析完成',
         'setting dock': '设置面板',
+
+        # 其他设置
         'display shape label': '显示标签名称',
         'convert img to gray': '将标注图片转换为灰度图',
         'keep prev scale': '图片缩放',
+        'points to crosshair': '将点转换为十字线',
+
         'label setting': '标注设置',
         'auto setting': '自动标注设置',
         'other setting': '其他设置',
