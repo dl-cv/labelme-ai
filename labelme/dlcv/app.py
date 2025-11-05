@@ -443,6 +443,8 @@ class MainWindow(MainWindow):
                 STORE.canvas_brush_enabled,  # 新增：保存画笔标注设置
             "canvas_brush_size":
                 STORE.canvas_brush_size,  # 新增：保存画笔大小
+            "canvas_points_to_crosshair":
+                STORE.canvas_points_to_crosshair,  # 新增：保存点转十字设置
             "scale_option":
                 self.parameter.child("other_setting", "scale_option").value(),
             "ai_polygon_simplify_epsilon":
@@ -1696,6 +1698,14 @@ class MainWindow(MainWindow):
                         "value": STORE.convert_img_to_gray,
                         "default": STORE.convert_img_to_gray,
                     },
+                    {
+                        "name": "points_to_crosshair",
+                        "title": tr("points to crosshair"),
+                        "type": "bool",
+                        "value": STORE.canvas_points_to_crosshair,
+                        "default": STORE.canvas_points_to_crosshair,
+                        "tip": "启用后，将点转换为十字线",
+                    }
                 ],
             },
             {
@@ -1885,6 +1895,11 @@ class MainWindow(MainWindow):
                                      "convert_img_to_gray").setValue(
                     setting_store.get(
                         "convert_img_to_gray", False))
+                # 新增：恢复点转十字设置
+                self.parameter.child("other_setting",
+                                     "points_to_crosshair").setValue(
+                    setting_store.get(
+                        "canvas_points_to_crosshair", True))
 
                 self.parameter.child("label_setting",
                                      "highlight_start_point").setValue(
@@ -1922,6 +1937,10 @@ class MainWindow(MainWindow):
                     setting_store.get("canvas_brush_enabled", False))
                 STORE.set_canvas_brush_size(
                     setting_store.get("canvas_brush_size", 3))
+
+                # 参数变化时， 更新STORE中的值
+                STORE.set_canvas_points_to_crosshair(
+                    setting_store.get("canvas_points_to_crosshair", True))
 
         restore_setting()
 
@@ -2015,6 +2034,10 @@ class MainWindow(MainWindow):
                     self.canvas.update()
                 elif param_name == "convert_img_to_gray":
                     STORE.set_convert_img_to_gray(new_value)
+                # 点转十字： 当参数发生变化时，更新画布
+                elif param_name == "points_to_crosshair":
+                    STORE.set_canvas_points_to_crosshair(new_value)
+                    self.canvas.update()
                 elif param_name == "scale_option":
                     if new_value == ScaleEnum.KEEP_PREV_SCALE:
                         self.enableKeepPrevScale(True)

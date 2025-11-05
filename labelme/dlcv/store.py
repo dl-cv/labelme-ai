@@ -15,6 +15,7 @@ class Store:
     canvas_brush_size: int = 10  # 画笔大小
     canvas_brush_fill_region: bool = True  # 是否填充闭合区域
     canvas_brush_modify_shapes: bool = True  # 是否允许画笔修改现有形状
+    canvas_points_to_crosshair: bool = True  # 是否将点转换为十字线
 
     auto_label_covered: bool = False
 
@@ -57,6 +58,10 @@ class Store:
 
     def set_canvas_brush_modify_shapes(self, value: bool):
         self.canvas_brush_modify_shapes = value
+
+    # 是否将点转换为十字线
+    def set_canvas_points_to_crosshair(self, value: bool):
+        self.canvas_points_to_crosshair = value
     
     # 注册 main_window 以供全局访问
     def register_main_window(self, main_window: 'MainWindow'):

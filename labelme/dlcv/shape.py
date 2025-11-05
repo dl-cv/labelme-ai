@@ -335,6 +335,19 @@ class Shape(Shape):
                         self.drawVertex(vrtx_path, i)
                     else:
                         self.drawVertex(negative_vrtx_path, i)
+            elif self.shape_type == "point":
+                # 点标注：根据设置决定绘制圆形或十字
+                if STORE.canvas_points_to_crosshair and len(self.points) > 0:
+                    # 绘制十字线
+                    point = self._scale_point(self.points[0])
+                    d = self.point_size
+                    line_path.moveTo(point.x() - d / 2, point.y())
+                    line_path.lineTo(point.x() + d / 2, point.y())
+                    line_path.moveTo(point.x(), point.y() - d / 2)
+                    line_path.lineTo(point.x(), point.y() + d / 2)
+                else:
+                    # 绘制圆形（默认）
+                    self.drawVertex(vrtx_path, 0)
             else:
                 line_path.moveTo(self._scale_point(self.points[0]))
                 # Uncommenting the following line will draw 2 paths
