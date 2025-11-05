@@ -758,7 +758,7 @@ class MainWindow(MainWindow):
         return super().fileSelectionChanged()
 
     # https://bbs.dlcv.ai/t/topic/99
-    # 保存 json 的函数
+    # 保存 json 的函数： 自动保存标签
     def saveLabels(self, filename: str):
         """ filename: json 文件路径 """
         # extra 保存 3d json
@@ -809,6 +809,9 @@ class MainWindow(MainWindow):
                 for item in items:
                     item.setCheckState(Qt.Unchecked)
                 logger.info(f"删除{label_file}")
+            # 实时更新统计信息
+            if hasattr(self, 'label_count_dock'):
+                self.label_count_dock.count_labels_in_file([], {})
             return True
 
         # 不需要保存 False 的 flag
@@ -849,6 +852,11 @@ class MainWindow(MainWindow):
                 #     raise RuntimeError("There are duplicate files.")
                 for item in items:
                     item.setCheckState(Qt.Checked)
+            
+            # 实时更新统计信息
+            if hasattr(self, 'label_count_dock'):
+                self.label_count_dock.count_labels_in_file(self.canvas.shapes, flags)
+            
             # disable allows next and previous image to proceed
             # self.filename = filename
             return True
@@ -1935,7 +1943,7 @@ class MainWindow(MainWindow):
                     setting_store.get(
                         "ai_polygon_simplify_epsilon",
                         0.005))
-                # 更新STORE中的值
+                # 参数变化时， 更新store中的值
                 STORE.set_canvas_brush_fill_region(
                     setting_store.get("canvas_brush_fill_region", True))
                 STORE.set_canvas_brush_enabled(
@@ -1943,7 +1951,7 @@ class MainWindow(MainWindow):
                 STORE.set_canvas_brush_size(
                     setting_store.get("canvas_brush_size", 3))
 
-                # 参数变化时， 更新STORE中的值
+                # 参数变化时， 更新store中的值
                 STORE.set_canvas_points_to_crosshair(
                     setting_store.get("canvas_points_to_crosshair", True))
 
@@ -2039,7 +2047,7 @@ class MainWindow(MainWindow):
                     self.canvas.update()
                 elif param_name == "convert_img_to_gray":
                     STORE.set_convert_img_to_gray(new_value)
-                # 点转十字： 当参数发生变化时，更新画布
+                # 点转十字： 当参数发生变化时，更新store中的值
                 elif param_name == "points_to_crosshair":
                     STORE.set_canvas_points_to_crosshair(new_value)
                     self.canvas.update()

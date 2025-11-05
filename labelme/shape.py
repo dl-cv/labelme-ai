@@ -35,7 +35,7 @@ class Shape(object):
     vertex_fill_color = None
     hvertex_fill_color = None
     point_type = P_ROUND
-    point_size = 8
+    point_size = 12
     scale = 1.0
 
     def __init__(
