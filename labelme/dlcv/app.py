@@ -150,6 +150,7 @@ class MainWindow(MainWindow):
             os.makedirs(self.LABEL_TXT_DIR, exist_ok=True)
         
     # https://bbs.dlcv.com.cn/t/topic/590
+    # 编辑标签
     def _edit_label(self, value=None):
         # extra 绘制模式下, 也允许编辑标签
         # if not self.canvas.editing():
@@ -235,6 +236,7 @@ class MainWindow(MainWindow):
                 description=description if edit_description else None,
             )
 
+    # 选中的标签发生变化
     def labelSelectionChanged(self):
         if self._noSelectionSlot:
             return
@@ -428,9 +430,12 @@ class MainWindow(MainWindow):
         self.settings.setValue("lastOpenDir", self.lastOpenDir)
 
         # extra 保存设置
+        # 保存store里面的设置
         setting_store = {
             "display_shape_label":
                 STORE.canvas_display_shape_label,
+            "shape_label_font_size":    # 新增：保存标签字体大小
+                STORE.canvas_shape_label_font_size,
             "highlight_start_point":
                 STORE.canvas_highlight_start_point,
             "convert_img_to_gray":
@@ -520,6 +525,108 @@ class MainWindow(MainWindow):
                 f.write(label + '\n')
         logger.info(f'保存标签到 {file_path}')
         return file_path
+    
+    # 初始化修改颜色action并添加到右键菜单
+    def _init_shape_color_action(self):
+        """初始化修改颜色action并添加到右键菜单"""
+        action = functools.partial(utils.newAction, self)
+        changeColor = action(
+            tr("change color"),
+            self._change_shape_color,
+            None,
+            "color",
+            tr("change the color of the selected polygon"),
+            enabled=False,
+        )
+        # 保存action为实例变量，以便在其他地方访问
+        self.actions.changeColor = changeColor
+        
+        # 确保菜单已创建
+        if not hasattr(self, 'menus') or not hasattr(self.menus, 'labelList'):
+            logger.warning("菜单未创建，无法添加修改颜色action")
+            return
+        
+        # 将action插入到编辑和删除之间
+        existing_actions = self.menus.labelList.actions()
+        if len(existing_actions) >= 2:
+            # 在编辑（第0个）和删除（第1个）之间插入
+            self.menus.labelList.insertAction(existing_actions[1], changeColor)
+        else:
+            # 如果没有现有actions，直接添加
+            self.menus.labelList.addAction(changeColor)
+
+    # 更改选中形状的标注颜色
+    def _change_shape_color(self):
+        """更改选中形状的颜色"""
+        items = self.labelList.selectedItems()
+        if not items:
+            return
+        
+        # 获取第一个选中形状的当前颜色
+        shape = items[0].shape()
+        current_color = shape.fill_color
+        
+        # 打开颜色选择对话框
+        from labelme.widgets import ColorDialog
+        color_dialog = ColorDialog(self)
+        new_color = color_dialog.getColor(
+            value=current_color,
+            title="选择颜色",
+            default=current_color
+        )
+        
+        if new_color is None:
+            return
+        
+        # 获取RGB值
+        r, g, b = new_color.getRgb()[:3]
+        rgb = (r, g, b)
+        
+        # 确保配置支持手动颜色模式
+        if self._config["shape_color"] != "manual":
+            self._config["shape_color"] = "manual"
+        
+        # 更新配置中的 label_colors
+        if self._config["label_colors"] is None:
+            self._config["label_colors"] = {}
+        
+        # 更新所有选中形状的标签颜色
+        labels_to_update = set()
+        for item in items:
+            shape = item.shape()
+            label = shape.label
+            labels_to_update.add(label)
+            # 保存颜色到配置
+            self._config["label_colors"][label] = rgb
+            # 更新形状颜色
+            self._update_shape_color_with_rgb(shape, rgb)
+            # 更新列表项显示
+            text = shape.label if shape.group_id is None else "{} ({})".format(shape.label, shape.group_id)
+            item.setText(
+                '{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
+                    html.escape(text), r, g, b
+                )
+            )
+        
+        # 更新 uniqLabelList 中标签的显示颜色
+        for label in labels_to_update:
+            item = self.uniqLabelList.findItemByLabel(label)
+            if item:
+                self.uniqLabelList.setItemLabel(item, label, rgb)
+        
+        # 更新画布显示
+        self.canvas.update()
+        self.setDirty()
+    
+    def _update_shape_color_with_rgb(self, shape, rgb):
+        """使用指定的RGB值更新形状颜色"""
+        r, g, b = rgb
+        shape.line_color = QtGui.QColor(r, g, b)
+        shape.vertex_fill_color = QtGui.QColor(r, g, b)
+        shape.hvertex_fill_color = QtGui.QColor(255, 255, 255)
+        shape.fill_color = QtGui.QColor(r, g, b, 128)
+        shape.select_line_color = QtGui.QColor(255, 255, 255)
+        shape.select_fill_color = QtGui.QColor(r, g, b, 155)
 
     # ------------ Ctrl + C 触发函数 复制图片或形状 ------------
     def copySelectedShape(self):
@@ -532,10 +639,15 @@ class MainWindow(MainWindow):
             self.copy_image_to_clipboard()
         else:
             pass
-            
+        
+    # 当选中形状变化时        
     def shapeSelectionChanged(self, selected_shapes):
         super().shapeSelectionChanged(selected_shapes)
         self.actions.copy.setEnabled(True)
+        # 使用保存的action对象，而不是方法
+        if hasattr(self.actions, 'changeColor'):
+            n_selected = len(selected_shapes)
+            self.actions.changeColor.setEnabled(n_selected > 0)
 
     # 复制图片到剪贴板
     def copy_image_to_clipboard(self):
@@ -1221,6 +1333,7 @@ class MainWindow(MainWindow):
         if QtCore.QFile.exists(label_file) and LabelFile.is_label_file(
                 label_file):
             try:
+                # 从标签文件里加载标签
                 self.labelFile = LabelFile(label_file)
             except LabelFileError as e:
                 self.errorMessage(
@@ -1249,6 +1362,7 @@ class MainWindow(MainWindow):
         flags = {k: False for k in self._config["flags"] or []}
         if self.labelFile:
             self.loadLabels(self.labelFile.shapes)
+            # 若有flags，则加载flags
             if self.labelFile.flags is not None:
                 flags.update(self.labelFile.flags)
         self.loadFlags(flags)
@@ -1544,6 +1658,8 @@ class MainWindow(MainWindow):
 
         self.uniqLabelList.itemClicked.connect(select_shapes)
 
+        self._init_shape_color_action()
+
     def select_shape_by_name(self, shape_name: str):
         select_shape = []
         for shape in self.canvas.shapes:
@@ -1687,6 +1803,24 @@ class MainWindow(MainWindow):
                             True,
                         "shortcut":
                             self._config["shortcuts"]["display_shape_label"],
+                    },
+                    {
+                        "name":
+                            "shape_label_font_size",
+                        "title":
+                            tr("shape label font size"),
+                        "type":
+                            "int",
+                        "value":
+                            8,
+                        "default":
+                            8,
+                        "min":
+                            1,
+                        "max":
+                            20,
+                        "step":
+                            1,
                     },
                     {
                         "name":
@@ -1908,7 +2042,12 @@ class MainWindow(MainWindow):
                                      "convert_img_to_gray").setValue(
                     setting_store.get(
                         "convert_img_to_gray", False))
-                # 新增：恢复点转十字设置
+                # 新增：从store中读取标签字体大小
+                self.parameter.child("other_setting",
+                                     "shape_label_font_size").setValue(
+                    setting_store.get(
+                        "shape_label_font_size", STORE.canvas_shape_label_font_size))
+                # 新增：从store中读取点转十字设置
                 self.parameter.child("other_setting",
                                      "points_to_crosshair").setValue(
                     setting_store.get(
@@ -1943,7 +2082,6 @@ class MainWindow(MainWindow):
                     setting_store.get(
                         "ai_polygon_simplify_epsilon",
                         0.005))
-                # 参数变化时， 更新store中的值
                 STORE.set_canvas_brush_fill_region(
                     setting_store.get("canvas_brush_fill_region", True))
                 STORE.set_canvas_brush_enabled(
@@ -1951,7 +2089,7 @@ class MainWindow(MainWindow):
                 STORE.set_canvas_brush_size(
                     setting_store.get("canvas_brush_size", 3))
 
-                # 参数变化时， 更新store中的值
+                # 更新store里面 点转十字的设置
                 STORE.set_canvas_points_to_crosshair(
                     setting_store.get("canvas_points_to_crosshair", True))
 
@@ -2044,6 +2182,10 @@ class MainWindow(MainWindow):
             elif len(parent_path) == 1 and parent_path[0] == "other_setting":
                 if param_name == "display_shape_label":
                     STORE.set_canvas_display_shape_label(new_value)
+                    self.canvas.update()
+                # 调整标签字体大小， 更新到store中
+                elif param_name == "shape_label_font_size":
+                    STORE.set_canvas_shape_label_font_size(new_value)
                     self.canvas.update()
                 elif param_name == "convert_img_to_gray":
                     STORE.set_convert_img_to_gray(new_value)

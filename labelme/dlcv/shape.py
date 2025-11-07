@@ -286,7 +286,9 @@ class Shape(Shape):
                         # 设置粗体
                         font = painter.font()
                         font.setBold(True)
-                        font.setPointSize(8 if self.scale < 1 else int(8 * self.scale))
+
+                        # 绘制标签时，从store中读取标签字体大小
+                        font.setPointSize(STORE.canvas_shape_label_font_size if self.scale < 1 else int(STORE.canvas_shape_label_font_size * self.scale))
                         painter.setFont(font)
 
                         # 计算矩形宽度
@@ -420,7 +422,9 @@ class Shape(Shape):
                     # 设置粗体
                     font = painter.font()
                     font.setBold(True)
-                    font.setPointSize(8 if self.scale < 1 else int(8 * self.scale))
+
+                    # 绘制标签时，从store中读取标签字体大小
+                    font.setPointSize(STORE.canvas_shape_label_font_size if self.scale < 1 else int(STORE.canvas_shape_label_font_size * self.scale))
                     painter.setFont(font)
 
                     # 计算矩形宽度

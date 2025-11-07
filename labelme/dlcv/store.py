@@ -8,6 +8,7 @@ class Store:
     edit_label_name: callable = None
     canvas_display_shape_label: bool = True
     canvas_display_rotation_label: bool = True  # 是否显示旋转框标签
+    canvas_shape_label_font_size: int = 8  # 标签字体大小
     convert_img_to_gray: bool = False
     canvas_highlight_start_point: bool = False
     canvas_display_rotation_arrow = False  # 是否显示旋转框箭头
@@ -29,6 +30,10 @@ class Store:
     def set_canvas_display_shape_label(self, display: bool):
         assert isinstance(display, bool)
         self.canvas_display_shape_label = display
+
+    def set_canvas_shape_label_font_size(self, size: int):
+        assert isinstance(size, int)
+        self.canvas_shape_label_font_size = size
 
     def set_canvas_display_rotation_label(self, display: bool):
         assert isinstance(display, bool)
