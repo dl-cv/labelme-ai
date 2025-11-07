@@ -13,7 +13,7 @@ class Store:
     canvas_highlight_start_point: bool = False
     canvas_display_rotation_arrow = False  # 是否显示旋转框箭头
     canvas_brush_enabled: bool = False  # 是否启用画笔标注
-    canvas_brush_size: int = 10  # 画笔大小
+    canvas_brush_size: int = 3  # 画笔大小
     canvas_brush_fill_region: bool = True  # 是否填充闭合区域
     canvas_brush_modify_shapes: bool = True  # 是否允许画笔修改现有形状
     canvas_points_to_crosshair: bool = True  # 是否将点转换为十字线

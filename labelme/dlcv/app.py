@@ -528,106 +528,10 @@ class MainWindow(MainWindow):
     
     # 初始化修改颜色action并添加到右键菜单
     def _init_shape_color_action(self):
-        """初始化修改颜色action并添加到右键菜单"""
-        action = functools.partial(utils.newAction, self)
-        changeColor = action(
-            tr("change color"),
-            self._change_shape_color,
-            None,
-            "color",
-            tr("change the color of the selected polygon"),
-            enabled=False,
-        )
-        # 保存action为实例变量，以便在其他地方访问
-        self.actions.changeColor = changeColor
+        """初始化修改颜色功能"""
+        from labelme.dlcv.utils.change_shape_color import init_change_color_action
+        init_change_color_action(self)
         
-        # 确保菜单已创建
-        if not hasattr(self, 'menus') or not hasattr(self.menus, 'labelList'):
-            logger.warning("菜单未创建，无法添加修改颜色action")
-            return
-        
-        # 将action插入到编辑和删除之间
-        existing_actions = self.menus.labelList.actions()
-        if len(existing_actions) >= 2:
-            # 在编辑（第0个）和删除（第1个）之间插入
-            self.menus.labelList.insertAction(existing_actions[1], changeColor)
-        else:
-            # 如果没有现有actions，直接添加
-            self.menus.labelList.addAction(changeColor)
-
-    # 更改选中形状的标注颜色
-    def _change_shape_color(self):
-        """更改选中形状的颜色"""
-        items = self.labelList.selectedItems()
-        if not items:
-            return
-        
-        # 获取第一个选中形状的当前颜色
-        shape = items[0].shape()
-        current_color = shape.fill_color
-        
-        # 打开颜色选择对话框
-        from labelme.widgets import ColorDialog
-        color_dialog = ColorDialog(self)
-        new_color = color_dialog.getColor(
-            value=current_color,
-            title="选择颜色",
-            default=current_color
-        )
-        
-        if new_color is None:
-            return
-        
-        # 获取RGB值
-        r, g, b = new_color.getRgb()[:3]
-        rgb = (r, g, b)
-        
-        # 确保配置支持手动颜色模式
-        if self._config["shape_color"] != "manual":
-            self._config["shape_color"] = "manual"
-        
-        # 更新配置中的 label_colors
-        if self._config["label_colors"] is None:
-            self._config["label_colors"] = {}
-        
-        # 更新所有选中形状的标签颜色
-        labels_to_update = set()
-        for item in items:
-            shape = item.shape()
-            label = shape.label
-            labels_to_update.add(label)
-            # 保存颜色到配置
-            self._config["label_colors"][label] = rgb
-            # 更新形状颜色
-            self._update_shape_color_with_rgb(shape, rgb)
-            # 更新列表项显示
-            text = shape.label if shape.group_id is None else "{} ({})".format(shape.label, shape.group_id)
-            item.setText(
-                '{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
-                    html.escape(text), r, g, b
-                )
-            )
-        
-        # 更新 uniqLabelList 中标签的显示颜色
-        for label in labels_to_update:
-            item = self.uniqLabelList.findItemByLabel(label)
-            if item:
-                self.uniqLabelList.setItemLabel(item, label, rgb)
-        
-        # 更新画布显示
-        self.canvas.update()
-        self.setDirty()
-    
-    def _update_shape_color_with_rgb(self, shape, rgb):
-        """使用指定的RGB值更新形状颜色"""
-        r, g, b = rgb
-        shape.line_color = QtGui.QColor(r, g, b)
-        shape.vertex_fill_color = QtGui.QColor(r, g, b)
-        shape.hvertex_fill_color = QtGui.QColor(255, 255, 255)
-        shape.fill_color = QtGui.QColor(r, g, b, 128)
-        shape.select_line_color = QtGui.QColor(255, 255, 255)
-        shape.select_fill_color = QtGui.QColor(r, g, b, 155)
-
     # ------------ Ctrl + C 触发函数 复制图片或形状 ------------
     def copySelectedShape(self):
         """
@@ -778,7 +682,6 @@ class MainWindow(MainWindow):
     # 为形状添加偏移，避免与原形状重合
     def add_offset_to_shape(self, shape):
         """为形状添加偏移，避免与原形状重合"""
-        from PyQt5 import QtCore
 
         # 偏移量
         offset_x, offset_y = 20, 20
@@ -2082,16 +1985,6 @@ class MainWindow(MainWindow):
                     setting_store.get(
                         "ai_polygon_simplify_epsilon",
                         0.005))
-                STORE.set_canvas_brush_fill_region(
-                    setting_store.get("canvas_brush_fill_region", True))
-                STORE.set_canvas_brush_enabled(
-                    setting_store.get("canvas_brush_enabled", False))
-                STORE.set_canvas_brush_size(
-                    setting_store.get("canvas_brush_size", 3))
-
-                # 更新store里面 点转十字的设置
-                STORE.set_canvas_points_to_crosshair(
-                    setting_store.get("canvas_points_to_crosshair", True))
 
         restore_setting()
 
