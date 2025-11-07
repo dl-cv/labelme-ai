@@ -40,9 +40,13 @@ tr_map = {
 
         # 其他设置
         'display shape label': '显示标签名称',
+        'shape label font size': '标签字体大小',
         'convert img to gray': '将标注图片转换为灰度图',
         'keep prev scale': '图片缩放',
         'points to crosshair': '将点转换为十字线',
+
+        'change color': '更改颜色',
+        'change the color of the selected polygon': '更改选中形状的标注颜色',
 
         'label setting': '标注设置',
         'auto setting': '自动标注设置',
