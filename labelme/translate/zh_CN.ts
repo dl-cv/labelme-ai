@@ -473,16 +473,6 @@ Polygons</source>
         <translation>编辑标签(&amp;E)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="622"/>
-        <source>&amp;Change Color</source>
-        <translation>更改颜色(&amp;C)</translation>
-    </message>
-    <message>
-        <location filename="../app.py" line="626"/>
-        <source>Change the color of the selected polygon</source>
-        <translation>更改选中形状的标注颜色</translation>
-    </message>
-    <message>
         <location filename="../app.py" line="591"/>
         <source>Modify the label of the selected polygon</source>
         <translation>修改选中多边形的标签</translation>
