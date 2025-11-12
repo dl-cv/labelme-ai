@@ -339,13 +339,6 @@ class MainWindow(MainWindow):
         self.actions.save_label_file = save_label_file_action
         self.actions.tool.insert(2, self.actions.save_label_file)
 
-        # 创建AI多边形,添加快捷键文本
-        ai_polygon_mode = self.actions.createAiPolygonMode
-        ai_polygon_mode.setIconText(
-            ai_polygon_mode.text() +
-            f"({ai_polygon_mode.shortcut().toString()})")
-        self.actions.tool.insert(8, self.actions.createAiPolygonMode)
-
         # https://bbs.dlcv.com.cn/t/topic/1050
         # 刷新功能
         def refresh():
@@ -362,17 +355,27 @@ class MainWindow(MainWindow):
         self.addAction(self.action_refresh)
         self.actions.tool.insert(14, self.action_refresh)
 
-        # 创建旋转框
-        createRotationMode = create_action(
-            self.tr("创建旋转框"),
-            lambda: self.toggleDrawMode(False, createMode="rotation"),
-            "R",  # 快捷键
-            "objects",
-            self.tr("开始绘制旋转框 (R)"),
-            enabled=False,
-        )
-        self.actions.createRotationMode = createRotationMode
-        self.actions.tool.insert(8, self.actions.createRotationMode)  # 插入到合适位置
+        # 创建AI多边形
+        ai_polygon_mode = self.actions.createAiPolygonMode
+        ai_polygon_mode.setIconText(
+            ai_polygon_mode.text() +
+            f"({ai_polygon_mode.shortcut().toString()})")
+        self.actions.tool.insert(8, self.actions.createAiPolygonMode)
+
+        # 创建多边形
+        createMode = self.actions.createMode
+        # 设置按钮提示文本
+        createMode.setIconText(
+            createMode.text() +
+            f"({createMode.shortcut().toString()})")
+
+        # 创建矩形框
+        createRectangleMode = self.actions.createRectangleMode 
+        # 设置按钮提示文本
+        createRectangleMode.setIconText(
+            createRectangleMode.text() +
+            f"({createRectangleMode.shortcut().toString()})")
+        self.actions.tool.insert(10, self.actions.createRectangleMode)  # 插入到合适位置
 
         # 亮度对比度禁用
         # https://bbs.dlcv.ai/t/topic/328
@@ -401,7 +404,6 @@ class MainWindow(MainWindow):
             self.actions.createLineMode,
             self.actions.createPointMode,
             self.actions.createLineStripMode,
-            self.actions.createRotationMode,  # 添加旋转框模式
             self.actions.createAiPolygonMode,
             self.actions.editMode,
         )
@@ -2463,7 +2465,6 @@ class MainWindow(MainWindow):
             "linestrip": self.actions.createLineStripMode,
             "ai_polygon": self.actions.createAiPolygonMode,
             "ai_mask": self.actions.createAiMaskMode,
-            "rotation": self.actions.createRotationMode,  # 添加旋转框支持
         }
 
         self.canvas.setEditing(edit)
