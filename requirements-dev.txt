@@ -10,3 +10,7 @@ pyqt-toast-notification
 pyqtgraph
 httpx
 qasync
+opencv-python
+termcolor
+openpyxl
+ordered_set
