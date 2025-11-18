@@ -567,17 +567,12 @@ class MainWindow(MainWindow):
         from labelme.dlcv.utils.change_shape_color import init_change_color_action
         init_change_color_action(self)
         
-    # ------------ Ctrl + C 触发函数 复制图片或形状 ------------
+    # ------------ Ctrl + C 触发函数 复制图片 ------------
     def copySelectedShape(self):
         """
-        复制选中的形状或当前图片。
-        如果有选中的形状,则复制形状;
-        如果没有选中形状,则复制当前图片。
+        复制当前图片。
         """
-        if not self.canvas.selectedShapes:
-            self.copy_image_to_clipboard()
-        else:
-            pass
+        self.copy_image_to_clipboard()
         
     # 当选中形状变化时        
     def shapeSelectionChanged(self, selected_shapes):
@@ -618,7 +613,7 @@ class MainWindow(MainWindow):
 
         # ------------ Ctrl + C 触发函数 end ------------
     
-    # 复制选中的形状到剪贴板
+    # 复制形状到剪贴板  ctrl+d/ctrl+v
     def duplicateSelectedShape(self):
         """重写父类方法：复制选中的形状到剪贴板"""
         if not self.canvas.selectedShapes:
@@ -793,6 +788,77 @@ class MainWindow(MainWindow):
                 point.setX(new_x)
                 point.setY(new_y)
     
+    def pasteSelectedShape(self):
+        """从剪贴板粘贴形状或图像"""
+        try:
+            # 首先尝试从剪贴板读取形状数据
+            from labelme.dlcv.widget.clipboard import paste_shapes_from_clipboard
+            shapes_data = paste_shapes_from_clipboard()
+            
+            if shapes_data is not None:
+                logger.info(f"=== DEBUG: 当前图像路径: {self.filename} ===")
+                
+                # 将形状数据转换为Shape对象并添加偏移
+                shapes = []
+                for i, shape_data in enumerate(shapes_data):
+                    shape = self.create_shape_from_data(shape_data)
+                    
+                    # 检查是否需要应用偏移（只在同一张图片上粘贴时应用偏移）
+                    source_image_path = shape_data.get('source_image_path')
+                    current_image_path = self.filename
+                    
+                    if source_image_path == current_image_path:
+                        logger.info(f"=== DEBUG: 在同一张图片上粘贴，应用偏移 ===")
+                        # 添加偏移以避免与原形状重合
+                        self.add_offset_to_shape(shape)
+                    else:
+                        logger.info(f"=== DEBUG: 在不同图片上粘贴，不应用偏移，保持原始坐标 ===")
+                        # 检查形状是否超出当前图像边界，如果超出则调整
+                        self.check_and_adjust_shape_bounds(shape)
+                    
+                    shapes.append(shape)
+                
+                # 加载形状到画布
+                self.loadShapes(shapes, replace=False)
+                self.setDirty()
+
+                # 粘贴完成后，立即选中
+                self.canvas.selectShapes(shapes)
+                
+                notification("粘贴成功", f"已粘贴 {len(shapes)} 个形状", ToastPreset.SUCCESS)
+                return
+            
+            # 如果没有形状数据，尝试粘贴图像
+            try:
+                # 调用父类的粘贴图像功能
+                super().pasteSelectedShape()
+                return
+            except Exception as e:
+                pass
+            
+            # 如果图像粘贴也失败，尝试使用原有的_copied_shapes机制
+            if not self._copied_shapes:
+                notification("提示", "剪贴板中没有可粘贴的内容", ToastPreset.WARNING)
+                return
+
+            nee_copy_shape = []
+            for copy_shape in self._copied_shapes:
+                for shape in self.canvas.shapes:
+                    if copy_shape.points == shape.points:
+                        nee_copy_shape.append(shape)
+
+            if nee_copy_shape:
+                self.canvas.selectShapes(nee_copy_shape)
+                self.duplicateSelectedShape()
+            else:
+                self.loadShapes(self._copied_shapes, replace=False)
+                self.setDirty()
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            notification("粘贴失败", str(e), ToastPreset.ERROR)
+
     def fileSelectionChanged(self):
         if not self.is_all_shapes_valid():
             # 弹窗询问是否切换图片
@@ -1074,74 +1140,6 @@ class MainWindow(MainWindow):
             self.actions.deleteFile.setEnabled(True)
         else:
             self.actions.deleteFile.setEnabled(False)
-
-    def pasteSelectedShape(self):
-        """从剪贴板粘贴形状或图像"""
-        try:
-            # 首先尝试从剪贴板读取形状数据
-            from labelme.dlcv.widget.clipboard import paste_shapes_from_clipboard
-            shapes_data = paste_shapes_from_clipboard()
-            
-            if shapes_data is not None:
-                logger.info(f"=== DEBUG: 当前图像路径: {self.filename} ===")
-                
-                # 将形状数据转换为Shape对象并添加偏移
-                shapes = []
-                for i, shape_data in enumerate(shapes_data):
-                    shape = self.create_shape_from_data(shape_data)
-                    
-                    # 检查是否需要应用偏移（只在同一张图片上粘贴时应用偏移）
-                    source_image_path = shape_data.get('source_image_path')
-                    current_image_path = self.filename
-                    
-                    if source_image_path == current_image_path:
-                        logger.info(f"=== DEBUG: 在同一张图片上粘贴，应用偏移 ===")
-                        # 添加偏移以避免与原形状重合
-                        self.add_offset_to_shape(shape)
-                    else:
-                        logger.info(f"=== DEBUG: 在不同图片上粘贴，不应用偏移，保持原始坐标 ===")
-                        # 检查形状是否超出当前图像边界，如果超出则调整
-                        self.check_and_adjust_shape_bounds(shape)
-                    
-                    shapes.append(shape)
-                
-                # 加载形状到画布
-                self.loadShapes(shapes, replace=False)
-                self.setDirty()
-                
-                notification("粘贴成功", f"已粘贴 {len(shapes)} 个形状", ToastPreset.SUCCESS)
-                return
-            
-            # 如果没有形状数据，尝试粘贴图像
-            try:
-                # 调用父类的粘贴图像功能
-                super().pasteSelectedShape()
-                return
-            except Exception as e:
-                pass
-            
-            # 如果图像粘贴也失败，尝试使用原有的_copied_shapes机制
-            if not self._copied_shapes:
-                notification("提示", "剪贴板中没有可粘贴的内容", ToastPreset.WARNING)
-                return
-
-            nee_copy_shape = []
-            for copy_shape in self._copied_shapes:
-                for shape in self.canvas.shapes:
-                    if copy_shape.points == shape.points:
-                        nee_copy_shape.append(shape)
-
-            if nee_copy_shape:
-                self.canvas.selectShapes(nee_copy_shape)
-                self.duplicateSelectedShape()
-            else:
-                self.loadShapes(self._copied_shapes, replace=False)
-                self.setDirty()
-            
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            notification("粘贴失败", str(e), ToastPreset.ERROR)
 
     def getLabelFile(self) -> str:
         try:
