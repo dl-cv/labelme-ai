@@ -306,6 +306,8 @@ class MainWindow(MainWindow):
 
     # https://bbs.dlcv.ai/t/topic/89
     # https://bbs.dlcv.ai/t/topic/90
+
+    # 初始化模式动作
     def populateModeActions(self):
         # 移除 [打开文件] 功能
         self.actions.tool = list(self.actions.tool[1:])
@@ -377,6 +379,21 @@ class MainWindow(MainWindow):
             f"({createRectangleMode.shortcut().toString()})")
         self.actions.tool.insert(10, self.actions.createRectangleMode)  # 插入到合适位置
 
+        # 创建旋转框
+        createRotationMode = create_action(
+            self.tr("创建旋转框"),
+            lambda: self.toggleDrawMode(False, createMode="rotation"),
+            "R",  # 快捷键
+            "objects",
+            self.tr("开始绘制旋转框 (R)"),
+            enabled=True,
+        )
+        createRotationMode.setIconText(
+            createRotationMode.text() +
+            f"({createRotationMode.shortcut().toString()})")
+        self.actions.createRotationMode = createRotationMode
+        self.actions.tool.insert(11, self.actions.createRotationMode)  # 插入到合适位置
+
         # 亮度对比度禁用
         # https://bbs.dlcv.ai/t/topic/328
         self.actions.brightnessContrast.setVisible(False)
@@ -400,11 +417,13 @@ class MainWindow(MainWindow):
         actions = (
             self.actions.createMode,
             self.actions.createRectangleMode,
+            self.actions.createRotationMode,
             self.actions.createCircleMode,
             self.actions.createLineMode,
             self.actions.createPointMode,
             self.actions.createLineStripMode,
             self.actions.createAiPolygonMode,
+            self.actions.createAiMaskMode,
             self.actions.editMode,
         )
         utils.addActions(self.menus.edit, actions + self.actions.editMenu)
@@ -2465,6 +2484,7 @@ class MainWindow(MainWindow):
             "linestrip": self.actions.createLineStripMode,
             "ai_polygon": self.actions.createAiPolygonMode,
             "ai_mask": self.actions.createAiMaskMode,
+            "rotation": self.actions.createRotationMode,
         }
 
         self.canvas.setEditing(edit)
