@@ -306,6 +306,8 @@ class MainWindow(MainWindow):
 
     # https://bbs.dlcv.ai/t/topic/89
     # https://bbs.dlcv.ai/t/topic/90
+
+    # 初始化模式动作
     def populateModeActions(self):
         # 移除 [打开文件] 功能
         self.actions.tool = list(self.actions.tool[1:])
@@ -322,17 +324,9 @@ class MainWindow(MainWindow):
         self.actions.load_label_file = load_label_file_action
         self.actions.tool.insert(1, self.actions.load_label_file)
 
-        # 新增保存标签文件控件
-        def save_label_txt_file():
-            # 弹出文件名输入框，让用户指定文件名
-            file_name, _ = QtWidgets.QFileDialog.getSaveFileName(
-                self, "保存标签文件", self.LABEL_TXT_DIR, "标签文件 (*.txt)")
-            if file_name:
-                self._save_label_txt(file_name)
-
         save_label_file_action = create_action(
             self.tr("保存标签文件"),
-            save_label_txt_file,
+            self.save_label_txt_file,
             "objects",
             enabled=True,
             icon='save-as')
@@ -377,6 +371,21 @@ class MainWindow(MainWindow):
             f"({createRectangleMode.shortcut().toString()})")
         self.actions.tool.insert(10, self.actions.createRectangleMode)  # 插入到合适位置
 
+        # 创建旋转框
+        createRotationMode = create_action(
+            self.tr("创建旋转框"),
+            lambda: self.toggleDrawMode(False, createMode="rotation"),
+            "R",  # 快捷键
+            "objects",
+            self.tr("开始绘制旋转框 (R)"),
+            enabled=True,
+        )
+        createRotationMode.setIconText(
+            createRotationMode.text() +
+            f"({createRotationMode.shortcut().toString()})")
+        self.actions.createRotationMode = createRotationMode
+        self.actions.tool.insert(11, self.actions.createRotationMode)  # 插入到合适位置
+
         # 亮度对比度禁用
         # https://bbs.dlcv.ai/t/topic/328
         self.actions.brightnessContrast.setVisible(False)
@@ -385,6 +394,13 @@ class MainWindow(MainWindow):
         tool_action = self.actions.tool[8]
         tool_action.setIconText(self.actions.tool[8].text() +
                                 f"({tool_action.shortcut().toString()})")
+
+        # 删除上一幅下一幅
+        self.actions.tool.remove(self.actions.openNextImg)
+        self.actions.tool.remove(self.actions.openPrevImg)
+
+        # 去除编辑多边形
+        self.actions.tool.remove(self.actions.editMode)
 
         # dlcv_ai_action
         self._init_dlcv_ai_widget()
@@ -400,11 +416,13 @@ class MainWindow(MainWindow):
         actions = (
             self.actions.createMode,
             self.actions.createRectangleMode,
+            self.actions.createRotationMode,
             self.actions.createCircleMode,
             self.actions.createLineMode,
             self.actions.createPointMode,
             self.actions.createLineStripMode,
             self.actions.createAiPolygonMode,
+            self.actions.createAiMaskMode,
             self.actions.editMode,
         )
         utils.addActions(self.menus.edit, actions + self.actions.editMenu)
@@ -501,6 +519,15 @@ class MainWindow(MainWindow):
                              ToastPreset.INFORMATION)
         except Exception as e:
             notification("加载标签文件失败", str(e), ToastPreset.ERROR)
+
+    
+    # 新增保存标签文件控件
+    def save_label_txt_file(self):
+        # 弹出文件名输入框，让用户指定文件名
+        file_name, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "保存标签文件", self.LABEL_TXT_DIR, "标签文件 (*.txt)")
+        if file_name:
+            self._save_label_txt(file_name)
 
     # 缓存标签列表
     def _save_label_txt(self, filename):
@@ -2465,6 +2492,7 @@ class MainWindow(MainWindow):
             "linestrip": self.actions.createLineStripMode,
             "ai_polygon": self.actions.createAiPolygonMode,
             "ai_mask": self.actions.createAiMaskMode,
+            "rotation": self.actions.createRotationMode,
         }
 
         self.canvas.setEditing(edit)

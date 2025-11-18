@@ -333,7 +333,8 @@ class Canvas(CustomCanvas):
         else:
             return can
 
-    # region Mouse Events
+    # region Mouse Events 
+    # 鼠标左键事件
     def mouse_left_click(self, ev, pos: QtCore.QPointF):
         is_shift_pressed = ev.modifiers() & QtCore.Qt.ShiftModifier
 
@@ -345,9 +346,7 @@ class Canvas(CustomCanvas):
                     self.line[0] = self.current[-1]
                     if self.current.isClosed():
                         self.finalise()
-                elif self.createMode in [
-                        "rectangle", "circle", "line", "rotation"
-                ]:  # 添加rotation
+                elif self.createMode in ["rectangle", "circle", "line"]:  # 添加rotation
                     assert len(self.current.points) == 1
 
                     # extra 标注圆时,圆心和半径是否在图片内
@@ -361,10 +360,23 @@ class Canvas(CustomCanvas):
                     # extra End
 
                     self.current.points = self.line.points
-                    if self.createMode == "rotation":
-                        # 保存原始形状类型
-                        self.current.shape_type = "rotation"
+
                     self.finalise()
+                elif self.createMode == "rotation":
+                    if len(self.current.points) == 1:
+                        # 第二次点击：确定 A 线终点
+                        self.current.addPoint(pos)
+                        self.line.points[0] = self.current[-1]
+                    elif len(self.current.points) == 2:
+                        # 第三次点击：闭合矩形并完成
+                        p1, p2 = self.current.points[0], self.current.points[1]
+                        corners, direction = self._rect_from_3_points(p1, p2, pos)
+                        self.current.points = corners
+                        self.current.shape_type = "rotation"
+                        self.current.direction = direction
+                        self.current.close()
+                        self.finalise()
+                    
                 elif self.createMode == "linestrip":
                     self.current.addPoint(self.line[1])
                     self.line[0] = self.current[-1]
@@ -416,6 +428,7 @@ class Canvas(CustomCanvas):
             self.prevPoint = pos
             self.repaint()
 
+    # 鼠标右键事件
     def mouse_right_click(self, ev, pos: QtCore.QPointF):
         group_mode = int(ev.modifiers()) == QtCore.Qt.ControlModifier
         if not self.selectedShapes or (self.hShape is not None and self.hShape
@@ -424,6 +437,7 @@ class Canvas(CustomCanvas):
             self.repaint()
         self.prevPoint = pos
 
+    # 鼠标按下事件
     def mousePressEvent(self, ev, need_transform=True):
         # extra 鼠标坐标转换
         if need_transform:
@@ -530,6 +544,7 @@ class Canvas(CustomCanvas):
         elif ev.button() == QtCore.Qt.RightButton and self.editing():
             self.mouse_right_click(ev, pos)
 
+    # 移动顶点
     def boundedMoveVertex(self, pos: QtCore.QPointF):
         index, shape = self.hVertex, self.hShape
         # extra 移动圆半径的点时,圆是否在图片内
@@ -664,6 +679,7 @@ class Canvas(CustomCanvas):
             pos = self.intersectionPoint(None, pos)
         shape.moveVertexBy(index, pos - point)
 
+    # 求交点
     def intersectionPoint(self, p1, p2):
         """
         p1: the last point of the current shape
@@ -676,6 +692,32 @@ class Canvas(CustomCanvas):
                        self.pixmap.height() - 0.001)),
         )
 
+    # 旋转框工具函数
+    def _unit_vec(self, v: QtCore.QPointF) -> tuple[QtCore.QPointF, float]:
+        length = math.hypot(v.x(), v.y())
+        if length < 1e-6:
+            return QtCore.QPointF(0, 0), 0
+        return QtCore.QPointF(v.x() / length, v.y() / length), length
+
+    def _perp_vec(self, v: QtCore.QPointF) -> QtCore.QPointF:
+        return QtCore.QPointF(-v.y(), v.x())
+
+    def _rect_from_3_points(self, p1, p2, p3) -> tuple[list[QtCore.QPointF], float]:
+        a_hat, a_len = self._unit_vec(p2 - p1)
+        # 防御：A 长度过小则退回退点
+        if a_len < 1e-6:
+            return [p1, p2, p2, p1], 0.0
+        b_hat = self._perp_vec(a_hat)
+        # 将 P3 在 b 方向投影，决定高度和朝向
+        h = (p3.x() - p2.x()) * b_hat.x() + (p3.y() - p2.y()) * b_hat.y()
+        c1 = p1
+        c2 = p2
+        c3 = QtCore.QPointF(p2.x() + h*b_hat.x(), p2.y() + h*b_hat.y())
+        c4 = QtCore.QPointF(p1.x() + h*b_hat.x(), p1.y() + h*b_hat.y())
+        direction = (math.degrees(math.atan2(a_hat.y(), a_hat.x())) + 360.0) % 360.0
+        return [c1, c2, c3, c4], direction
+
+    # 鼠标移动事件
     def mouseMoveEvent(self, ev):
         """Update line with last point and current coordinates."""
         pos = self.transformPos(ev.pos())
@@ -801,8 +843,31 @@ class Canvas(CustomCanvas):
             if self.createMode in ["ai_polygon", "ai_mask"]:
                 self.line.shape_type = "points"
             elif self.createMode == "rotation":
-                # 旋转框绘制过程临时显示为矩形
-                self.line.shape_type = "rectangle"
+                # 尚未开始（还没有第一个点），只显示十字线并返回
+                if not self.current:
+                    self.repaint()
+                    return
+                # 阶段1： 仅点1 预览 A 线
+                if len(self.current.points) == 1:
+                    self.line.shape_type = "polygon"
+                    self.line.points = [self.current.points[0], pos]
+                    self.line.point_labels = [1, 1]
+                # 阶段2： 已有 P1，P2 按垂直约束 预览矩形
+                elif len(self.current.points) == 2:
+                    p1, p2 = self.current.points[0], self.current.points[1]
+                    corners, direction = self._rect_from_3_points(p1, p2, pos)
+                    self.line.shape_type = "polygon"
+                    self.line.points = corners
+                    self.line.point_labels = [1, 1, 1, 1]
+                    self.line.close()
+                    # 显示箭头
+                    self.current.direction = direction
+                # 旋转框在此分支内完成预览与赋值，避免后续通用分支覆盖
+                assert len(self.line.points) == len(self.line.point_labels)
+                self.repaint()
+                self.current.highlightClear()
+                return
+         
             else:
                 self.line.shape_type = self.createMode
 
@@ -832,8 +897,7 @@ class Canvas(CustomCanvas):
                     self.current.point_labels[-1],
                     0 if is_shift_pressed else 1,
                 ]
-            elif self.createMode in ["rectangle", "rotation"]:
-                # 旋转框和矩形一样，临时显示为矩形
+            elif self.createMode in ["rectangle"]:
                 self.line.points = [self.current[0], pos]
                 self.line.point_labels = [1, 1]
                 self.line.close()
@@ -976,6 +1040,7 @@ class Canvas(CustomCanvas):
             self.unHighlight()
         self.vertexSelected.emit(self.hVertex is not None)
 
+    # 鼠标释放事件
     def mouseReleaseEvent(self, ev):
         if ev.button() == QtCore.Qt.RightButton and self.editing():
             menu = self.menus[len(self.selectedShapesCopy) > 0]
@@ -1341,6 +1406,7 @@ class Canvas(CustomCanvas):
             self.restoreCursor()
             return
 
+    # 滚轮事件
     def wheelEvent(self, ev):
         # 优化：注释掉Ctrl依赖，滚轮直接缩放
         if not hasattr(
@@ -1391,6 +1457,7 @@ class Canvas(CustomCanvas):
             #     self.scrollRequest.emit(ev.delta(), QtCore.Qt.Horizontal)
         ev.accept()
 
+    # 双击事件
     def mouseDoubleClickEvent(self, ev):
         # 检查是否双击了文本标记区域
         if ev.button() == QtCore.Qt.LeftButton:
@@ -1462,6 +1529,7 @@ class Canvas(CustomCanvas):
 
     # endregion
 
+    # 加载图片
     def loadPixmap(self, pixmap: QtGui.QPixmap, clear_shapes=True):
         self.pixmap = pixmap
         if self._ai_model and self.createMode in ["ai_polygon", "ai_mask"]:
@@ -1472,6 +1540,7 @@ class Canvas(CustomCanvas):
             self.shapes = []
         self.update()
 
+    # 绘制画布事件
     def paintEvent(self, event):
         if not self.pixmap:
             return super(Canvas, self).paintEvent(event)
@@ -1645,6 +1714,7 @@ class Canvas(CustomCanvas):
 
         p.end()
 
+    # 重置状态
     def resetState(self):
         self.restoreCursor()
 
@@ -1660,6 +1730,7 @@ class Canvas(CustomCanvas):
         self.shapesBackups = []
         self.update()
 
+    # 键盘事件
     def keyPressEvent(self, ev):
         super().keyPressEvent(ev)
         modifiers = ev.modifiers()
@@ -1709,6 +1780,7 @@ class Canvas(CustomCanvas):
                 self.update()
                 return
 
+    # 移动形状
     def boundedShiftShapes(self, shapes):
         # Try to move in one direction, and if it fails in another.
         # Give up if both fail.
@@ -1816,70 +1888,42 @@ class Canvas(CustomCanvas):
             return True
         return False
 
+    # 结束当前图形的绘制并提交图形
     def finalise(self):
         """结束当前图形的绘制并提交图形"""
         # 如果是旋转框，需要特殊处理..
         if self.current and self.current.shape_type == "rotation":
             # 确保当前形状有足够的点来创建旋转框
-            if len(self.current.points) >= 2:
-                # 从当前的矩形创建旋转框，保存原始图形的位置信息
-                x1, y1 = self.current.points[0].x(), self.current.points[0].y()
-                x2, y2 = self.current.points[1].x(), self.current.points[1].y()
 
-                # 确保矩形的四个角点
-                points = [
-                    QtCore.QPointF(x1, y1),  # 左上
-                    QtCore.QPointF(x2, y1),  # 右上
-                    QtCore.QPointF(x2, y2),  # 右下
-                    QtCore.QPointF(x1, y2),  # 左下
-                ]
+            self.current.fill = False
 
-                self.current.points = points
-                self.current.point_labels = [1, 1, 1, 1]
-                self.current.fill = False
+            x1, x2, y1, y2 = self.current.points[0].x(), self.current.points[1].x(), self.current.points[0].y(), self.current.points[1].y()
+            width = x2 - x1
+            height = y2 - y1
+            parallel_edge_length = width if self.current.direction == 0 else height
 
-                # 计算宽度和高度
-                width = abs(x2 - x1)
-                height = abs(y2 - y1)
+            # 计算箭头起始点：从中心点向箭头方向移动平行边长度的一半
+            center_x = (x1 + x2) / 2
+            center_y = (y1 + y2) / 2
+            center = QtCore.QPointF(center_x, center_y)
+            angle_rad = math.radians(self.current.direction)
+            dir_vector = QtCore.QPointF(
+                math.cos(angle_rad), math.sin(angle_rad))
+            arrow_start_x = center_x + (
+                dir_vector.x() * parallel_edge_length * 0.5)
+            arrow_start_y = center_y + (
+                dir_vector.y() * parallel_edge_length * 0.5)
+            self.current.arrow_center = QtCore.QPointF(
+                arrow_start_x, arrow_start_y)
 
-                # 计算中心点
-                center_x = (x1 + x2) / 2
-                center_y = (y1 + y2) / 2
-                self.current.arrow_center = QtCore.QPointF(center_x, center_y)
+            # 计算箭头长度：与箭头平行的边的长度的0.3
+            arrow_length = parallel_edge_length * 0.3
 
-                # 设置初始方向，根据宽高比确定朝向短边还是长边
-                if width < height:
-                    self.current.direction = 90  # 水平方向（朝向短边）
-                else:
-                    self.current.direction = 0  # 垂直方向（朝向短边）
+            # 计算箭头终点
+            end_x = arrow_start_x + arrow_length * dir_vector.x()
+            end_y = arrow_start_y + arrow_length * dir_vector.y()
+            self.current.arrow_end = QtCore.QPointF(end_x, end_y)
 
-                # 计算旋转方向向量
-                angle_rad = math.radians(self.current.direction)
-                dir_vector = QtCore.QPointF(
-                    math.cos(angle_rad), math.sin(angle_rad))
-
-                # 计算与箭头方向平行的边的长度
-                parallel_edge_length = width if self.current.direction == 0 else height
-
-                # 计算箭头起始点：从中心点向箭头方向移动平行边长度的一半
-                arrow_start_x = center_x + (
-                    dir_vector.x() * parallel_edge_length * 0.5)
-                arrow_start_y = center_y + (
-                    dir_vector.y() * parallel_edge_length * 0.5)
-                self.current.arrow_center = QtCore.QPointF(
-                    arrow_start_x, arrow_start_y)
-
-                # 计算箭头长度：与箭头平行的边的长度的0.3
-                arrow_length = parallel_edge_length * 0.3
-
-                # 计算箭头终点
-                end_x = arrow_start_x + arrow_length * dir_vector.x()
-                end_y = arrow_start_y + arrow_length * dir_vector.y()
-                self.current.arrow_end = QtCore.QPointF(end_x, end_y)
-            else:
-                # 如果点不够，取消创建旋转框
-                self.current = None
-                return
 
         # 调用父类的finalise方法完成提交
         super().finalise()
