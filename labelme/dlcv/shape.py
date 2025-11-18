@@ -165,116 +165,83 @@ class Shape(Shape):
                     for i in range(len(self.points)):
                         self.drawVertex(vrtx_path, i)
             elif self.shape_type == "rotation":
-                # 旋转框的绘制
+                # 旋转框绘制（四边与顶点）
                 if len(self.points) < 4:
-                    # 如果点数不足4个，则不绘制或返回
                     return
-                
-                # 绘制旋转框的四条边
+
+                # 边框
                 line_path.moveTo(self._scale_point(self.points[0]))
                 for i in range(1, 5):
                     line_path.lineTo(self._scale_point(self.points[i % 4]))
-                
-                # 绘制顶点
+
+                # 顶点
                 for i in range(len(self.points)):
                     self.drawVertex(vrtx_path, i)
-                
-                # 计算中心点
-                center_x = sum(p.x() for p in self.points) / 4
-                center_y = sum(p.y() for p in self.points) / 4
-                center = QtCore.QPointF(center_x, center_y)
-                self.arrow_center = center  # 保存中心点用于命中检测
-                
-                # 绘制中心点（新增）
-                center_pen = QtGui.QPen(QtGui.QColor(255, 255, 0))  # 黄色
-                center_pen.setWidth(self.PEN_WIDTH)
-                painter.setPen(center_pen)
-                center_size = max(4, self.point_size / 2 * self.scale)
-                painter.drawEllipse(
-                    self._scale_point(center),
-                    center_size,
-                    center_size
-                )
-                
-                # 计算旋转方向向量
-                angle_rad = math.radians(self.direction)
-                dir_vector = QtCore.QPointF(math.cos(angle_rad), math.sin(angle_rad))
-                
-                # 计算与箭头方向平行的边的长度
-                # 计算各个边的方向向量
-                edge_vectors = []
-                for i in range(4):
-                    next_i = (i + 1) % 4
-                    edge_vec = QtCore.QPointF(
-                        self.points[next_i].x() - self.points[i].x(),
-                        self.points[next_i].y() - self.points[i].y()
-                    )
-                    edge_vectors.append(edge_vec)
-                
-                # 找出与箭头方向最平行的边
-                max_dot_product = -1
-                parallel_edge_length = 0
-                for edge_vec in edge_vectors:
-                    # 计算单位向量
-                    edge_length = math.sqrt(edge_vec.x()**2 + edge_vec.y()**2)
-                    if edge_length > 0:
-                        edge_unit_vec = QtCore.QPointF(edge_vec.x()/edge_length, edge_vec.y()/edge_length)
-                        # 计算点积的绝对值（平行度）
-                        dot_product = abs(edge_unit_vec.x()*dir_vector.x() + edge_unit_vec.y()*dir_vector.y())
-                        if dot_product > max_dot_product:
-                            max_dot_product = dot_product
-                            parallel_edge_length = edge_length
-                
-                # 计算箭头起始点：从中心点向箭头方向移动平行边长度的一半
-                arrow_start_x = center_x + (dir_vector.x() * parallel_edge_length * 0.5)
-                arrow_start_y = center_y + (dir_vector.y() * parallel_edge_length * 0.5)
-                arrow_start = QtCore.QPointF(arrow_start_x, arrow_start_y)
-                
-                # 计算箭头长度：与箭头平行的边的长度的0.1
-                arrow_length = parallel_edge_length * 0.2
-                
-                # 计算箭头终点
-                end_x = arrow_start_x + arrow_length * dir_vector.x()
-                end_y = arrow_start_y + arrow_length * dir_vector.y()
-                arrow_end = QtCore.QPointF(end_x, end_y)
-                
-                # 保存箭头起始点和终点用于命中检测
-                self.arrow_center = arrow_start
-                self.arrow_end = arrow_end
-                
-                # 判断是否显示箭头
+
+                # 箭头
                 if getattr(STORE, 'canvas_display_rotation_arrow', True):
-                    # 绘制箭头线段
-                    arrow_pen = QtGui.QPen(QtGui.QColor(255, 0, 0))  # 红色
+                    cx = sum(p.x() for p in self.points) / 4.0
+                    cy = sum(p.y() for p in self.points) / 4.0
+                    center = QtCore.QPointF(cx, cy)
+                    angle = math.radians(self.direction)
+                    dir_vec = QtCore.QPointF(math.cos(angle), math.sin(angle))
+
+                    # 找与方向最平行的边来确定尺度
+                    def _edge(i):
+                        j = (i + 1) % 4
+                        return QtCore.QPointF(
+                            self.points[j].x() - self.points[i].x(),
+                            self.points[j].y() - self.points[i].y(),
+                        )
+
+                    def _len(v):
+                        return math.hypot(v.x(), v.y())
+
+                    def _dot(u, v):
+                        return u.x() * v.x() + u.y() * v.y()
+
+                    best = 0.0
+                    best_len = 0.0
+                    for i in range(4):
+                        e = _edge(i)
+                        L = _len(e)
+                        if L > 0:
+                            score = abs(_dot(QtCore.QPointF(e.x() / L, e.y() / L), dir_vec))
+                            if score > best:
+                                best = score
+                                best_len = L
+
+                    arrow_len = max(12.0, best_len * 0.2)
+                    start = QtCore.QPointF(
+                        center.x() + dir_vec.x() * (best_len * 0.5),
+                        center.y() + dir_vec.y() * (best_len * 0.5),
+                    )
+                    end = QtCore.QPointF(
+                        start.x() + dir_vec.x() * arrow_len,
+                        start.y() + dir_vec.y() * arrow_len,
+                    )
+
+                    self.arrow_center, self.arrow_end = start, end
+
+                    arrow_pen = QtGui.QPen(QtGui.QColor(255, 0, 0))
                     arrow_pen.setWidth(self.PEN_WIDTH)
                     painter.setPen(arrow_pen)
-                    painter.drawLine(
-                        self._scale_point(arrow_start),
-                        self._scale_point(arrow_end)
-                    )
-                    
-                    # 绘制箭头头部
-                    arrow_head_angle1 = math.radians(self.direction + 150)
-                    arrow_head_angle2 = math.radians(self.direction - 150)
-                    arrow_head_length = arrow_length * 0.2
-                    
-                    arrow_head1_x = end_x + arrow_head_length * math.cos(arrow_head_angle1)
-                    arrow_head1_y = end_y + arrow_head_length * math.sin(arrow_head_angle1)
-                    arrow_head2_x = end_x + arrow_head_length * math.cos(arrow_head_angle2)
-                    arrow_head2_y = end_y + arrow_head_length * math.sin(arrow_head_angle2)
-                    
-                    painter.drawLine(
-                        self._scale_point(arrow_end),
-                        self._scale_point(QtCore.QPointF(arrow_head1_x, arrow_head1_y))
-                    )
-                    painter.drawLine(
-                        self._scale_point(arrow_end),
-                        self._scale_point(QtCore.QPointF(arrow_head2_x, arrow_head2_y))
-                    )
-                    
-                # 恢复原来的画笔
+                    painter.drawLine(self._scale_point(start), self._scale_point(end))
+
+                    # 箭头头部
+                    head_len = arrow_len * 0.2
+                    h1 = math.radians(self.direction + 150)
+                    h2 = math.radians(self.direction - 150)
+                    p1 = QtCore.QPointF(end.x() + head_len * math.cos(h1),
+                                        end.y() + head_len * math.sin(h1))
+                    p2 = QtCore.QPointF(end.x() + head_len * math.cos(h2),
+                                        end.y() + head_len * math.sin(h2))
+                    painter.drawLine(self._scale_point(end), self._scale_point(p1))
+                    painter.drawLine(self._scale_point(end), self._scale_point(p2))
+
+                # 恢复画笔
                 painter.setPen(pen)
-                    
+            
                 # 显示Label（如果有）- 优化旋转框标签显示
                 if self.label and getattr(STORE, 'canvas_display_rotation_label', True):
                     try:
@@ -282,15 +249,15 @@ class Shape(Shape):
                         label = self.label
                         center = self.get_label_paint_point()
                         scaled_center = self._scale_point(center)
-
+            
                         # 设置粗体
                         font = painter.font()
                         font.setBold(True)
-
+            
                         # 绘制标签时，从store中读取标签字体大小
                         font.setPointSize(STORE.canvas_shape_label_font_size if self.scale < 1 else int(STORE.canvas_shape_label_font_size * self.scale))
                         painter.setFont(font)
-
+            
                         # 计算矩形宽度
                         padding = 5
                         text_width = painter.fontMetrics().width(label)
@@ -299,15 +266,15 @@ class Shape(Shape):
                         bg_rect.setWidth(text_width + padding * 2)
                         bg_rect.setHeight(text_height + padding * 2)
                         bg_rect.moveCenter(scaled_center)
-
+            
                         # 绘制背景 - 增加透明度
                         painter.fillRect(bg_rect, QtGui.QColor(30, 31, 34, int(255 * 0.8)))
-                        
+            
                         # 设置字体颜色
                         font_color = QtGui.QColor(105, 170, 88)
                         painter.setPen(font_color)
                         painter.drawText(bg_rect, QtCore.Qt.AlignCenter, label)
-                        
+            
                         # 恢复原来的画笔
                         painter.setPen(pen)
                     except Exception as e:

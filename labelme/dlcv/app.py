@@ -324,17 +324,9 @@ class MainWindow(MainWindow):
         self.actions.load_label_file = load_label_file_action
         self.actions.tool.insert(1, self.actions.load_label_file)
 
-        # 新增保存标签文件控件
-        def save_label_txt_file():
-            # 弹出文件名输入框，让用户指定文件名
-            file_name, _ = QtWidgets.QFileDialog.getSaveFileName(
-                self, "保存标签文件", self.LABEL_TXT_DIR, "标签文件 (*.txt)")
-            if file_name:
-                self._save_label_txt(file_name)
-
         save_label_file_action = create_action(
             self.tr("保存标签文件"),
-            save_label_txt_file,
+            self.save_label_txt_file,
             "objects",
             enabled=True,
             icon='save-as')
@@ -402,6 +394,13 @@ class MainWindow(MainWindow):
         tool_action = self.actions.tool[8]
         tool_action.setIconText(self.actions.tool[8].text() +
                                 f"({tool_action.shortcut().toString()})")
+
+        # 删除上一幅下一幅
+        self.actions.tool.remove(self.actions.openNextImg)
+        self.actions.tool.remove(self.actions.openPrevImg)
+
+        # 去除编辑多边形
+        self.actions.tool.remove(self.actions.editMode)
 
         # dlcv_ai_action
         self._init_dlcv_ai_widget()
@@ -520,6 +519,15 @@ class MainWindow(MainWindow):
                              ToastPreset.INFORMATION)
         except Exception as e:
             notification("加载标签文件失败", str(e), ToastPreset.ERROR)
+
+    
+    # 新增保存标签文件控件
+    def save_label_txt_file(self):
+        # 弹出文件名输入框，让用户指定文件名
+        file_name, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "保存标签文件", self.LABEL_TXT_DIR, "标签文件 (*.txt)")
+        if file_name:
+            self._save_label_txt(file_name)
 
     # 缓存标签列表
     def _save_label_txt(self, filename):
