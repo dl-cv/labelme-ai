@@ -386,6 +386,12 @@ class MainWindow(MainWindow):
         self.actions.createRotationMode = createRotationMode
         self.actions.tool.insert(11, self.actions.createRotationMode)  # 插入到合适位置
 
+        # 同时也插入到画布右键菜单中
+        if self.actions.createRotationMode not in self.actions.menu:
+            # 在菜单最顶部插入创建旋转框
+            self.actions.menu = list(self.actions.menu)
+            self.actions.menu.insert(2, self.actions.createRotationMode)
+
         # 亮度对比度禁用
         # https://bbs.dlcv.ai/t/topic/328
         self.actions.brightnessContrast.setVisible(False)
@@ -395,11 +401,11 @@ class MainWindow(MainWindow):
         tool_action.setIconText(self.actions.tool[8].text() +
                                 f"({tool_action.shortcut().toString()})")
 
-        # 删除上一幅下一幅
+        # 工具栏去除上一幅下一幅
         self.actions.tool.remove(self.actions.openNextImg)
         self.actions.tool.remove(self.actions.openPrevImg)
 
-        # 去除编辑多边形
+        # 工具栏去除编辑多边形
         self.actions.tool.remove(self.actions.editMode)
 
         # dlcv_ai_action
