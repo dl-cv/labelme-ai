@@ -1629,13 +1629,10 @@ class MainWindow(MainWindow):
             self.ai_controller = AiController(ai_widget)
             self.ai_controller.sig_predict_done.connect(self.auto_label)
 
-            def enable_dlcv_ai_widget(enable: bool):
-                if enable:
-                    self.ai_widget_action.setVisible(True)
-                else:
-                    self.ai_widget_action.setVisible(False)
+            def slot_ai_widget_show(enable: bool):
+                self.ai_widget_action.setVisible(enable)
 
-            self.ai_controller.sig_enable.connect(enable_dlcv_ai_widget)
+            self.ai_controller.sig_has_dog.connect(slot_ai_widget_show)
         except:
             pass
 
