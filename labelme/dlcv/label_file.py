@@ -1,4 +1,5 @@
 from labelme.label_file import *
+import math
 
 
 class LabelFile(LabelFile):
@@ -76,6 +77,89 @@ class LabelFile(LabelFile):
                     shape["direction"] = float(shape["direction"])
                     # 确保方向在0-360之间
                     shape["direction"] = shape["direction"] % 360
+
+                # 新增：为旋转框写入一个独立字段，保存 Cx、Cy、W、H 与弧度
+                pts = shape.get("points") or []
+                cx = cy = w = h = None
+                # 方向（度）与方向向量
+                try:
+                    dir_deg = float(shape.get("direction", 0.0))
+                except Exception:
+                    dir_deg = 0.0
+                dir_rad = math.radians(dir_deg)
+                while dir_rad <= -math.pi / 2:
+                    dir_rad += math.pi
+                while dir_rad > math.pi / 2:
+                    dir_rad -= math.pi
+                dir_vec = (math.cos(dir_rad), math.sin(dir_rad))
+
+                if isinstance(pts, list):
+                    try:
+                        if len(pts) >= 4:
+                            # 中心点
+                            cx = (
+                                float(pts[0][0])
+                                + float(pts[1][0])
+                                + float(pts[2][0])
+                                + float(pts[3][0])
+                            ) / 4.0
+                            cy = (
+                                float(pts[0][1])
+                                + float(pts[1][1])
+                                + float(pts[2][1])
+                                + float(pts[3][1])
+                            ) / 4.0
+
+                            # 四条边向量与长度
+                            edges = []  # (idx, length, abs_dot)
+                            for i in range(4):
+                                j = (i + 1) % 4
+                                vx = float(pts[j][0]) - float(pts[i][0])
+                                vy = float(pts[j][1]) - float(pts[i][1])
+                                length = math.hypot(vx, vy)
+                                if length <= 0:
+                                    continue
+                                ux, uy = vx / length, vy / length
+                                abs_dot = abs(ux * dir_vec[0] + uy * dir_vec[1])
+                                edges.append((i, length, abs_dot))
+
+                            if edges:
+                                # 与方向最平行的边定义为 W
+                                w_edge = max(edges, key=lambda e: e[2])
+                                w = w_edge[1]
+                                # 与方向最垂直的边定义为 H
+                                h_edge = min(edges, key=lambda e: e[2])
+                                h = h_edge[1]
+                        elif len(pts) >= 2:
+                            # 退化处理（不足 4 点）：以两点轴对齐矩形估计
+                            x0, y0 = float(pts[0][0]), float(pts[0][1])
+                            x1, y1 = float(pts[1][0]), float(pts[1][1])
+                            cx = (x0 + x1) / 2.0
+                            cy = (y0 + y1) / 2.0
+                            dx, dy = x1 - x0, y1 - y0
+                            # 将边向量投影到方向与其垂直方向
+                            proj_parallel = abs(dx * dir_vec[0] + dy * dir_vec[1])
+                            proj_perp = abs(dx * (-dir_vec[1]) + dy * dir_vec[0])
+                            w = max(proj_parallel, 0.0)
+                            h = max(proj_perp, 0.0)
+                    except Exception:
+                        pass
+
+                # 弧度：与用户标注方向一致，直接由 direction 转弧度
+                try:
+                    rad = float(dir_rad)
+                except Exception:
+                    rad = 0.0
+
+                # 仅当成功计算出中心和宽高时写入该字段
+                if cx is not None and cy is not None and w is not None and h is not None:
+                    shape["rotation_box"] = {
+                        "Cx": float(cx),
+                        "Cy": float(cy),
+                        "W": float(w),
+                        "H": float(h),
+                        "radian": float(rad),
+                    }
         return shapes
     
     def loadRotationBox(self, shapes, s):
