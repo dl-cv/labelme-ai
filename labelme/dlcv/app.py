@@ -1485,6 +1485,46 @@ class MainWindow(MainWindow):
         else:
             self.actions.deleteFile.setEnabled(False)
 
+    def openPrevImg(self, _value=False):
+        keep_prev = self._config["keep_prev"]
+        if QtWidgets.QApplication.keyboardModifiers() == (
+                Qt.ControlModifier | Qt.ShiftModifier):
+            self._config["keep_prev"] = True
+
+        if not self.mayContinue():
+            return
+
+        from PyQt5 import Qt as QtControl
+
+        event = QtControl.QKeyEvent(
+            QtControl.QEvent.KeyPress,
+            QtCore.Qt.Key.Key_Up,
+            QtCore.Qt.NoModifier)
+
+        self.fileListWidget.keyPressEvent(event)
+
+        self._config["keep_prev"] = keep_prev
+
+    def openNextImg(self, _value=False, load=True):
+        keep_prev = self._config["keep_prev"]
+        if QtWidgets.QApplication.keyboardModifiers() == (
+                Qt.ControlModifier | Qt.ShiftModifier):
+            self._config["keep_prev"] = True
+
+        if not self.mayContinue():
+            return
+
+        from PyQt5 import Qt as QtControl
+
+        event = QtControl.QKeyEvent(
+            QtControl.QEvent.KeyPress,
+            QtCore.Qt.Key.Key_Down,
+            QtCore.Qt.NoModifier)
+
+        self.fileListWidget.keyPressEvent(event)
+
+        self._config["keep_prev"] = keep_prev
+
     def importDirImages(self, dirpath, pattern=None, load=True):
         self.actions.openNextImg.setEnabled(True)
         self.actions.openPrevImg.setEnabled(True)

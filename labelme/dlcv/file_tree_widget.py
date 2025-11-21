@@ -433,6 +433,10 @@ class FileTreeWidget(QtWidgets.QWidget):
             return getattr(self.tree_widget, name)
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
+    def keyPressEvent(self, event):
+        self.tree_widget.keyPressEvent(event)
+
+
 if __name__ == "__main__":
     app = QtWidgets.QApplication([])
     w = FileTreeWidget()
