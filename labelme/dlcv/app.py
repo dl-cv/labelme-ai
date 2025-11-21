@@ -1159,11 +1159,19 @@ class MainWindow(MainWindow):
     def loadFile(self, filename=None):
         """Load the specified file, or the last opened file if None."""
         # changing fileListWidget loads file
+        # if filename in self.imageList and (self.fileListWidget.currentRow()
+        #                                    != self.imageList.index(filename)):
+        #     self.fileListWidget.setCurrentRow(self.imageList.index(filename))
+        #     self.fileListWidget.repaint()
+        #     return
+
+        # changing fileListWidget loads file
         if filename in self.imageList and (self.fileListWidget.currentRow()
                                            != self.imageList.index(filename)):
             self.fileListWidget.setCurrentRow(self.imageList.index(filename))
             self.fileListWidget.repaint()
-            return
+            # return 不需要 return
+
         """保存当前图片的滚动条百分比"""
         hbar = self.get_horizontal_scrollbar()
         vbar = self.get_vertical_scrollbar()
