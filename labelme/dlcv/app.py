@@ -2941,19 +2941,7 @@ class MainWindow(MainWindow):
             if hasattr(self, "_prev_create_mode"):
                 self.toggleDrawMode(False, createMode=self._prev_create_mode)
             else:
-                # 定义空格提示的间隔（毫秒）
-                space_gap = 3000
-                current_time = time.time() * 1000  # 转换为毫秒
-                
-                # 只有距离上次提示超过3秒才再次提示
-                if current_time - self._last_space_warning_time > space_gap:
-                    notification(
-                        dlcv_tr("请先进行一次标注"),
-                        dlcv_tr("请先进行一次标注后再切换编辑模式"),
-                        ToastPreset.WARNING,
-                        3000,
-                    )
-                    self._last_space_warning_time = current_time
+                self._prev_create_mode = 'polygon'
 
     # ------------ 编辑和绘制状态切换新动作 end ------------
 
