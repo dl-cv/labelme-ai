@@ -2,7 +2,7 @@ from PyQt5 import QtWidgets
 from openpyxl.styles.builtins import total
 
 from labelme.dlcv.shape import Shape
-from labelme.dlcv import tr
+from labelme.dlcv import dlcv_tr
 from labelme.utils.qt import newIcon
 from collections import Counter
 import os
@@ -10,7 +10,7 @@ import json
 
 class LabelCountDock(QtWidgets.QDockWidget):
     def __init__(self, parent=None):
-        super().__init__(tr("标签/文本标记数量统计"), parent)
+        super().__init__(dlcv_tr("标签/文本标记数量统计"), parent)
         self.setObjectName("label_count_dock")
         self.setWindowIcon(newIcon("label_count"))
 

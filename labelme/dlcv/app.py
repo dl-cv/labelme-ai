@@ -31,7 +31,7 @@ from labelme import __appname__
 from labelme.app import *
 from labelme.dlcv.utils_func import notification, normalize_16b_gray_to_uint8
 from labelme.dlcv.store import STORE
-from labelme.dlcv import tr
+from labelme.dlcv import dlcv_tr
 from labelme.utils.qt import removeAction, newIcon
 from shapely.geometry import Polygon
 from labelme.dlcv.shape import ShapeType
@@ -1623,10 +1623,10 @@ class MainWindow(MainWindow):
 
         # 修改快捷键文本
         self.actions.openNextImg.setIconText(
-            tr("open next image") +
+            dlcv_tr("open next image") +
             f"({self.actions.openNextImg.shortcut().toString()})")
         self.actions.openPrevImg.setIconText(
-            tr("open previous image") +
+            dlcv_tr("open previous image") +
             f"({self.actions.openPrevImg.shortcut().toString()})")
 
         # 添加 ctrl + A 全选多边形
@@ -1750,13 +1750,13 @@ class MainWindow(MainWindow):
                 "name":
                     "proj_setting",
                 "title":
-                    tr("project setting"),
+                    dlcv_tr("project setting"),
                 "type":
                     "group",
                 "children": [
                     {
                         "name": "proj_type",
-                        "title": tr("project type"),
+                        "title": dlcv_tr("project type"),
                         "type": "list",
                         "limits": [ProjEnum.NORMAL, ProjEnum.O3D],
                         "default": ProjEnum.NORMAL,
@@ -1767,7 +1767,7 @@ class MainWindow(MainWindow):
                 "name":
                     "other_setting",
                 "title":
-                    tr("other setting"),
+                    dlcv_tr("other setting"),
                 "type":
                     "group",
                 "children": [
@@ -1775,7 +1775,7 @@ class MainWindow(MainWindow):
                         "name":
                             "display_shape_label",
                         "title":
-                            tr("display shape label"),
+                            dlcv_tr("display shape label"),
                         "type":
                             "bool",
                         "value":
@@ -1789,7 +1789,7 @@ class MainWindow(MainWindow):
                         "name":
                             "shape_label_font_size",
                         "title":
-                            tr("shape label font size"),
+                            dlcv_tr("shape label font size"),
                         "type":
                             "int",
                         "value":
@@ -1807,7 +1807,7 @@ class MainWindow(MainWindow):
                         "name":
                             "scale_option",
                         "title":
-                            tr("keep prev scale"),
+                            dlcv_tr("keep prev scale"),
                         "type":
                             "list",
                         "value":
@@ -1821,14 +1821,14 @@ class MainWindow(MainWindow):
                     },
                     {
                         "name": "convert_img_to_gray",
-                        "title": tr("convert img to gray"),
+                        "title": dlcv_tr("convert img to gray"),
                         "type": "bool",
                         "value": STORE.convert_img_to_gray,
                         "default": STORE.convert_img_to_gray,
                     },
                     {
                         "name": "points_to_crosshair",
-                        "title": tr("points to crosshair"),
+                        "title": dlcv_tr("points to crosshair"),
                         "type": "bool",
                         "value": STORE.canvas_points_to_crosshair,
                         "default": STORE.canvas_points_to_crosshair,
@@ -1840,12 +1840,12 @@ class MainWindow(MainWindow):
                 "name":
                     "label_setting",
                 "title":
-                    tr("label setting"),
+                    dlcv_tr("label setting"),
                 "type":
                     "group",
                 "children": [{
                     "name": "blue_line_color",
-                    "title": tr("蓝色线段标注"),
+                    "title": dlcv_tr("蓝色线段标注"),
                     "type": "bool",
                     "value": False,
                     "default": False,
@@ -1854,7 +1854,7 @@ class MainWindow(MainWindow):
                     "name":
                         "slide_label",
                     "title":
-                        tr("slide label"),
+                        dlcv_tr("slide label"),
                     "type":
                         "bool",
                     "value":
@@ -1867,13 +1867,13 @@ class MainWindow(MainWindow):
                         "启用滑动标注将禁用画笔标注功能，两者互斥",
                 }, {
                     "name": "slide_distance",
-                    "title": tr("slide distance"),
+                    "title": dlcv_tr("slide distance"),
                     "type": "int",
                     "value": 30,
                     "default": 30,
                 }, {
                     "name": "brush_enabled",
-                    "title": tr("brush enabled"),
+                    "title": dlcv_tr("brush enabled"),
                     "type": "bool",
                     "value": STORE.canvas_brush_enabled,
                     "default": STORE.canvas_brush_enabled,
@@ -1881,27 +1881,27 @@ class MainWindow(MainWindow):
                     "tip": "画笔标注功能仅适用于多边形标注模式，启用画笔标注将禁用滑动标注功能，两者互斥",
                 }, {
                     "name": "fill_closed_region",
-                    "title": tr("fill closed region"),
+                    "title": dlcv_tr("fill closed region"),
                     "type": "bool",
                     "value": STORE.canvas_brush_fill_region,
                     "default": STORE.canvas_brush_fill_region,
                     "tip": "启用后，闭合区域内部将被填充，否则仅保留轮廓",
                 }, {
                     "name": "brush_size",
-                    "title": tr("brush size"),
+                    "title": dlcv_tr("brush size"),
                     "type": "int",
                     "value": STORE.canvas_brush_size,
                     "default": STORE.canvas_brush_size,
                     "min": 3,
                 }, {
                     "name": "highlight_start_point",
-                    "title": tr("highlight start point"),
+                    "title": dlcv_tr("highlight start point"),
                     "type": "bool",
                     "value": False,
                     "default": False,
                 }, {
                     "name": "display_rotation_arrow",
-                    "title": tr("显示旋转框箭头与角度"),
+                    "title": dlcv_tr("显示旋转框箭头与角度"),
                     "type": "bool",
                     "value": STORE.canvas_display_rotation_arrow,
                     "default": STORE.canvas_display_rotation_arrow,
@@ -1909,7 +1909,7 @@ class MainWindow(MainWindow):
                     "name":
                         "ai_polygon_simplify_epsilon",
                     "title":
-                        tr("AI多边形点数简化设置"),
+                        dlcv_tr("AI多边形点数简化设置"),
                     "type":
                         "float",
                     "value":
@@ -1930,20 +1930,20 @@ class MainWindow(MainWindow):
                 "name":
                     "auto_setting",
                 "title":
-                    tr("auto setting"),
+                    dlcv_tr("auto setting"),
                 "type":
                     "group",
                 "children": [
                     {
                         "name": "use_bbox",
-                        "title": tr("使用Bbox进行自动标注"),
+                        "title": dlcv_tr("使用Bbox进行自动标注"),
                         "type": "bool",
                         "value": False,
                         "default": False,
                     },
                     {
                         "name": "category_filter_list",
-                        "title": tr("请输入需要自动标注的类别"),
+                        "title": dlcv_tr("请输入需要自动标注的类别"),
                         "type": "text",
                         "placeholder": "请输入需要自动标注的类别，多个类别用,或，隔开",
                         "value": "",
@@ -1991,7 +1991,7 @@ class MainWindow(MainWindow):
                         raise ValueError(f"不支持的类型: {child_type}")
                     self.addAction(action)
 
-        self.setting_dock = QtWidgets.QDockWidget(tr("setting dock"), self)
+        self.setting_dock = QtWidgets.QDockWidget(dlcv_tr("setting dock"), self)
         self.setting_dock.setObjectName("setting_dock")
         self.setting_dock.setWidget(self.parameter_tree)
         self.addDockWidget(Qt.RightDockWidgetArea, self.setting_dock)
@@ -2289,7 +2289,7 @@ class MainWindow(MainWindow):
 
 
     def _init_text_flag_wgt(self):
-        self.flag_dock.setWindowTitle(tr("Flags"))
+        self.flag_dock.setWindowTitle(dlcv_tr("Flags"))
         self.add_text_flag_action = QtWidgets.QAction("创建文本标记", self)
         self.add_text_flag_action.setShortcut(
             self._config["shortcuts"]["add_text_flag"])
@@ -2298,11 +2298,11 @@ class MainWindow(MainWindow):
         self.dialog_text_flag = QtWidgets.QInputDialog(self)
         # 对话框大一点
         self.dialog_text_flag.resize(400, 300)
-        self.dialog_text_flag.setWindowTitle(tr("Add Text Flag"))
+        self.dialog_text_flag.setWindowTitle(dlcv_tr("Add Text Flag"))
         # 去掉标题栏的 ?
         self.dialog_text_flag.setWindowFlags(self.dialog_text_flag.windowFlags() & ~QtCore.Qt.WindowContextHelpButtonHint)
 
-        self.dialog_text_flag.setLabelText(tr("Please enter the text flag"))
+        self.dialog_text_flag.setLabelText(dlcv_tr("Please enter the text flag"))
 
         def add_text_flag():
             dialog = self.dialog_text_flag

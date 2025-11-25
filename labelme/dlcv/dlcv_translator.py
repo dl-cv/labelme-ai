@@ -3,8 +3,8 @@ class DlcvTrObject:
     # 兼容成类似 qt 的 tr 函数
     @staticmethod
     def tr(text):
-        from labelme.dlcv import tr
-        return tr(text)
+        from labelme.dlcv import dlcv_tr
+        return dlcv_tr(text)
 
 
 class DlcvTranslator:
@@ -74,4 +74,4 @@ tr_map = {
     },
 }
 
-tr = DlcvTranslator()
+dlcv_tr = DlcvTranslator()

@@ -1,1 +1,1 @@
-from .dlcv_translator import DlcvTranslator, DlcvTrObject, tr
+from .dlcv_translator import DlcvTranslator, DlcvTrObject, dlcv_tr
