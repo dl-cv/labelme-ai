@@ -8,7 +8,8 @@ import labelme.dlcv.label_file
 import labelme.dlcv.shape
 
 sys.modules["labelme.shape"] = (
-    labelme.dlcv.shape)  # 使用 from xxx import 时形式导入时, 会导致无法替换, 所以使用 sys.modules
+    labelme.dlcv.shape
+)  # 使用 from xxx import 时形式导入时, 会导致无法替换, 所以使用 sys.modules
 sys.modules["labelme.ai"] = labelme.dlcv.ai  # 替换 ai 模块
 sys.modules["labelme.label_file"] = labelme.dlcv.label_file
 
@@ -31,13 +32,17 @@ from labelme import __appname__
 from labelme.app import *
 from labelme.dlcv.utils_func import notification, normalize_16b_gray_to_uint8
 from labelme.dlcv.store import STORE
-from labelme.dlcv import tr
+from labelme.dlcv import dlcv_tr
 from labelme.utils.qt import removeAction, newIcon
 from shapely.geometry import Polygon
 from labelme.dlcv.shape import ShapeType
 from labelme.utils import print_time  # noqa
 from labelme.dlcv.shape import Shape
-from labelme.dlcv.widget.viewAttribute import get_shape_attribute, get_window_position, viewAttribute
+from labelme.dlcv.widget.viewAttribute import (
+    get_shape_attribute,
+    get_window_position,
+    viewAttribute,
+)
 from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
 import os
 from labelme.dlcv.widget.label_count import LabelCountDock
@@ -103,12 +108,9 @@ class MainWindow(MainWindow):
     canvas: labelme.dlcv.canvas.Canvas
     sig_auto_label_all_update = QtCore.Signal(object)
 
-    def __init__(self,
-                 config=None,
-                 filename=None,
-                 output=None,
-                 output_file=None,
-                 output_dir=None):
+    def __init__(
+        self, config=None, filename=None, output=None, output_file=None, output_dir=None
+    ):
         # extra 额外属性
         self.action_refresh = None
         STORE.register_main_window(self)
@@ -126,29 +128,37 @@ class MainWindow(MainWindow):
         # https://bbs.dlcv.ai/t/topic/86
         self.addDockWidget(Qt.LeftDockWidgetArea, self.file_dock)
 
-        # 
-        self.menus.help.actions()[0].setText("使用文档")
+        #
+        self.menus.help.actions()[0].setText(dlcv_tr("使用文档"))
 
         self._init_dev_mode()
         self._init_ui()
         self.actions.copy.setEnabled(True)
-        
-        # 修改复制动作的文本为"复制图片"
-        self.actions.copy.setText("复制图片")
+
+        # 修改复制动作的文本
+        self.actions.copy.setText(dlcv_tr("复制图片"))
 
         self._init_edit_mode_action()  # 初始化编辑模式切换动作
         STORE.set_edit_label_name(self._edit_label)
 
+        # 新增设置菜单
+        self._init_setting_menu()
         # APPData 目录
-        APPDATA_DIR = os.path.expanduser(
-            "~"
-        ) + os.sep + "AppData" + os.sep + "Roaming" + os.sep + "dlcv"  # "C:\Users\{用户名}\AppData\Roaming\dlcv"
+        APPDATA_DIR = (
+            os.path.expanduser("~")
+            + os.sep
+            + "AppData"
+            + os.sep
+            + "Roaming"
+            + os.sep
+            + "dlcv"
+        )  # "C:\Users\{用户名}\AppData\Roaming\dlcv"
         self.LABEL_TXT_DIR = APPDATA_DIR + os.sep + "labelme_ai"
 
         # 确保标签txt目录存在
         if not os.path.exists(self.LABEL_TXT_DIR):
             os.makedirs(self.LABEL_TXT_DIR, exist_ok=True)
-        
+
     # https://bbs.dlcv.com.cn/t/topic/590
     # 编辑标签
     def _edit_label(self, value=None):
@@ -174,13 +184,13 @@ class MainWindow(MainWindow):
             # https://bbs.dlcv.com.cn/t/topic/1057
             edit_text = True
             # extra end
-            edit_flags = all(item.shape().flags == shape.flags
-                             for item in items[1:])
-            edit_group_id = all(item.shape().group_id == shape.group_id
-                                for item in items[1:])
+            edit_flags = all(item.shape().flags == shape.flags for item in items[1:])
+            edit_group_id = all(
+                item.shape().group_id == shape.group_id for item in items[1:]
+            )
             edit_description = all(
-                item.shape().description == shape.description
-                for item in items[1:])
+                item.shape().description == shape.description for item in items[1:]
+            )
 
         if not edit_text:
             self.labelDialog.edit.setDisabled(True)
@@ -262,7 +272,7 @@ class MainWindow(MainWindow):
     # region 开发者模式
     def _init_dev_mode(self):
         # https://bbs.dlcv.ai/t/topic/195
-        action = QtWidgets.QAction("开发者模式", self)
+        action = QtWidgets.QAction(dlcv_tr("开发者模式"), self)
         action.setShortcut("Ctrl+L")
         action.setCheckable(True)
         action.triggered.connect(self.dev_dialog_popup)
@@ -270,13 +280,13 @@ class MainWindow(MainWindow):
 
     def dev_dialog_popup(self):
         dialog = QtWidgets.QDialog(self, Qt.WindowCloseButtonHint)
-        dialog.setWindowTitle("开发者模式")
+        dialog.setWindowTitle(dlcv_tr("开发者模式"))
         dialog.setFixedSize(400, 300)
 
         layout = QtWidgets.QVBoxLayout()
         dialog.setLayout(layout)
 
-        label = QtWidgets.QLabel("开发者密码")
+        label = QtWidgets.QLabel(dlcv_tr("开发者密码"))
         line_edit = QtWidgets.QLineEdit()
         line_edit.setEchoMode(QtWidgets.QLineEdit.Password)
 
@@ -285,7 +295,7 @@ class MainWindow(MainWindow):
         top_layout.addWidget(line_edit)
         layout.addLayout(top_layout)
 
-        button = QtWidgets.QPushButton("确定")
+        button = QtWidgets.QPushButton(dlcv_tr("确定"))
         layout.addWidget(button)
         button.clicked.connect(dialog.accept)
 
@@ -300,7 +310,7 @@ class MainWindow(MainWindow):
 
     def tutorial(self):
         # url = 'https://github.com/labelmeai/labelme/tree/main/examples/tutorial'
-        url = r'https://docs.dlcv.com.cn/labelme/basic%20function/'
+        url = r"https://docs.dlcv.com.cn/labelme/basic%20function/"
         # url = "https://bbs.dlcv.com.cn/labelmeai"  # NOQA
         webbrowser.open(url)
 
@@ -316,20 +326,22 @@ class MainWindow(MainWindow):
 
         # 加载读取标签文件
         load_label_file_action = create_action(
-            self.tr("加载标签文件"),
+            dlcv_tr("加载标签文件"),
             self.load_label_txt_action_callback,
             "objects",
             enabled=True,
-            icon='labels')
+            icon="labels",
+        )
         self.actions.load_label_file = load_label_file_action
         self.actions.tool.insert(1, self.actions.load_label_file)
 
         save_label_file_action = create_action(
-            self.tr("保存标签文件"),
+            dlcv_tr("保存标签文件"),
             self.save_label_txt_file,
             "objects",
             enabled=True,
-            icon='save-as')
+            icon="save-as",
+        )
         self.actions.save_label_file = save_label_file_action
         self.actions.tool.insert(2, self.actions.save_label_file)
 
@@ -340,11 +352,11 @@ class MainWindow(MainWindow):
 
         self.action_refresh = utils.newAction(
             self,
-            "刷新(F5)",
+            dlcv_tr("刷新(F5)"),
             refresh,
             "F5",
             "refresh",
-            "刷新文件夹",
+            dlcv_tr("刷新文件夹"),
         )
         self.addAction(self.action_refresh)
         self.actions.tool.insert(14, self.action_refresh)
@@ -352,37 +364,38 @@ class MainWindow(MainWindow):
         # 创建AI多边形
         ai_polygon_mode = self.actions.createAiPolygonMode
         ai_polygon_mode.setIconText(
-            ai_polygon_mode.text() +
-            f"({ai_polygon_mode.shortcut().toString()})")
+            ai_polygon_mode.text() + f"({ai_polygon_mode.shortcut().toString()})"
+        )
         self.actions.tool.insert(8, self.actions.createAiPolygonMode)
 
         # 创建多边形
         createMode = self.actions.createMode
         # 设置按钮提示文本
         createMode.setIconText(
-            createMode.text() +
-            f"({createMode.shortcut().toString()})")
+            createMode.text() + f"({createMode.shortcut().toString()})"
+        )
 
         # 创建矩形框
-        createRectangleMode = self.actions.createRectangleMode 
+        createRectangleMode = self.actions.createRectangleMode
         # 设置按钮提示文本
         createRectangleMode.setIconText(
-            createRectangleMode.text() +
-            f"({createRectangleMode.shortcut().toString()})")
+            createRectangleMode.text()
+            + f"({createRectangleMode.shortcut().toString()})"
+        )
         self.actions.tool.insert(10, self.actions.createRectangleMode)  # 插入到合适位置
 
         # 创建旋转框
         createRotationMode = create_action(
-            self.tr("创建旋转框"),
+            dlcv_tr("创建旋转框"),
             lambda: self.toggleDrawMode(False, createMode="rotation"),
             "R",  # 快捷键
             "objects",
-            self.tr("开始绘制旋转框 (R)"),
+            dlcv_tr("开始绘制旋转框 (R)"),
             enabled=True,
         )
         createRotationMode.setIconText(
-            createRotationMode.text() +
-            f"({createRotationMode.shortcut().toString()})")
+            createRotationMode.text() + f"({createRotationMode.shortcut().toString()})"
+        )
         self.actions.createRotationMode = createRotationMode
         self.actions.tool.insert(11, self.actions.createRotationMode)  # 插入到合适位置
 
@@ -398,8 +411,9 @@ class MainWindow(MainWindow):
 
         # 编辑多边形,添加快捷键文本
         tool_action = self.actions.tool[8]
-        tool_action.setIconText(self.actions.tool[8].text() +
-                                f"({tool_action.shortcut().toString()})")
+        tool_action.setIconText(
+            self.actions.tool[8].text() + f"({tool_action.shortcut().toString()})"
+        )
 
         # 工具栏去除上一幅下一幅
         self.actions.tool.remove(self.actions.openNextImg)
@@ -434,9 +448,8 @@ class MainWindow(MainWindow):
         utils.addActions(self.menus.edit, actions + self.actions.editMenu)
 
         # 添加查看属性动作
-        self.actions.action_view_shape_attr = QtWidgets.QAction("查看属性", self)
-        self.actions.action_view_shape_attr.triggered.connect(
-            self.display_shape_attr)
+        self.actions.action_view_shape_attr = QtWidgets.QAction(dlcv_tr("查看属性"), self)
+        self.actions.action_view_shape_attr.triggered.connect(self.display_shape_attr)
         self.addAction(self.actions.action_view_shape_attr)
         self.actions.menu = list(self.actions.menu)
 
@@ -450,6 +463,140 @@ class MainWindow(MainWindow):
         utils.addActions(self.canvas.menus[0], self.actions.menu)
         # ------------ 查看属性 end ------------
 
+    def initialize_language_context(self, lang_code: str, translator):
+        self.current_language = lang_code or "zh_CN"
+        self._qt_translator = translator
+        try:
+            dlcv_tr.set_lang(self.current_language)
+        except Exception:
+            pass
+        self._update_language_menu_checks(self.current_language)
+        self.retranslate_ui()
+
+    def _text_by_language(self, zh_text: str, en_text: str) -> str:
+        lang = getattr(self, "current_language", "zh_CN")
+        return zh_text if lang == "zh_CN" else en_text
+
+    def _update_language_menu_checks(self, lang_code: str):
+        lang = lang_code or "zh_CN"
+        if hasattr(self, "actions"):
+            if hasattr(self.actions, "lang_en"):
+                self.actions.lang_en.setChecked(lang == "en_US")
+            if hasattr(self.actions, "lang_zh"):
+                self.actions.lang_zh.setChecked(lang != "en_US")
+
+    # 新增设置菜单
+    def _init_setting_menu(self):
+        # 在菜单栏添加设置菜单选项
+        self.menus.setting = self.menu(
+            self._text_by_language("系统设置", "System Settings")
+        )
+
+        # region
+        # 语言子菜单
+        self.menus.setting_lang = self.menus.setting.addMenu(dlcv_tr("语言(Language)")
+        )
+        lang_group = QtWidgets.QActionGroup(self)
+        lang_group.setExclusive(True)
+
+        self.actions.lang_zh = QtWidgets.QAction(
+            self._text_by_language("简体中文", "Simplified Chinese"), self
+        )
+        self.actions.lang_zh.setCheckable(True)
+        self.actions.lang_zh.setData("zh_CN")
+        self.actions.lang_en = QtWidgets.QAction(
+            self._text_by_language("英文", "English"), self
+        )
+        self.actions.lang_en.setCheckable(True)
+        self.actions.lang_en.setData("en_US")
+
+        lang_group.addAction(self.actions.lang_zh)
+        lang_group.addAction(self.actions.lang_en)
+        self.menus.setting_lang.addAction(self.actions.lang_zh)
+        self.menus.setting_lang.addAction(self.actions.lang_en)
+
+        stored_lang = getattr(self, "current_language", None)
+        if stored_lang:
+            current_lang = stored_lang
+        else:
+            current_lang = QtCore.QSettings("labelme", "labelme").value(
+                "ui/language", "zh_CN"
+            )
+        if current_lang == "en_US":
+            self.actions.lang_en.setChecked(True)
+        else:
+            self.actions.lang_zh.setChecked(True)
+
+        lang_group.triggered.connect(lambda act: self._on_change_language(act.data()))
+        # endregion
+
+        # region
+        # 字体大小子菜单（应用全局 UI 字体大小）
+        self.menus.setting_font = self.menus.setting.addMenu(
+            self._text_by_language("字体大小", "Font Size")
+        )
+        font_group = QtWidgets.QActionGroup(self)
+        font_group.setExclusive(True)
+        font_sizes = [8, 9, 10, 12, 14, 16, 18, 20]
+
+        # 当前字号：优先读取设置；否则读取当前应用字体
+        try:
+            current_font_size = self.settings.value(
+                "ui/font_point_size", None, type=int
+            )
+        except Exception:
+            current_font_size = None
+        if current_font_size is None:
+            app = QtWidgets.QApplication.instance()
+            if app is not None:
+                current_font_size = app.font().pointSize()
+
+        self.actions.font_size_actions = []
+        for size in font_sizes:
+            act = QtWidgets.QAction(f"{size}", self)
+            act.setCheckable(True)
+            act.setData(size)
+            if current_font_size == size:
+                act.setChecked(True)
+            font_group.addAction(act)
+            self.menus.setting_font.addAction(act)
+            self.actions.font_size_actions.append(act)
+
+        font_group.triggered.connect(
+            lambda act: self._on_change_ui_font_point_size(int(act.data()))
+        )
+        # endregion
+
+        # 尾部分隔线（预留未来扩展）
+        self.menus.setting.addSeparator()
+
+    def _on_change_language(self, lang_code: str):
+        lang_code = lang_code or "zh_CN"
+        if lang_code == getattr(self, "current_language", "zh_CN"):
+            return
+        # 保存到设置
+        try:
+            self.settings.setValue("ui/language", lang_code)
+        except Exception:
+            QtCore.QSettings("labelme", "labelme").setValue("ui/language", lang_code)
+
+    def _on_change_ui_font_point_size(self, point_size: int):
+        # 应用到全局 UI 字体
+        app = QtWidgets.QApplication.instance()
+        if app is not None and isinstance(point_size, int) and point_size > 0:
+            font = app.font()
+            font.setPointSize(point_size)
+            app.setFont(font)
+        try:
+            self.settings.setValue("ui/font_point_size", int(point_size))
+        except Exception:
+            pass
+        notification(
+            self._text_by_language("字体大小", "Font Size"),
+            self._text_by_language(f"已设置为 {point_size}", f"Set to {point_size}"),
+            ToastPreset.INFORMATION,
+        )
+
     # https://bbs.dlcv.ai/t/topic/94
     def closeEvent(self, event):
         super().closeEvent(event)
@@ -458,29 +605,21 @@ class MainWindow(MainWindow):
         # extra 保存设置
         # 保存store里面的设置
         setting_store = {
-            "display_shape_label":
-                STORE.canvas_display_shape_label,
-            "shape_label_font_size":    # 新增：保存标签字体大小
-                STORE.canvas_shape_label_font_size,
-            "highlight_start_point":
-                STORE.canvas_highlight_start_point,
-            "convert_img_to_gray":
-                STORE.convert_img_to_gray,
-            "canvas_display_rotation_arrow":
-                STORE.canvas_display_rotation_arrow,
-            "canvas_brush_fill_region":
-                STORE.canvas_brush_fill_region,
-            "canvas_brush_enabled":
-                STORE.canvas_brush_enabled,  # 新增：保存画笔标注设置
-            "canvas_brush_size":
-                STORE.canvas_brush_size,  # 新增：保存画笔大小
-            "canvas_points_to_crosshair":
-                STORE.canvas_points_to_crosshair,  # 新增：保存点转十字设置
-            "scale_option":
-                self.parameter.child("other_setting", "scale_option").value(),
-            "ai_polygon_simplify_epsilon":
-                self.parameter.child("label_setting",
-                                     "ai_polygon_simplify_epsilon").value()
+            "display_shape_label": STORE.canvas_display_shape_label,
+            "shape_label_font_size": STORE.canvas_shape_label_font_size,  # 新增：保存标签字体大小
+            "highlight_start_point": STORE.canvas_highlight_start_point,
+            "convert_img_to_gray": STORE.convert_img_to_gray,
+            "canvas_display_rotation_arrow": STORE.canvas_display_rotation_arrow,
+            "canvas_brush_fill_region": STORE.canvas_brush_fill_region,
+            "canvas_brush_enabled": STORE.canvas_brush_enabled,  # 新增：保存画笔标注设置
+            "canvas_brush_size": STORE.canvas_brush_size,  # 新增：保存画笔大小
+            "canvas_points_to_crosshair": STORE.canvas_points_to_crosshair,  # 新增：保存点转十字设置
+            "scale_option": self.parameter.child(
+                "other_setting", "scale_option"
+            ).value(),
+            "ai_polygon_simplify_epsilon": self.parameter.child(
+                "label_setting", "ai_polygon_simplify_epsilon"
+            ).value(),
         }
         self.settings.setValue("setting_store", setting_store)
         self.__store_splitter_sizes()
@@ -489,9 +628,9 @@ class MainWindow(MainWindow):
     # 加载标签文件
     def load_label_txt_action_callback(self):
         file_dialog = QtWidgets.QFileDialog(self)
-        file_dialog.setWindowTitle("选择要加载的标签txt文件")
+        file_dialog.setWindowTitle(dlcv_tr("选择要加载的标签txt文件"))
         file_dialog.setDirectory(self.LABEL_TXT_DIR)
-        file_dialog.setNameFilter("标签文件 (*.txt)")
+        file_dialog.setNameFilter(dlcv_tr("标签文件 (*.txt)"))
         file_dialog.setFileMode(QtWidgets.QFileDialog.ExistingFile)
         if file_dialog.exec_() == QtWidgets.QFileDialog.Accepted:
             file_path = file_dialog.selectedFiles()[0]
@@ -499,13 +638,16 @@ class MainWindow(MainWindow):
 
     def _load_label_txt(self, file_path):
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
             all_labels = [line.strip() for line in lines if line.strip()]
 
             if not all_labels:
-                notification("标签文件为空", f"该标签文件没有任何标签。",
-                             ToastPreset.INFORMATION)
+                notification(
+                    dlcv_tr("标签文件为空"),
+                    dlcv_tr("该标签文件没有任何标签。"),
+                    ToastPreset.INFORMATION,
+                )
                 return
 
             loaded_count = 0
@@ -518,20 +660,26 @@ class MainWindow(MainWindow):
                     loaded_count += 1
 
             if loaded_count > 0:
-                notification("标签加载完成", f"成功加载 {loaded_count} 个新标签。",
-                             ToastPreset.SUCCESS)
+                notification(
+                    dlcv_tr("标签加载完成"),
+                    dlcv_tr("成功加载 {count} 个新标签。").format(count=loaded_count),
+                    ToastPreset.SUCCESS,
+                )
             else:
-                notification("标签加载完成", f"未发现新标签，所有标签已存在。",
-                             ToastPreset.INFORMATION)
+                notification(
+                    dlcv_tr("标签加载完成"),
+                    dlcv_tr("未发现新标签，所有标签已存在。"),
+                    ToastPreset.INFORMATION,
+                )
         except Exception as e:
-            notification("加载标签文件失败", str(e), ToastPreset.ERROR)
+            notification(dlcv_tr("加载标签文件失败"), str(e), ToastPreset.ERROR)
 
-    
     # 新增保存标签文件控件
     def save_label_txt_file(self):
         # 弹出文件名输入框，让用户指定文件名
         file_name, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self, "保存标签文件", self.LABEL_TXT_DIR, "标签文件 (*.txt)")
+            self, dlcv_tr("保存标签文件"), self.LABEL_TXT_DIR, dlcv_tr("标签文件 (*.txt)")
+        )
         if file_name:
             self._save_label_txt(file_name)
 
@@ -545,41 +693,41 @@ class MainWindow(MainWindow):
         label_set = set()
         for i in range(self.uniqLabelList.count()):
             item = self.uniqLabelList.item(i)
-            label = item.data(Qt.UserRole) if hasattr(item,
-                                                      'data') else item.text()
+            label = item.data(Qt.UserRole) if hasattr(item, "data") else item.text()
             label_set.add(label)
         # 优化文件名后缀处理，确保只保存为txt文件
         filename = str(filename).strip()
         suffix = Path(filename).suffix.lower()
-        if suffix != '.txt':
+        if suffix != ".txt":
             # 去除原有后缀，强制添加.txt
-            filename = Path(filename).stem + '.txt'
+            filename = Path(filename).stem + ".txt"
         file_path = os.path.join(self.LABEL_TXT_DIR, filename)
-        with open(file_path, 'w', encoding='utf-8') as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             for label in sorted(label_set):
-                f.write(label + '\n')
-        logger.info(f'保存标签到 {file_path}')
+                f.write(label + "\n")
+        logger.info(f"保存标签到 {file_path}")
         return file_path
-    
+
     # 初始化修改颜色action并添加到右键菜单
     def _init_shape_color_action(self):
         """初始化修改颜色功能"""
         from labelme.dlcv.utils.change_shape_color import init_change_color_action
+
         init_change_color_action(self)
-        
+
     # ------------ Ctrl + C 触发函数 复制图片 ------------
     def copySelectedShape(self):
         """
         复制当前图片。
         """
         self.copy_image_to_clipboard()
-        
-    # 当选中形状变化时        
+
+    # 当选中形状变化时
     def shapeSelectionChanged(self, selected_shapes):
         super().shapeSelectionChanged(selected_shapes)
         self.actions.copy.setEnabled(True)
         # 使用保存的action对象，而不是方法
-        if hasattr(self.actions, 'changeColor'):
+        if hasattr(self.actions, "changeColor"):
             n_selected = len(selected_shapes)
             self.actions.changeColor.setEnabled(n_selected > 0)
 
@@ -591,8 +739,8 @@ class MainWindow(MainWindow):
 
         if not file_path:
             notification(
-                "提示",
-                "请先选中一张图片。",
+                dlcv_tr("提示"),
+                dlcv_tr("请先选中一张图片。"),
                 ToastPreset.WARNING,
             )
             return
@@ -600,115 +748,124 @@ class MainWindow(MainWindow):
         try:
             copy_file_to_clipboard(file_path)
             notification(
-                "复制成功",
-                "图片已复制到剪贴板，可直接粘贴为文件。",
+                dlcv_tr("复制成功"),
+                dlcv_tr("图片已复制到剪贴板，可直接粘贴为文件。"),
                 ToastPreset.SUCCESS,
             )
         except Exception as e:
             notification(
-                "复制失败",
+                dlcv_tr("复制失败"),
                 str(e),
                 ToastPreset.ERROR,
             )
 
         # ------------ Ctrl + C 触发函数 end ------------
-    
+
     # 复制形状到剪贴板  ctrl+d/ctrl+v
     def duplicateSelectedShape(self):
         """重写父类方法：复制选中的形状到剪贴板"""
         if not self.canvas.selectedShapes:
-            notification("提示", "请先选中要复制的形状", ToastPreset.WARNING)
+            notification(dlcv_tr("提示"), dlcv_tr("请先选中要复制的形状"), ToastPreset.WARNING)
             return
-            
+
         try:
             # 将选中的形状转换为可序列化的字典数据
             shapes_data = []
             for shape in self.canvas.selectedShapes:
                 shape_data = self.format_shape_for_clipboard(shape)
                 shapes_data.append(shape_data)
-            
+
             # 记录源图像路径
             source_image_path = self.filename
             logger.info(f"=== DEBUG: 记录源图像路径: {source_image_path} ===")
-            
+
             # 复制到剪贴板
             from labelme.dlcv.widget.clipboard import copy_shapes_to_clipboard
+
             copy_shapes_to_clipboard(shapes_data, source_image_path)
-            
+
             # 启用粘贴动作
             self.actions.paste.setEnabled(True)
-            
-            notification("复制成功", f"已复制 {len(shapes_data)} 个形状到剪贴板", ToastPreset.SUCCESS)
-            
+
+            notification(
+                dlcv_tr("复制成功"),
+                dlcv_tr("已复制 {count} 个形状到剪贴板").format(count=len(shapes_data)),
+                ToastPreset.SUCCESS,
+            )
+
         except Exception as e:
-            notification("复制失败", str(e), ToastPreset.ERROR)
-    
+            notification(dlcv_tr("复制失败"), str(e), ToastPreset.ERROR)
+
     # 将形状对象格式化为可序列化的字典
     def format_shape_for_clipboard(self, shape):
         """将形状对象格式化为可序列化的字典"""
-        
+
         # 创建新的数据字典，不从other_data复制，避免冲突
         data = {}
         points_data = [(p.x(), p.y()) for p in shape.points]
-        
-        data.update({
-            'label': shape.label,
-            'points': points_data,
-            'group_id': shape.group_id,
-            'description': shape.description,
-            'shape_type': shape.shape_type,
-            'flags': shape.flags,
-            'mask': None if shape.mask is None else shape.mask.tolist(),
-        })
-        
+
+        data.update(
+            {
+                "label": shape.label,
+                "points": points_data,
+                "group_id": shape.group_id,
+                "description": shape.description,
+                "shape_type": shape.shape_type,
+                "flags": shape.flags,
+                "mask": None if shape.mask is None else shape.mask.tolist(),
+            }
+        )
+
         # 如果是旋转框，添加direction属性
         if shape.shape_type == "rotation":
             data["direction"] = getattr(shape, "direction", 0.0)
         return data
-    
+
     # 从形状数据创建Shape对象
     def create_shape_from_data(self, shape_data):
         """从形状数据创建Shape对象"""
         try:
             from labelme.dlcv.shape import Shape
             from PyQt5 import QtCore
-            
+
             # 创建Shape对象
             shape = Shape()
-            
+
             # 设置基本属性
-            shape.label = shape_data.get('label', '')
-            shape.shape_type = shape_data.get('shape_type', 'polygon')
-            shape.group_id = shape_data.get('group_id')
-            shape.description = shape_data.get('description', '')
-            shape.flags = shape_data.get('flags', {})
-            
+            shape.label = shape_data.get("label", "")
+            shape.shape_type = shape_data.get("shape_type", "polygon")
+            shape.group_id = shape_data.get("group_id")
+            shape.description = shape_data.get("description", "")
+            shape.flags = shape_data.get("flags", {})
+
             # 设置点坐标
-            points = shape_data.get('points', [])
+            points = shape_data.get("points", [])
             for point in points:
                 shape.addPoint(QtCore.QPointF(point[0], point[1]))
 
             # 对于多边形等需要闭合的形状，手动调用close()
-            if shape.shape_type in ['polygon', 'linestrip'] and len(points) > 0:
+            if shape.shape_type in ["polygon", "linestrip"] and len(points) > 0:
                 shape.close()
-            
+
             # 设置mask
-            mask_data = shape_data.get('mask')
+            mask_data = shape_data.get("mask")
             if mask_data is not None:
                 import numpy as np
+
                 shape.mask = np.array(mask_data)
-            
+
             # 如果是旋转框，设置direction属性
             if shape.shape_type == "rotation":
                 shape.direction = shape_data.get("direction", 0.0)
-            
+
             return shape
-            
+
         except Exception as e:
             import traceback
+
             traceback.print_exc()
             raise
-    
+
     # 为形状添加偏移，避免与原形状重合
     def add_offset_to_shape(self, shape):
         """为形状添加偏移，避免与原形状重合"""
@@ -771,7 +928,11 @@ class MainWindow(MainWindow):
 
         if max_shape_x > max_x or max_shape_y > max_y or min_x < 0 or min_y < 0:
             # 如果形状超出边界，给出警告并调整到边界内
-            notification("警告", "粘贴的形状超出当前图像边界，已自动调整", ToastPreset.WARNING)
+            notification(
+                dlcv_tr("警告"),
+                dlcv_tr("粘贴的形状超出当前图像边界，已自动调整"),
+                ToastPreset.WARNING,
+            )
 
             # 计算缩放比例以适应新图像
             scale_x = max_x / max_shape_x if max_shape_x > max_x else 1.0
@@ -787,47 +948,54 @@ class MainWindow(MainWindow):
                 new_y = max(0, min(new_y, max_y))
                 point.setX(new_x)
                 point.setY(new_y)
-    
+
     def pasteSelectedShape(self):
         """从剪贴板粘贴形状或图像"""
         try:
             # 首先尝试从剪贴板读取形状数据
             from labelme.dlcv.widget.clipboard import paste_shapes_from_clipboard
+
             shapes_data = paste_shapes_from_clipboard()
-            
+
             if shapes_data is not None:
                 logger.info(f"=== DEBUG: 当前图像路径: {self.filename} ===")
-                
+
                 # 将形状数据转换为Shape对象并添加偏移
                 shapes = []
                 for i, shape_data in enumerate(shapes_data):
                     shape = self.create_shape_from_data(shape_data)
-                    
+
                     # 检查是否需要应用偏移（只在同一张图片上粘贴时应用偏移）
-                    source_image_path = shape_data.get('source_image_path')
+                    source_image_path = shape_data.get("source_image_path")
                     current_image_path = self.filename
-                    
+
                     if source_image_path == current_image_path:
                         logger.info(f"=== DEBUG: 在同一张图片上粘贴，应用偏移 ===")
                         # 添加偏移以避免与原形状重合
                         self.add_offset_to_shape(shape)
                     else:
-                        logger.info(f"=== DEBUG: 在不同图片上粘贴，不应用偏移，保持原始坐标 ===")
+                        logger.info(
+                            f"=== DEBUG: 在不同图片上粘贴，不应用偏移，保持原始坐标 ==="
+                        )
                         # 检查形状是否超出当前图像边界，如果超出则调整
                         self.check_and_adjust_shape_bounds(shape)
-                    
+
                     shapes.append(shape)
-                
+
                 # 加载形状到画布
                 self.loadShapes(shapes, replace=False)
                 self.setDirty()
 
                 # 粘贴完成后，立即选中
                 self.canvas.selectShapes(shapes)
-                
-                notification("粘贴成功", f"已粘贴 {len(shapes)} 个形状", ToastPreset.SUCCESS)
+
+                notification(
+                    dlcv_tr("粘贴成功"),
+                    dlcv_tr("已粘贴 {count} 个形状").format(count=len(shapes)),
+                    ToastPreset.SUCCESS,
+                )
                 return
-            
+
             # 如果没有形状数据，尝试粘贴图像
             try:
                 # 调用父类的粘贴图像功能
@@ -835,10 +1003,12 @@ class MainWindow(MainWindow):
                 return
             except Exception as e:
                 pass
-            
+
             # 如果图像粘贴也失败，尝试使用原有的_copied_shapes机制
             if not self._copied_shapes:
-                notification("提示", "剪贴板中没有可粘贴的内容", ToastPreset.WARNING)
+                notification(
+                    dlcv_tr("提示"), dlcv_tr("剪贴板中没有可粘贴的内容"), ToastPreset.WARNING
+                )
                 return
 
             nee_copy_shape = []
@@ -853,11 +1023,12 @@ class MainWindow(MainWindow):
             else:
                 self.loadShapes(self._copied_shapes, replace=False)
                 self.setDirty()
-            
+
         except Exception as e:
             import traceback
+
             traceback.print_exc()
-            notification("粘贴失败", str(e), ToastPreset.ERROR)
+            notification(dlcv_tr("粘贴失败"), str(e), ToastPreset.ERROR)
 
     def fileSelectionChanged(self):
         if not self.is_all_shapes_valid():
@@ -876,7 +1047,7 @@ class MainWindow(MainWindow):
     # https://bbs.dlcv.ai/t/topic/99
     # 保存 json 的函数： 自动保存标签
     def saveLabels(self, filename: str):
-        """ filename: json 文件路径 """
+        """filename: json 文件路径"""
         # extra 保存 3d json
         if self.is_3d:
             filename = self.getLabelFile()
@@ -894,9 +1065,13 @@ class MainWindow(MainWindow):
                     description=s.description,
                     shape_type=s.shape_type,
                     flags=s.flags,
-                    mask=(None if s.mask is None else utils.img_arr_to_b64(
-                        s.mask.astype(np.uint8))),
-                ))
+                    mask=(
+                        None
+                        if s.mask is None
+                        else utils.img_arr_to_b64(s.mask.astype(np.uint8))
+                    ),
+                )
+            )
             # 如果是旋转框，保存direction属性
             if s.shape_type == "rotation":
                 data["direction"] = s.direction
@@ -920,13 +1095,12 @@ class MainWindow(MainWindow):
             label_file = self.getLabelFile()
             if osp.exists(label_file):
                 os.remove(label_file)
-                items = self.fileListWidget.findItems(self.filename,
-                                                      Qt.MatchContains)
+                items = self.fileListWidget.findItems(self.filename, Qt.MatchContains)
                 for item in items:
                     item.setCheckState(Qt.Unchecked)
                 logger.info(f"删除{label_file}")
             # 实时更新统计信息
-            if hasattr(self, 'label_count_dock'):
+            if hasattr(self, "label_count_dock"):
                 self.label_count_dock.count_labels_in_file([], {})
             return True
 
@@ -942,10 +1116,13 @@ class MainWindow(MainWindow):
 
             # extra 3D 需要保存3D数据
             if self.is_3d and self.otherData is not None:
-                self.otherData.update({
-                    'img_name_list':
-                        self.proj_manager.get_img_name_list(self.filename),
-                })
+                self.otherData.update(
+                    {
+                        "img_name_list": self.proj_manager.get_img_name_list(
+                            self.filename
+                        ),
+                    }
+                )
 
             lf.save(
                 filename=filename,
@@ -961,25 +1138,24 @@ class MainWindow(MainWindow):
             # extra 保存成功后, self.labelFile 里的数据会被清空, 所以需要重新加载,防止别的地方调用 self.labelFile 时出错
             self.labelFile.load(filename)
             # extra End
-            items = self.fileListWidget.findItems(self.imagePath,
-                                                  Qt.MatchExactly)
+            items = self.fileListWidget.findItems(self.imagePath, Qt.MatchExactly)
             if len(items) > 0:
                 # if len(items) != 1:
                 #     raise RuntimeError("There are duplicate files.")
                 for item in items:
                     item.setCheckState(Qt.Checked)
-            
+
             # 实时更新统计信息
-            if hasattr(self, 'label_count_dock'):
+            if hasattr(self, "label_count_dock"):
                 self.label_count_dock.count_labels_in_file(self.canvas.shapes, flags)
-            
+
             # disable allows next and previous image to proceed
             # self.filename = filename
             return True
         except LabelFileError as e:
             self.errorMessage(
-                self.tr("Error saving label data"),
-                self.tr("<b>%s</b>") % e)
+                self.tr("Error saving label data"), self.tr("<b>%s</b>") % e
+            )
             return False
 
     # https://bbs.dlcv.ai/t/topic/99
@@ -1016,11 +1192,10 @@ class MainWindow(MainWindow):
         # 在弹窗前先处理AI多边形简化
         if self.canvas.createMode == "ai_polygon" and self.canvas.shapes:
             last_shape = self.canvas.shapes[-1]
-            if last_shape.shape_type == "polygon" and len(
-                    last_shape.points) > 3:
-                logger.info(f'简化前点数: {len(last_shape.points)}')
+            if last_shape.shape_type == "polygon" and len(last_shape.points) > 3:
+                logger.info(f"简化前点数: {len(last_shape.points)}")
                 self.simplifyShapePoints(last_shape)
-                logger.info(f'简化后点数: {len(last_shape.points)}')
+                logger.info(f"简化后点数: {len(last_shape.points)}")
 
         items = self.uniqLabelList.selectedItems()
         text = None
@@ -1040,7 +1215,8 @@ class MainWindow(MainWindow):
             self.errorMessage(
                 self.tr("Invalid label"),
                 self.tr("Invalid label '{}' with validation type '{}'").format(
-                    text, self._config["validate_label"]),
+                    text, self._config["validate_label"]
+                ),
             )
             text = ""
         if text:
@@ -1102,7 +1278,8 @@ class MainWindow(MainWindow):
 
             # 如果是旋转框，确保有direction属性
             if shape.shape_type == ShapeType.ROTATION and not hasattr(
-                    shape, "direction"):
+                shape, "direction"
+            ):
                 shape.direction = 0.0
 
             shape = self.fix_shape(shape)
@@ -1147,7 +1324,10 @@ class MainWindow(MainWindow):
             return self.proj_manager.get_json_path(self.filename)
         except:
             notification(
-                title="获取标签文件失败", text="代码不应该运行到这里", preset=ToastPreset.ERROR)
+                title="获取标签文件失败",
+                text="代码不应该运行到这里",
+                preset=ToastPreset.ERROR,
+            )
             raise Exception("获取标签文件失败")
 
     def get_vertical_scrollbar(self):
@@ -1166,8 +1346,9 @@ class MainWindow(MainWindow):
         #     return
 
         # changing fileListWidget loads file
-        if filename in self.imageList and (self.fileListWidget.currentRow()
-                                           != self.imageList.index(filename)):
+        if filename in self.imageList and (
+            self.fileListWidget.currentRow() != self.imageList.index(filename)
+        ):
             self.fileListWidget.setCurrentRow(self.imageList.index(filename))
             self.fileListWidget.repaint()
             # return 不需要 return
@@ -1175,10 +1356,8 @@ class MainWindow(MainWindow):
         """保存当前图片的滚动条百分比"""
         hbar = self.get_horizontal_scrollbar()
         vbar = self.get_vertical_scrollbar()
-        x_percent = hbar.value() / hbar.maximum() if hbar.maximum(
-        ) > 0 else 0.0
-        y_percent = vbar.value() / vbar.maximum() if vbar.maximum(
-        ) > 0 else 0.0
+        x_percent = hbar.value() / hbar.maximum() if hbar.maximum() > 0 else 0.0
+        y_percent = vbar.value() / vbar.maximum() if vbar.maximum() > 0 else 0.0
         last_scroll_percent = (round(x_percent, 3), round(y_percent, 3))
 
         self.resetState()
@@ -1198,8 +1377,7 @@ class MainWindow(MainWindow):
         # extra End
 
         # assumes same name, but json extension
-        self.status(
-            str(self.tr("Loading %s...")) % osp.basename(str(filename)))
+        self.status(str(self.tr("Loading %s...")) % osp.basename(str(filename)))
 
         label_file = self.getLabelFile()
         if self.output_dir:
@@ -1228,15 +1406,19 @@ class MainWindow(MainWindow):
                     cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH,
                 )
             else:
-                image = Image.open(f'{file_path}')
+                image = Image.open(f"{file_path}")
                 image = np.array(image)
                 cv_img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         except:
-            notification("提示", f"无法打开图片，请检查文件是否已损坏", ToastPreset.ERROR)
+            notification(
+                dlcv_tr("提示"), dlcv_tr("无法打开图片，请检查文件是否已损坏"), ToastPreset.ERROR
+            )
             return False
 
         if cv_img is None:
-            notification("提示", f"无法打开图片，请检查文件是否已损坏", ToastPreset.ERROR)
+            notification(
+                dlcv_tr("提示"), dlcv_tr("无法打开图片，请检查文件是否已损坏"), ToastPreset.ERROR
+            )
             return False
 
         cv_img = normalize_16b_gray_to_uint8(cv_img)
@@ -1259,9 +1441,10 @@ class MainWindow(MainWindow):
             ]
             self.errorMessage(
                 self.tr("Error opening file"),
-                self.tr("<p>Make sure <i>{0}</i> is a valid image file.<br/>"
-                        "Supported image formats: {1}</p>").format(
-                    filename, ",".join(formats)),
+                self.tr(
+                    "<p>Make sure <i>{0}</i> is a valid image file.<br/>"
+                    "Supported image formats: {1}</p>"
+                ).format(filename, ",".join(formats)),
             )
             self.status(self.tr("Error reading %s") % filename)
             return False
@@ -1274,17 +1457,18 @@ class MainWindow(MainWindow):
         self.canvas.offset = QtCore.QPointF(0, 0)
         self.canvas.loadPixmap(QtGui.QPixmap.fromImage(image))
 
-        if QtCore.QFile.exists(label_file) and LabelFile.is_label_file(
-                label_file):
+        if QtCore.QFile.exists(label_file) and LabelFile.is_label_file(label_file):
             try:
                 # 从标签文件里加载标签
                 self.labelFile = LabelFile(label_file)
             except LabelFileError as e:
                 self.errorMessage(
                     self.tr("Error opening file"),
-                    self.tr("<p><b>%s</b></p>"
-                            "<p>Make sure <i>%s</i> is a valid label file.") %
-                    (e, label_file),
+                    self.tr(
+                        "<p><b>%s</b></p>"
+                        "<p>Make sure <i>%s</i> is a valid label file."
+                    )
+                    % (e, label_file),
                 )
                 self.status(self.tr("Error reading %s") % label_file)
                 return False
@@ -1347,8 +1531,8 @@ class MainWindow(MainWindow):
             for orientation in self.scroll_values:
                 if self.filename in self.scroll_values[orientation]:
                     self.setScroll(
-                        orientation,
-                        self.scroll_values[orientation][self.filename])
+                        orientation, self.scroll_values[orientation][self.filename]
+                    )
         # set brightness contrast values
         # dialog = BrightnessContrastDialog(
         #     utils.img_data_to_pil(self.imageData),
@@ -1440,8 +1624,7 @@ class MainWindow(MainWindow):
         if self.lastOpenDir and osp.exists(self.lastOpenDir):
             defaultOpenDirPath = self.lastOpenDir
         else:
-            defaultOpenDirPath = osp.dirname(
-                self.filename) if self.filename else "."
+            defaultOpenDirPath = osp.dirname(self.filename) if self.filename else "."
 
         targetDirPath = str(
             QtWidgets.QFileDialog.getExistingDirectory(
@@ -1450,7 +1633,8 @@ class MainWindow(MainWindow):
                 defaultOpenDirPath,
                 QtWidgets.QFileDialog.ShowDirsOnly
                 | QtWidgets.QFileDialog.DontResolveSymlinks,
-            ))
+            )
+        )
         if targetDirPath:
             # extra 打开空文件夹，图片置空
             self.resetState()
@@ -1460,8 +1644,9 @@ class MainWindow(MainWindow):
     # https://bbs.dlcv.com.cn/t/topic/421
     def deleteFile(self):
         mb = QtWidgets.QMessageBox
-        msg = self.tr("You are about to permanently delete this label file, "
-                      "proceed anyway?")
+        msg = self.tr(
+            "You are about to permanently delete this label file, " "proceed anyway?"
+        )
         answer = mb.warning(self, self.tr("Attention"), msg, mb.Yes | mb.No)
         if answer != mb.Yes:
             return
@@ -1474,9 +1659,11 @@ class MainWindow(MainWindow):
         super().setDirty()
 
         if self.imagePath is not None and Path(self.imagePath) != Path(self.filename):
-            notification("Json 文件数据错误！",
-                         "当前 Json 文件中的 imagePath 与图片路径不一致，请检查！",
-                         ToastPreset.ERROR)
+            notification(
+                dlcv_tr("Json 文件数据错误！"),
+                dlcv_tr("当前 Json 文件中的 imagePath 与图片路径不一致，请检查！"),
+                ToastPreset.ERROR,
+            )
             return
 
         # extra 保存标签文件后,支持 ctrl+Delete 删除标签文件
@@ -1488,7 +1675,8 @@ class MainWindow(MainWindow):
     def openPrevImg(self, _value=False):
         keep_prev = self._config["keep_prev"]
         if QtWidgets.QApplication.keyboardModifiers() == (
-                Qt.ControlModifier | Qt.ShiftModifier):
+            Qt.ControlModifier | Qt.ShiftModifier
+        ):
             self._config["keep_prev"] = True
 
         if not self.mayContinue():
@@ -1497,9 +1685,8 @@ class MainWindow(MainWindow):
         from PyQt5 import Qt as QtControl
 
         event = QtControl.QKeyEvent(
-            QtControl.QEvent.KeyPress,
-            QtCore.Qt.Key.Key_Up,
-            QtCore.Qt.NoModifier)
+            QtControl.QEvent.KeyPress, QtCore.Qt.Key.Key_Up, QtCore.Qt.NoModifier
+        )
 
         self.fileListWidget.keyPressEvent(event)
 
@@ -1508,7 +1695,8 @@ class MainWindow(MainWindow):
     def openNextImg(self, _value=False, load=True):
         keep_prev = self._config["keep_prev"]
         if QtWidgets.QApplication.keyboardModifiers() == (
-                Qt.ControlModifier | Qt.ShiftModifier):
+            Qt.ControlModifier | Qt.ShiftModifier
+        ):
             self._config["keep_prev"] = True
 
         if not self.mayContinue():
@@ -1517,9 +1705,8 @@ class MainWindow(MainWindow):
         from PyQt5 import Qt as QtControl
 
         event = QtControl.QKeyEvent(
-            QtControl.QEvent.KeyPress,
-            QtCore.Qt.Key.Key_Down,
-            QtCore.Qt.NoModifier)
+            QtControl.QEvent.KeyPress, QtCore.Qt.Key.Key_Down, QtCore.Qt.NoModifier
+        )
 
         self.fileListWidget.keyPressEvent(event)
 
@@ -1552,6 +1739,7 @@ class MainWindow(MainWindow):
     @property
     def imageList(self):
         from labelme.dlcv.file_tree_widget import FileTreeWidget
+
         if isinstance(self.fileListWidget, FileTreeWidget):
             return self.fileListWidget.image_list
 
@@ -1568,14 +1756,12 @@ class MainWindow(MainWindow):
             if Path(file_path).is_file():
                 self.fileSelectionChanged()
 
-        self.fileListWidget.itemSelectionChanged.connect(
-            file_selection_changed)
+        self.fileListWidget.itemSelectionChanged.connect(file_selection_changed)
         self.file_dock.setWidget(self.fileListWidget)
 
     def _init_ui(self):
         self._init_label_count_dock()
-        self._init_setting_dock(
-        )  # 必须在所有的 docker widget 都初始化后才执行，否则 docker widget 不会 restore 成上一次退出时的状态
+        self._init_setting_dock()  # 必须在所有的 docker widget 都初始化后才执行，否则 docker widget 不会 restore 成上一次退出时的状态
 
         def reset_all_view():
             # 重置 docker 位置
@@ -1587,7 +1773,7 @@ class MainWindow(MainWindow):
             self.label_dock.setFloating(False)
 
         # 添加到菜单栏->视图->重置所有视图位置
-        action_reset_view = QtWidgets.QAction("重置所有视图位置", self)
+        action_reset_view = QtWidgets.QAction(dlcv_tr("重置所有视图位置"), self)
         action_reset_view.triggered.connect(reset_all_view)
         self.menus.view.insertAction(self.menus.view.actions()[6], action_reset_view)
 
@@ -1600,8 +1786,7 @@ class MainWindow(MainWindow):
                 if self.canvas.pixmap.isNull():
                     return
                 x, y = int(pos.x()), int(pos.y())
-                rgb_value = self.canvas.pixmap.toImage().pixelColor(
-                    x, y).getRgb()[:-1]
+                rgb_value = self.canvas.pixmap.toImage().pixelColor(x, y).getRgb()[:-1]
                 # 增加图片的宽高信息
                 width = self.canvas.pixmap.width()
                 height = self.canvas.pixmap.height()
@@ -1609,8 +1794,9 @@ class MainWindow(MainWindow):
                     f"Mouse is at: x={x}, y={y}, RGB={rgb_value}, Image Size: {width}x{height}"
                 )
             except:
-                notification("显示rgb值失败!", traceback.format_exc(),
-                             ToastPreset.ERROR)
+                notification(
+                    dlcv_tr("显示RGB值失败!"), traceback.format_exc(), ToastPreset.ERROR
+                )
                 logger.error(traceback.format_exc())
 
         self.canvas.mouseMoved.disconnect()
@@ -1623,14 +1809,16 @@ class MainWindow(MainWindow):
 
         # 修改快捷键文本
         self.actions.openNextImg.setIconText(
-            tr("open next image") +
-            f"({self.actions.openNextImg.shortcut().toString()})")
+            dlcv_tr("open next image")
+            + f"({self.actions.openNextImg.shortcut().toString()})"
+        )
         self.actions.openPrevImg.setIconText(
-            tr("open previous image") +
-            f"({self.actions.openPrevImg.shortcut().toString()})")
+            dlcv_tr("open previous image")
+            + f"({self.actions.openPrevImg.shortcut().toString()})"
+        )
 
         # 添加 ctrl + A 全选多边形
-        action = QtWidgets.QAction("全选多边形", self)
+        action = QtWidgets.QAction(dlcv_tr("全选多边形"), self)
         action.setShortcut("Ctrl+A")
         action.triggered.connect(self.select_all_shapes)
         self.addAction(action)
@@ -1665,8 +1853,9 @@ class MainWindow(MainWindow):
     def _init_dlcv_ai_widget(self):
         try:
             from labelme.private.dlcv_ai_widget import DlcvAiWidget, AiController
+
             ai_widget = DlcvAiWidget(self)
-            self.action_auto_label = QtWidgets.QAction("自动标注(L)", self)
+            self.action_auto_label = QtWidgets.QAction(dlcv_tr("自动标注(L)"), self)
             self.action_auto_label.setShortcut("L")
             self.action_auto_label.triggered.connect(self.predict)
             self.addAction(self.action_auto_label)
@@ -1691,22 +1880,20 @@ class MainWindow(MainWindow):
         dva_file_path = None
         if len(sys.argv) > 1:
             for file_path in sys.argv[1:]:
-                if file_path.lower().endswith(".dva") and Path(
-                        file_path).exists():
+                if file_path.lower().endswith(".dva") and Path(file_path).exists():
                     dva_file_path = file_path
                     break
 
         if dva_file_path:
             try:
-                dva_data = yaml.safe_load(
-                    open(dva_file_path, "r", encoding="utf-8"))
+                dva_data = yaml.safe_load(open(dva_file_path, "r", encoding="utf-8"))
             except:
                 dva_data = yaml.safe_load(open(dva_file_path, "r"))
 
             dataset_dir = dva_data.get("dataset_dir")
             dataset_full_path = (
-                Path(dva_file_path).parent /
-                dataset_dir if dataset_dir else None)
+                Path(dva_file_path).parent / dataset_dir if dataset_dir else None
+            )
 
             if dataset_full_path and dataset_full_path.exists():
                 self.importDirImages(str(dataset_full_path))
@@ -1717,13 +1904,16 @@ class MainWindow(MainWindow):
                 path_dir = sys.argv[1]
 
                 # https://bbs2.dlcv.com.cn/t/topic/1532
-                if len(path_dir) == 3 and path_dir[1] == ':' and path_dir[0].isalpha():
+                if len(path_dir) == 3 and path_dir[1] == ":" and path_dir[0].isalpha():
                     path_dir = f"{path_dir[0]}:"
 
                 if Path(path_dir).is_dir() and Path(path_dir).exists():
                     self.importDirImages(path_dir)
-            elif (self.lastOpenDir and Path(self.lastOpenDir).exists()
-                  and sys.argv[0].endswith(".py")):  # 默认打开上次文件夹
+            elif (
+                self.lastOpenDir
+                and Path(self.lastOpenDir).exists()
+                and sys.argv[0].endswith(".py")
+            ):  # 默认打开上次文件夹
                 self.importDirImages(self.lastOpenDir)
 
     # region 标签数量统计面板
@@ -1731,8 +1921,9 @@ class MainWindow(MainWindow):
         self.label_count_dock = LabelCountDock(self)
         self.addDockWidget(Qt.RightDockWidgetArea, self.label_count_dock)
         # 添加到菜单栏->视图->标签数量统计
-        self.menus.view.insertAction(self.menus.view.actions()[3],
-                                     self.label_count_dock.toggleViewAction())
+        self.menus.view.insertAction(
+            self.menus.view.actions()[3], self.label_count_dock.toggleViewAction()
+        )
 
     # endregion
 
@@ -1747,16 +1938,13 @@ class MainWindow(MainWindow):
             #     'readonly': True,
             # },
             {
-                "name":
-                    "proj_setting",
-                "title":
-                    tr("project setting"),
-                "type":
-                    "group",
+                "name": "proj_setting",
+                "title": dlcv_tr("project setting"),
+                "type": "group",
                 "children": [
                     {
                         "name": "proj_type",
-                        "title": tr("project type"),
+                        "title": dlcv_tr("project type"),
                         "type": "list",
                         "limits": [ProjEnum.NORMAL, ProjEnum.O3D],
                         "default": ProjEnum.NORMAL,
@@ -1764,191 +1952,164 @@ class MainWindow(MainWindow):
                 ],
             },
             {
-                "name":
-                    "other_setting",
-                "title":
-                    tr("other setting"),
-                "type":
-                    "group",
+                "name": "other_setting",
+                "title": dlcv_tr("other setting"),
+                "type": "group",
                 "children": [
                     {
-                        "name":
-                            "display_shape_label",
-                        "title":
-                            tr("display shape label"),
-                        "type":
-                            "bool",
-                        "value":
-                            True,
-                        "default":
-                            True,
-                        "shortcut":
-                            self._config["shortcuts"]["display_shape_label"],
+                        "name": "display_shape_label",
+                        "title": dlcv_tr("display shape label"),
+                        "type": "bool",
+                        "value": True,
+                        "default": True,
+                        "shortcut": self._config["shortcuts"]["display_shape_label"],
                     },
                     {
-                        "name":
-                            "shape_label_font_size",
-                        "title":
-                            tr("shape label font size"),
-                        "type":
-                            "int",
-                        "value":
-                            8,
-                        "default":
-                            8,
-                        "min":
-                            1,
-                        "max":
-                            20,
-                        "step":
-                            1,
+                        "name": "shape_label_font_size",
+                        "title": dlcv_tr("shape label font size"),
+                        "type": "int",
+                        "value": 8,
+                        "default": 8,
+                        "min": 1,
+                        "max": 20,
+                        "step": 1,
                     },
                     {
-                        "name":
-                            "scale_option",
-                        "title":
-                            tr("keep prev scale"),
-                        "type":
-                            "list",
-                        "value":
-                            ScaleEnum.AUTO_SCALE,
+                        "name": "scale_option",
+                        "title": dlcv_tr("keep prev scale"),
+                        "type": "list",
+                        "value": ScaleEnum.AUTO_SCALE,
                         "limits": [
-                            ScaleEnum.KEEP_PREV_SCALE, ScaleEnum.AUTO_SCALE,
-                            ScaleEnum.KEEP_SCALE
-                        ],
-                        "default":
+                            ScaleEnum.KEEP_PREV_SCALE,
                             ScaleEnum.AUTO_SCALE,
+                            ScaleEnum.KEEP_SCALE,
+                        ],
+                        "default": ScaleEnum.AUTO_SCALE,
                     },
                     {
                         "name": "convert_img_to_gray",
-                        "title": tr("convert img to gray"),
+                        "title": dlcv_tr("convert img to gray"),
                         "type": "bool",
                         "value": STORE.convert_img_to_gray,
                         "default": STORE.convert_img_to_gray,
                     },
                     {
                         "name": "points_to_crosshair",
-                        "title": tr("points to crosshair"),
+                        "title": dlcv_tr("points to crosshair"),
                         "type": "bool",
                         "value": STORE.canvas_points_to_crosshair,
                         "default": STORE.canvas_points_to_crosshair,
-                        "tip": "启用后，将点转换为十字线",
-                    }
+                        "tip": dlcv_tr("启用后，将点转换为十字线"),
+                    },
                 ],
             },
             {
-                "name":
-                    "label_setting",
-                "title":
-                    tr("label setting"),
-                "type":
-                    "group",
-                "children": [{
-                    "name": "blue_line_color",
-                    "title": tr("蓝色线段标注"),
-                    "type": "bool",
-                    "value": False,
-                    "default": False,
-                    "tip": "启用后，将高亮标注线段为蓝色",
-                }, {
-                    "name":
-                        "slide_label",
-                    "title":
-                        tr("slide label"),
-                    "type":
-                        "bool",
-                    "value":
-                        False,
-                    "default":
-                        False,
-                    "shortcut":
-                        self._config["shortcuts"]["canvas_auto_left_click"],
-                    "tip":
-                        "启用滑动标注将禁用画笔标注功能，两者互斥",
-                }, {
-                    "name": "slide_distance",
-                    "title": tr("slide distance"),
-                    "type": "int",
-                    "value": 30,
-                    "default": 30,
-                }, {
-                    "name": "brush_enabled",
-                    "title": tr("brush enabled"),
-                    "type": "bool",
-                    "value": STORE.canvas_brush_enabled,
-                    "default": STORE.canvas_brush_enabled,
-                    "shortcut": "B",
-                    "tip": "画笔标注功能仅适用于多边形标注模式，启用画笔标注将禁用滑动标注功能，两者互斥",
-                }, {
-                    "name": "fill_closed_region",
-                    "title": tr("fill closed region"),
-                    "type": "bool",
-                    "value": STORE.canvas_brush_fill_region,
-                    "default": STORE.canvas_brush_fill_region,
-                    "tip": "启用后，闭合区域内部将被填充，否则仅保留轮廓",
-                }, {
-                    "name": "brush_size",
-                    "title": tr("brush size"),
-                    "type": "int",
-                    "value": STORE.canvas_brush_size,
-                    "default": STORE.canvas_brush_size,
-                    "min": 3,
-                }, {
-                    "name": "highlight_start_point",
-                    "title": tr("highlight start point"),
-                    "type": "bool",
-                    "value": False,
-                    "default": False,
-                }, {
-                    "name": "display_rotation_arrow",
-                    "title": tr("显示旋转框箭头与角度"),
-                    "type": "bool",
-                    "value": STORE.canvas_display_rotation_arrow,
-                    "default": STORE.canvas_display_rotation_arrow,
-                }, {
-                    "name":
-                        "ai_polygon_simplify_epsilon",
-                    "title":
-                        tr("AI多边形点数简化设置"),
-                    "type":
-                        "float",
-                    "value":
-                        0.005,
-                    "default":
-                        0.005,
-                    "min":
-                        0.001,
-                    "max":
-                        0.1,
-                    "step":
-                        0.005,
-                    "tip":
-                        "简化程度，值越大简化越多\n0.001: 轻微简化\n0.005: 默认简化\n0.01: 较多简化\n0.05: 大量简化 \n0.1: 极度简化",
-                }],
+                "name": "label_setting",
+                "title": dlcv_tr("label setting"),
+                "type": "group",
+                "children": [
+                    {
+                        "name": "blue_line_color",
+                        "title": dlcv_tr("蓝色线段标注"),
+                        "type": "bool",
+                        "value": False,
+                        "default": False,
+                        "tip": dlcv_tr("启用后，将高亮标注线段为蓝色"),
+                    },
+                    {
+                        "name": "slide_label",
+                        "title": dlcv_tr("slide label"),
+                        "type": "bool",
+                        "value": False,
+                        "default": False,
+                        "shortcut": self._config["shortcuts"]["canvas_auto_left_click"],
+                        "tip": dlcv_tr("启用滑动标注将禁用画笔标注功能，两者互斥"),
+                    },
+                    {
+                        "name": "slide_distance",
+                        "title": dlcv_tr("slide distance"),
+                        "type": "int",
+                        "value": 30,
+                        "default": 30,
+                    },
+                    {
+                        "name": "brush_enabled",
+                        "title": dlcv_tr("brush enabled"),
+                        "type": "bool",
+                        "value": STORE.canvas_brush_enabled,
+                        "default": STORE.canvas_brush_enabled,
+                        "shortcut": "B",
+                        "tip": dlcv_tr(
+                            "画笔标注功能仅适用于多边形标注模式，启用画笔标注将禁用滑动标注功能，两者互斥"
+                        ),
+                    },
+                    {
+                        "name": "fill_closed_region",
+                        "title": dlcv_tr("fill closed region"),
+                        "type": "bool",
+                        "value": STORE.canvas_brush_fill_region,
+                        "default": STORE.canvas_brush_fill_region,
+                        "tip": dlcv_tr("启用后，闭合区域内部将被填充，否则仅保留轮廓"),
+                    },
+                    {
+                        "name": "brush_size",
+                        "title": dlcv_tr("brush size"),
+                        "type": "int",
+                        "value": STORE.canvas_brush_size,
+                        "default": STORE.canvas_brush_size,
+                        "min": 3,
+                    },
+                    {
+                        "name": "highlight_start_point",
+                        "title": dlcv_tr("highlight start point"),
+                        "type": "bool",
+                        "value": False,
+                        "default": False,
+                    },
+                    {
+                        "name": "display_rotation_arrow",
+                        "title": dlcv_tr("显示旋转框箭头与角度"),
+                        "type": "bool",
+                        "value": STORE.canvas_display_rotation_arrow,
+                        "default": STORE.canvas_display_rotation_arrow,
+                    },
+                    {
+                        "name": "ai_polygon_simplify_epsilon",
+                        "title": dlcv_tr("AI多边形点数简化设置"),
+                        "type": "float",
+                        "value": 0.005,
+                        "default": 0.005,
+                        "min": 0.001,
+                        "max": 0.1,
+                        "step": 0.005,
+                        "tip": dlcv_tr(
+                            "简化程度说明：\n0.001: 轻微简化\n0.005: 默认简化\n0.01: 较多简化\n0.05: 大量简化\n0.1: 极度简化"
+                        ),
+                    },
+                ],
             },
             {
-                "name":
-                    "auto_setting",
-                "title":
-                    tr("auto setting"),
-                "type":
-                    "group",
+                "name": "auto_setting",
+                "title": dlcv_tr("auto setting"),
+                "type": "group",
                 "children": [
                     {
                         "name": "use_bbox",
-                        "title": tr("使用Bbox进行自动标注"),
+                        "title": dlcv_tr("使用Bbox进行自动标注"),
                         "type": "bool",
                         "value": False,
                         "default": False,
                     },
                     {
                         "name": "category_filter_list",
-                        "title": tr("请输入需要自动标注的类别"),
+                        "title": dlcv_tr("请输入需要自动标注的类别"),
                         "type": "text",
-                        "placeholder": "请输入需要自动标注的类别，多个类别用,或，隔开",
+                        "placeholder": dlcv_tr(
+                            "请输入需要自动标注的类别，多个类别用,或，隔开"
+                        ),
                         "value": "",
-                        "tip": "请输入需要自动标注的类别，多个类别用,或，隔开",
-                    }
+                        "tip": dlcv_tr("请输入需要自动标注的类别，多个类别用,或，隔开"),
+                    },
                 ],
             },
         ]
@@ -1964,11 +2125,11 @@ class MainWindow(MainWindow):
                         child["title"] = child["title"] + f"({shortcut})"
 
         self.parameter = Parameter.create(
-            name="params", type="group", children=setting_kwargs)
+            name="params", type="group", children=setting_kwargs
+        )
         self.parameter_tree = ParameterTree(showHeader=False)
         self.parameter_tree.setParameters(self.parameter, showTop=False)
-        self.parameter.sigTreeStateChanged.connect(
-            self.on_setting_dock_changed)
+        self.parameter.sigTreeStateChanged.connect(self.on_setting_dock_changed)
 
         # 快捷键
         for parent_kwarg in setting_kwargs:
@@ -1979,26 +2140,28 @@ class MainWindow(MainWindow):
                 if shortcut:
                     action = QtWidgets.QAction(self)
                     action.setShortcut(shortcut)
-                    parameter = self.parameter.child(parent_kwarg["name"],
-                                                     child["name"])
+                    parameter = self.parameter.child(
+                        parent_kwarg["name"], child["name"]
+                    )
                     if child_type == "bool":
                         action.triggered.connect(
-                            lambda _, p=parameter: p.setValue(not p.value()))
+                            lambda _, p=parameter: p.setValue(not p.value())
+                        )
                     elif child_type == "action":
-                        action.triggered.connect(
-                            lambda _, p=parameter: p.trigger())
+                        action.triggered.connect(lambda _, p=parameter: p.trigger())
                     else:
                         raise ValueError(f"不支持的类型: {child_type}")
                     self.addAction(action)
 
-        self.setting_dock = QtWidgets.QDockWidget(tr("setting dock"), self)
+        self.setting_dock = QtWidgets.QDockWidget(dlcv_tr("setting dock"), self)
         self.setting_dock.setObjectName("setting_dock")
         self.setting_dock.setWidget(self.parameter_tree)
         self.addDockWidget(Qt.RightDockWidgetArea, self.setting_dock)
 
         # 添加到菜单栏->视图->设置面板
-        self.menus.view.insertAction(self.menus.view.actions()[4],
-                                     self.setting_dock.toggleViewAction())
+        self.menus.view.insertAction(
+            self.menus.view.actions()[4], self.setting_dock.toggleViewAction()
+        )
 
         # XXX: Could be completely declarative.
         # Restore application settings.
@@ -2012,69 +2175,76 @@ class MainWindow(MainWindow):
         # self.restoreGeometry(settings['window/geometry']
         self.restoreState(state)
 
+        # 应用 UI 字体大小（如果已保存）
+        try:
+            ui_font_size = self.settings.value("ui/font_point_size", None, type=int)
+        except Exception:
+            ui_font_size = None
+        if ui_font_size:
+            app = QtWidgets.QApplication.instance()
+            if app is not None:
+                font = app.font()
+                font.setPointSize(int(ui_font_size))
+                app.setFont(font)
+
         def restore_setting():
             setting_store = self.settings.value("setting_store", None)
             if setting_store:
-                self.parameter.child("other_setting",
-                                     "display_shape_label").setValue(
-                    setting_store.get(
-                        "display_shape_label", True))
-                self.parameter.child("other_setting",
-                                     "convert_img_to_gray").setValue(
-                    setting_store.get(
-                        "convert_img_to_gray", False))
+                self.parameter.child("other_setting", "display_shape_label").setValue(
+                    setting_store.get("display_shape_label", True)
+                )
+                self.parameter.child("other_setting", "convert_img_to_gray").setValue(
+                    setting_store.get("convert_img_to_gray", False)
+                )
                 # 新增：从store中读取标签字体大小
-                self.parameter.child("other_setting",
-                                     "shape_label_font_size").setValue(
+                self.parameter.child("other_setting", "shape_label_font_size").setValue(
                     setting_store.get(
-                        "shape_label_font_size", STORE.canvas_shape_label_font_size))
+                        "shape_label_font_size", STORE.canvas_shape_label_font_size
+                    )
+                )
                 # 新增：从store中读取点转十字设置
-                self.parameter.child("other_setting",
-                                     "points_to_crosshair").setValue(
-                    setting_store.get(
-                        "canvas_points_to_crosshair", True))
+                self.parameter.child("other_setting", "points_to_crosshair").setValue(
+                    setting_store.get("canvas_points_to_crosshair", True)
+                )
 
-                self.parameter.child("label_setting",
-                                     "highlight_start_point").setValue(
-                    setting_store.get(
-                        "highlight_start_point", False))
+                self.parameter.child("label_setting", "highlight_start_point").setValue(
+                    setting_store.get("highlight_start_point", False)
+                )
                 # 新增：恢复旋转框箭头与角度显示
-                self.parameter.child("label_setting",
-                                     "display_rotation_arrow").setValue(
-                    setting_store.get(
-                        "canvas_display_rotation_arrow",
-                        True))
+                self.parameter.child(
+                    "label_setting", "display_rotation_arrow"
+                ).setValue(setting_store.get("canvas_display_rotation_arrow", True))
                 # 新增：恢复是否填充闭合区域设置
-                self.parameter.child("label_setting",
-                                     "fill_closed_region").setValue(
-                    setting_store.get(
-                        "canvas_brush_fill_region", True))
+                self.parameter.child("label_setting", "fill_closed_region").setValue(
+                    setting_store.get("canvas_brush_fill_region", True)
+                )
                 # 新增：恢复画笔标注设置
-                self.parameter.child("label_setting",
-                                     "brush_enabled").setValue(
-                    setting_store.get(
-                        "canvas_brush_enabled", False))
+                self.parameter.child("label_setting", "brush_enabled").setValue(
+                    setting_store.get("canvas_brush_enabled", False)
+                )
                 # 新增：恢复缩放选项设置
                 self.parameter.child("other_setting", "scale_option").setValue(
-                    setting_store.get("scale_option", ScaleEnum.AUTO_SCALE))
+                    setting_store.get("scale_option", ScaleEnum.AUTO_SCALE)
+                )
                 # 新增：恢复AI多边形简化参数设置
-                self.parameter.child("label_setting",
-                                     "ai_polygon_simplify_epsilon").setValue(
-                    setting_store.get(
-                        "ai_polygon_simplify_epsilon",
-                        0.005))
+                self.parameter.child(
+                    "label_setting", "ai_polygon_simplify_epsilon"
+                ).setValue(setting_store.get("ai_polygon_simplify_epsilon", 0.005))
 
         restore_setting()
 
-    def on_setting_dock_changed(self, root_parm: Parameter,
-                                change_parms: [[Parameter, str, bool]]):
+    def on_setting_dock_changed(
+        self, root_parm: Parameter, change_parms: [[Parameter, str, bool]]
+    ):
         # 使用新的参数处理方法
         self._on_param_changed(root_parm, change_parms)
 
     @property
     def keep_scale(self):
-        return self.parameter.child(
-            "other_setting", "scale_option").value() == ScaleEnum.KEEP_SCALE
+        return (
+            self.parameter.child("other_setting", "scale_option").value()
+            == ScaleEnum.KEEP_SCALE
+        )
 
     def _on_param_changed(self, param, changes):
         # 使用新的参数处理方法
@@ -2090,8 +2260,7 @@ class MainWindow(MainWindow):
                     # 'vertex_fill_color': [0, 127, 255,255]
                     if new_value:
                         Shape.line_color = QtGui.QColor(0, 127, 255, 255)
-                        Shape.vertex_fill_color = QtGui.QColor(
-                            0, 127, 255, 255)
+                        Shape.vertex_fill_color = QtGui.QColor(0, 127, 255, 255)
                     else:
                         Shape.line_color = QtGui.QColor(0, 255, 0, 128)
                         Shape.vertex_fill_color = QtGui.QColor(0, 255, 0, 255)
@@ -2106,11 +2275,15 @@ class MainWindow(MainWindow):
                         # 更新参数面板
                         try:
                             brush_param = self.parameter.child(
-                                "label_setting", "brush_enabled")
+                                "label_setting", "brush_enabled"
+                            )
                             if brush_param:
                                 brush_param.setValue(False)
-                                notification("功能互斥", "已禁用画笔标注功能",
-                                             ToastPreset.INFORMATION)
+                                notification(
+                                    dlcv_tr("功能互斥"),
+                                    dlcv_tr("已禁用画笔标注功能"),
+                                    ToastPreset.INFORMATION,
+                                )
                         except Exception:
                             pass
                 elif param_name == "slide_distance":
@@ -2121,14 +2294,21 @@ class MainWindow(MainWindow):
                     STORE.set_canvas_display_rotation_arrow(new_value)
                 elif param_name == "brush_enabled":
                     # 检查当前模式是否为多边形标注模式
-                    if not self.canvas.editing(
-                    ) and self.canvas.createMode != "polygon" and new_value:
+                    if (
+                        not self.canvas.editing()
+                        and self.canvas.createMode != "polygon"
+                        and new_value
+                    ):
                         # 如果不是多边形标注模式，不立即启用画笔，但保留勾选状态
                         STORE.set_canvas_brush_enabled(new_value)  # 保存用户的选择
                         self.canvas.brush_enabled = False  # 但当前不启用画笔功能
-                        notification("画笔功能提示",
-                                     "画笔标注功能仅在多边形标注模式下可用，将在下次进入多边形模式时自动启用",
-                                     ToastPreset.INFORMATION)
+                        notification(
+                            dlcv_tr("画笔功能提示"),
+                            dlcv_tr(
+                                "画笔标注功能仅在多边形标注模式下可用，将在下次进入多边形模式时自动启用"
+                            ),
+                            ToastPreset.INFORMATION,
+                        )
                         return
 
                     self.canvas.brush_enabled = new_value
@@ -2139,11 +2319,15 @@ class MainWindow(MainWindow):
                         # 更新参数面板
                         try:
                             slide_param = self.parameter.child(
-                                "label_setting", "slide_label")
+                                "label_setting", "slide_label"
+                            )
                             if slide_param:
                                 slide_param.setValue(False)
-                                notification("功能互斥", "已禁用滑动标注功能",
-                                             ToastPreset.INFORMATION)
+                                notification(
+                                    dlcv_tr("功能互斥"),
+                                    dlcv_tr("已禁用滑动标注功能"),
+                                    ToastPreset.INFORMATION,
+                                )
                         except Exception:
                             pass
                 elif param_name == "brush_size":
@@ -2191,42 +2375,54 @@ class MainWindow(MainWindow):
             img_path = self.filename
             if model_path and img_path:
                 self.setEnabled(False)
-                asyncio.ensure_future(
-                    self.ai_controller.predict(model_path, img_path))
+                asyncio.ensure_future(self.ai_controller.predict(model_path, img_path))
         except:
             error_msg = traceback.format_exc()
             logger.error(error_msg)
-            notification("预测失败", "请检查模型文件是否正确", ToastPreset.ERROR)
+            notification(
+                dlcv_tr("预测失败"), dlcv_tr("请检查模型文件是否正确"), ToastPreset.ERROR
+            )
 
     def auto_label(self, labelme_data):
         from labelme.private.dlcv_ai_widget import LabelmeData
+
         labelme_data: LabelmeData
 
         try:
             if labelme_data:
-                if hasattr(labelme_data, 'shapes') and labelme_data.shapes:
-                    notification("预测完成, 开始自动标注", "请稍等...",
-                                 ToastPreset.INFORMATION)
+                if hasattr(labelme_data, "shapes") and labelme_data.shapes:
+                    notification(
+                        dlcv_tr("预测完成, 开始自动标注"),
+                        dlcv_tr("请稍等..."),
+                        ToastPreset.INFORMATION,
+                    )
                     for shape_data in labelme_data.shapes:
-                        if self.ai_controller.category_filter_list and shape_data['label'] not in self.ai_controller.category_filter_list:
+                        if (
+                            self.ai_controller.category_filter_list
+                            and shape_data["label"]
+                            not in self.ai_controller.category_filter_list
+                        ):
                             continue
 
                         shape = Shape(**shape_data)
                         self.loadShapes([shape], replace=False)
 
-                elif hasattr(labelme_data, 'flags') and labelme_data.flags:
+                elif hasattr(labelme_data, "flags") and labelme_data.flags:
                     # get the first key
                     first_key = list(labelme_data.flags.keys())[0]
 
-                    if self.ai_controller.category_filter_list and first_key not in self.ai_controller.category_filter_list:
+                    if (
+                        self.ai_controller.category_filter_list
+                        and first_key not in self.ai_controller.category_filter_list
+                    ):
                         pass
                     else:
                         self.set_text_flag(first_key)
-            notification("自动标注完成", "请检查标注结果", ToastPreset.SUCCESS)
+            notification(dlcv_tr("自动标注完成"), dlcv_tr("请检查标注结果"), ToastPreset.SUCCESS)
         except Exception as e:
             traceback_msg = traceback.format_exc()
             logger.error(traceback_msg)
-            notification("自动标注失败", str(e), ToastPreset.ERROR)
+            notification(dlcv_tr("自动标注失败"), str(e), ToastPreset.ERROR)
 
         # 保存标签
         self.canvas.shapeMoved.emit()
@@ -2251,9 +2447,9 @@ class MainWindow(MainWindow):
             self.uniqLabelList.addItem(item)
             rgb = self._get_rgb_by_label(new_text_flag)
             self.uniqLabelList.setItemLabel(item, new_text_flag, rgb)
-        
+
         # 画布重绘以显示文本标记
-        if hasattr(self, 'canvas') and self.canvas:
+        if hasattr(self, "canvas") and self.canvas:
             self.canvas.update()
         self.canvas.shapeMoved.emit()
 
@@ -2272,37 +2468,39 @@ class MainWindow(MainWindow):
             dialog_pos = self.settings.value("dialog_text_flag_pos", None)
             if dialog_pos:
                 self.dialog_text_flag.move(dialog_pos)
-            
+
             # 设置当前文本作为默认值
             self.dialog_text_flag.setTextValue(item.text())
-            
+
             # 显示对话框并等待用户输入
             ok = self.dialog_text_flag.exec_()
             if ok:
                 new_text = self.dialog_text_flag.textValue()
                 if new_text.strip():  # 确保不是空文本
                     self.set_text_flag(new_text)
-            
+
             # 记录 dialog_text_flag 的位置
             dialog_pos = self.dialog_text_flag.pos()
             self.settings.setValue("dialog_text_flag_pos", dialog_pos)
 
-
     def _init_text_flag_wgt(self):
-        self.flag_dock.setWindowTitle(tr("Flags"))
-        self.add_text_flag_action = QtWidgets.QAction("创建文本标记", self)
+        self.flag_dock.setWindowTitle(dlcv_tr("Flags"))
+        self.add_text_flag_action = QtWidgets.QAction(dlcv_tr("创建文本标记"), self)
         self.add_text_flag_action.setShortcut(
-            self._config["shortcuts"]["add_text_flag"])
+            self._config["shortcuts"]["add_text_flag"]
+        )
         self.addAction(self.add_text_flag_action)
 
         self.dialog_text_flag = QtWidgets.QInputDialog(self)
         # 对话框大一点
         self.dialog_text_flag.resize(400, 300)
-        self.dialog_text_flag.setWindowTitle(tr("Add Text Flag"))
+        self.dialog_text_flag.setWindowTitle(dlcv_tr("Add Text Flag"))
         # 去掉标题栏的 ?
-        self.dialog_text_flag.setWindowFlags(self.dialog_text_flag.windowFlags() & ~QtCore.Qt.WindowContextHelpButtonHint)
+        self.dialog_text_flag.setWindowFlags(
+            self.dialog_text_flag.windowFlags() & ~QtCore.Qt.WindowContextHelpButtonHint
+        )
 
-        self.dialog_text_flag.setLabelText(tr("Please enter the text flag"))
+        self.dialog_text_flag.setLabelText(dlcv_tr("Please enter the text flag"))
 
         def add_text_flag():
             dialog = self.dialog_text_flag
@@ -2347,10 +2545,9 @@ class MainWindow(MainWindow):
         # 双击编辑文本标记
         self.flag_widget.itemDoubleClicked.connect(self.edit_text_flag)
 
-        
         def show_flag_menu(pos: QtCore.QPoint):
             menu = QtWidgets.QMenu()
-            delete_action = QtWidgets.QAction("删除", self)
+            delete_action = QtWidgets.QAction(dlcv_tr("删除"), self)
             delete_action.setIcon(newIcon("delete"))
             menu.addAction(delete_action)
 
@@ -2360,7 +2557,7 @@ class MainWindow(MainWindow):
 
                 self.canvas.shapeMoved.emit()
                 # 画布重绘以更新文本标记显示
-                if hasattr(self, 'canvas') and self.canvas:
+                if hasattr(self, "canvas") and self.canvas:
                     self.canvas.update()
 
             delete_action.triggered.connect(delete_flag)
@@ -2370,9 +2567,8 @@ class MainWindow(MainWindow):
         self.flag_widget.setContextMenuPolicy(Qt.CustomContextMenu)
         self.flag_widget.customContextMenuRequested.connect(show_flag_menu)
 
-        def uniqLabelList_item_double_clicked_callback(
-                item: QtWidgets.QListWidgetItem):
-            """ 双击 uniqLabelList 时, 设置 text_flag """
+        def uniqLabelList_item_double_clicked_callback(item: QtWidgets.QListWidgetItem):
+            """双击 uniqLabelList 时, 设置 text_flag"""
             if self.get_text_flag():
                 self.set_text_flag(item.data(Qt.UserRole))
                 self.canvas.shapeMoved.emit()
@@ -2381,12 +2577,13 @@ class MainWindow(MainWindow):
 
         # uniqLabelList 双击后设置 text_flag
         self.uniqLabelList.itemDoubleClicked.connect(
-            uniqLabelList_item_double_clicked_callback)
+            uniqLabelList_item_double_clicked_callback
+        )
 
         # 为 uniqLabelList 添加右键菜单删除功能
         def show_uniq_label_menu(pos: QtCore.QPoint):
             menu = QtWidgets.QMenu()
-            delete_action = QtWidgets.QAction("删除标签", self)
+            delete_action = QtWidgets.QAction(dlcv_tr("删除标签"), self)
             delete_action.setIcon(newIcon("delete"))
             menu.addAction(delete_action)
 
@@ -2397,10 +2594,14 @@ class MainWindow(MainWindow):
 
                 # 删除前询问确认
                 reply = QtWidgets.QMessageBox.question(
-                    self, "确认删除",
-                    f"是否确定要删除选中的 {len(selected_items)} 个标签？\n注意：这只会从标签列表中删除，不会影响已经标注的形状。",
+                    self,
+                    dlcv_tr("确认删除"),
+                    dlcv_tr(
+                        "是否确定要删除选中的 {count} 个标签？\n注意：这只会从标签列表中删除，不会影响已经标注的形状。"
+                    ).format(count=len(selected_items)),
                     QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
-                    QtWidgets.QMessageBox.No)
+                    QtWidgets.QMessageBox.No,
+                )
 
                 if reply == QtWidgets.QMessageBox.Yes:
                     for item in selected_items:
@@ -2415,11 +2616,10 @@ class MainWindow(MainWindow):
 
         # 为 uniqLabelList 设置右键菜单
         self.uniqLabelList.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.uniqLabelList.customContextMenuRequested.connect(
-            show_uniq_label_menu)
+        self.uniqLabelList.customContextMenuRequested.connect(show_uniq_label_menu)
 
         # 添加创建文本标记到右键菜单
-        if hasattr(self.actions, 'menu'):
+        if hasattr(self.actions, "menu"):
             # 检查是否已经添加过，避免重复添加
             if self.add_text_flag_action not in self.actions.menu:
                 # 在菜单最顶部插入创建文本标记
@@ -2456,8 +2656,7 @@ class MainWindow(MainWindow):
                 repaired_polygon = make_valid(polygon)
                 # 若结果为MultiPolygon，需提取面积最大的子多边形（视业务需求而定）
                 if repaired_polygon.geom_type == "MultiPolygon":
-                    max_polygon = max(
-                        repaired_polygon.geoms, key=lambda g: g.area)
+                    max_polygon = max(repaired_polygon.geoms, key=lambda g: g.area)
                 elif repaired_polygon.geom_type == "Polygon":
                     max_polygon = repaired_polygon
                 else:
@@ -2490,7 +2689,8 @@ class MainWindow(MainWindow):
             contour = np.array(points, dtype=np.int32).reshape(-1, 1, 2)
 
             epsilon_factor = self.parameter.child(
-                "label_setting", "ai_polygon_simplify_epsilon").value()  # 默认值
+                "label_setting", "ai_polygon_simplify_epsilon"
+            ).value()  # 默认值
 
             epsilon = epsilon_factor * cv2.arcLength(contour, True)
             approx = cv2.approxPolyDP(contour, epsilon, True)
@@ -2504,12 +2704,12 @@ class MainWindow(MainWindow):
             if len(simplified_points) >= 3:
                 # original_count = len(shape.points)
                 logger.info(
-                    f"简化前点数: {len(shape.points)}, 简化后点数: {len(simplified_points)}, 简化程度: {epsilon_factor}")
+                    f"简化前点数: {len(shape.points)}, 简化后点数: {len(simplified_points)}, 简化程度: {epsilon_factor}"
+                )
                 shape.points = simplified_points
 
         except ImportError:
-            logger.warning(
-                "OpenCV not available, skipping shape simplification")
+            logger.warning("OpenCV not available, skipping shape simplification")
         except Exception as e:
             logger.error(f"Error simplifying shape points: {str(e)}")
 
@@ -2552,8 +2752,13 @@ class MainWindow(MainWindow):
             self.canvas.brush_enabled = False
             # 不修改STORE中的设置，这样下次进入多边形模式时可以恢复
             # 不更新参数面板的选中状态，保留用户的勾选
-            notification("画笔功能提示", "画笔标注功能仅在多边形标注模式下可用，将在下次进入多边形模式时自动启用",
-                         ToastPreset.INFORMATION)
+            notification(
+                dlcv_tr("画笔功能提示"),
+                dlcv_tr(
+                    "画笔标注功能仅在多边形标注模式下可用，将在下次进入多边形模式时自动启用"
+                ),
+                ToastPreset.INFORMATION,
+            )
         # 如果进入多边形模式，且STORE中画笔功能是启用的，则自动启用画笔
         elif not edit and createMode == "polygon" and STORE.canvas_brush_enabled:
             self.canvas.brush_enabled = True
@@ -2572,22 +2777,24 @@ class MainWindow(MainWindow):
     # ------------ zx触发事件动作 ------------
     def _init_trigger_action(self):
         # 创建逆时针旋转动作
-        self.z_action = QtWidgets.QAction("逆时针旋转", self)
-        self.z_action.setShortcut(STORE.get_config()['shortcuts']['z_trigger'])
+        self.z_action = QtWidgets.QAction(dlcv_tr("逆时针旋转"), self)
+        self.z_action.setShortcut(STORE.get_config()["shortcuts"]["z_trigger"])
         # 添加到菜单
         self.addAction(self.z_action)
 
         # 创建顺时针旋转动作
-        self.x_action = QtWidgets.QAction("顺时针旋转", self)
-        self.x_action.setShortcut(STORE.get_config()['shortcuts']['x_trigger'])
+        self.x_action = QtWidgets.QAction(dlcv_tr("顺时针旋转"), self)
+        self.x_action.setShortcut(STORE.get_config()["shortcuts"]["x_trigger"])
         # 添加到菜单
         self.addAction(self.x_action)
 
         # 连接信号
         self.z_action.triggered.connect(
-            lambda: self.trigger_action(angle=1.0, direction="left"))
+            lambda: self.trigger_action(angle=1.0, direction="left")
+        )
         self.x_action.triggered.connect(
-            lambda: self.trigger_action(angle=1.0, direction="right"))
+            lambda: self.trigger_action(angle=1.0, direction="right")
+        )
 
     # z\x键触发
     def trigger_action(self, angle: float = 1.0, direction: str = "left"):
@@ -2596,14 +2803,17 @@ class MainWindow(MainWindow):
             # 如果有上一个移动点,直接标注该点
             if self.canvas.prevMovePoint:
                 # 创建鼠标按下事件来模拟点击
-                mouse_event = QtGui.QMouseEvent(QtCore.QEvent.MouseButtonPress,
-                                                self.canvas.prevMovePoint,
-                                                QtCore.Qt.LeftButton,
-                                                QtCore.Qt.LeftButton,
-                                                QtCore.Qt.NoModifier)
+                mouse_event = QtGui.QMouseEvent(
+                    QtCore.QEvent.MouseButtonPress,
+                    self.canvas.prevMovePoint,
+                    QtCore.Qt.LeftButton,
+                    QtCore.Qt.LeftButton,
+                    QtCore.Qt.NoModifier,
+                )
                 # 触发鼠标点击事件来标注点
                 self.canvas.mousePressEvent(
-                    mouse_event, need_transform=False)  # 修改为直接调用canvas的事件处理
+                    mouse_event, need_transform=False
+                )  # 修改为直接调用canvas的事件处理
         # extra End
         else:
             if not self.canvas.selectedShapes:
@@ -2635,7 +2845,7 @@ class MainWindow(MainWindow):
     # ------------ 属性查看方法 ------------
     def display_shape_attr(self):
         if not self.canvas.selectedShapes:
-            QtWidgets.QMessageBox.information(self, "提示", "请先选中一个标注")
+            QtWidgets.QMessageBox.information(self, dlcv_tr("提示"), dlcv_tr("请先选中一个标注"))
             return
 
         # 为每个选中的标注创建或更新属性窗口
@@ -2651,7 +2861,8 @@ class MainWindow(MainWindow):
         attr = get_shape_attribute(shape)
         # 2. 计算窗口显示位置
         window_x, window_y = get_window_position(
-            shape, self.canvas, window_width, window_height, offset=0)
+            shape, self.canvas, window_width, window_height, offset=0
+        )
 
         window_x += 200
         window_y += 200
@@ -2666,14 +2877,16 @@ class MainWindow(MainWindow):
 
         # 创建并显示窗口
         attr_widget = viewAttribute(
-            attr['width'], attr['height'], attr['area'], parent=self)
-        attr_widget.setGeometry(window_x, window_y, window_width,
-                                window_height)
+            attr["width"], attr["height"], attr["area"], parent=self
+        )
+        attr_widget.setGeometry(window_x, window_y, window_width, window_height)
         attr_widget.setWindowTitle(
-            f"属性 - {shape.label if shape.label else f'标注{index + 1}'}")
+            f"{dlcv_tr('属性')} - {shape.label if shape.label else dlcv_tr('标注') + str(index + 1)}"
+        )
         attr_widget.setWindowFlags(
-            QtCore.Qt.Window | QtCore.Qt.WindowCloseButtonHint |  # 关闭按钮
-            QtCore.Qt.WindowStaysOnTopHint  # 保持窗口在其他窗口之上
+            QtCore.Qt.Window
+            | QtCore.Qt.WindowCloseButtonHint  # 关闭按钮
+            | QtCore.Qt.WindowStaysOnTopHint  # 保持窗口在其他窗口之上
         )
         attr_widget.show()
         attr_widget.raise_()
@@ -2683,9 +2896,8 @@ class MainWindow(MainWindow):
     # ------------ 编辑和绘制状态切换新动作 ------------
     def _init_edit_mode_action(self):
         # 创建一个新动作用于编辑和绘制状态切换
-        self.edit_mode_action = QtWidgets.QAction("编辑和绘制状态切换", self)
-        self.edit_mode_action.setShortcut(
-            STORE.get_config()['shortcuts']['edit_mode'])
+        self.edit_mode_action = QtWidgets.QAction(dlcv_tr("编辑和绘制状态切换"), self)
+        self.edit_mode_action.setShortcut(STORE.get_config()["shortcuts"]["edit_mode"])
         self.addAction(self.edit_mode_action)
         self.edit_mode_action.triggered.connect(self.toggle_edit_mode)
 
@@ -2699,11 +2911,14 @@ class MainWindow(MainWindow):
             self.toggleDrawMode(True)
         else:
             # 如果在编辑状态,切换回之前的绘制模式
-            if hasattr(self, '_prev_create_mode'):
+            if hasattr(self, "_prev_create_mode"):
                 self.toggleDrawMode(False, createMode=self._prev_create_mode)
             else:
-                notification("请先进行一次标注", "请先进行一次标注后再切换编辑模式",
-                             ToastPreset.WARNING)
+                notification(
+                    dlcv_tr("请先进行一次标注"),
+                    dlcv_tr("请先进行一次标注后再切换编辑模式"),
+                    ToastPreset.WARNING,
+                )
 
     # ------------ 编辑和绘制状态切换新动作 end ------------
 
@@ -2730,18 +2945,18 @@ class MainWindow(MainWindow):
         else:
             self.o3d_widget.hide()
 
-        self.parameter.child("proj_setting",
-                             "proj_type").sigValueChanged.connect(
-            self.proj_type_changed)
+        self.parameter.child("proj_setting", "proj_type").sigValueChanged.connect(
+            self.proj_type_changed
+        )
         self.parameter.child("proj_setting", "proj_type").setValue(
-            self.settings.value("proj_type", ProjEnum.NORMAL))
+            self.settings.value("proj_type", ProjEnum.NORMAL)
+        )
 
         self.__restore_splitter_sizes()
 
     @property
     def is_3d(self) -> bool:
-        return self.parameter.child("proj_setting",
-                                    "proj_type").value() == ProjEnum.O3D
+        return self.parameter.child("proj_setting", "proj_type").value() == ProjEnum.O3D
 
     def proj_type_changed(self, param: Parameter, new_value: str):
         if self.is_3d:
@@ -2756,7 +2971,11 @@ class MainWindow(MainWindow):
 
         img_path = self.filename
         if not self.proj_manager.is_3d_data(img_path):
-            notification("3D 视图提示", "当前图片不是3D数据，无法显示3D视图", ToastPreset.WARNING)
+            notification(
+                dlcv_tr("3D 视图提示"),
+                dlcv_tr("当前图片不是3D数据，无法显示3D视图"),
+                ToastPreset.WARNING,
+            )
             return
 
         gray_img_path = self.proj_manager.get_gray_img_path(img_path)
@@ -2778,12 +2997,12 @@ class MainWindow(MainWindow):
 
 
 class ProjEnum:
-    NORMAL = '常规'
-    O3D = '3D'
+    NORMAL = "常规"
+    O3D = "3D"
     # ------------ 3D 视图 end ------------
 
 
 class ScaleEnum:
-    KEEP_PREV_SCALE = '保持上次缩放比例'
-    AUTO_SCALE = '自动缩放'
-    KEEP_SCALE = '保持缩放比例'
+    KEEP_PREV_SCALE = "保持上次缩放比例"
+    AUTO_SCALE = "自动缩放"
+    KEEP_SCALE = "保持缩放比例"
