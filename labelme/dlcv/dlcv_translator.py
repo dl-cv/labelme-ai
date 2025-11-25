@@ -53,7 +53,8 @@ tr_map = {
         '已切换为 English': 'Switched to English',
         '已切换为 简体中文': 'Switched to Simplified Chinese',
         '语言设置': 'Language',
-        '已设置为 {point_size}': 'Set to {point_size}',
+        '已设置为': 'Set to',
+        '重置所有视图位置': 'Reset all view positions',
 
         # ======工具栏======
         '标签文件为空': 'Label file is empty',
@@ -65,6 +66,49 @@ tr_map = {
         '未发现新标签，所有标签已存在。':
             'No new labels found; all labels already exist.',
         '加载标签文件失败': 'Failed to load label file',
+        '存在不合法多边形': 'Invalid polygons detected',
+        '存在不合法多边形,是否切换图片?':
+            'Invalid polygons detected. Do you want to switch image?',
+        '获取标签文件失败': 'Failed to obtain label file',
+        '代码不应该运行到这里': 'Code should not reach here.',
+        '文件大小为0': 'File size is 0',
+        '选择要加载的标签txt文件': 'Choose a label txt file to load',
+        '标签文件 (*.txt)': 'Label files (*.txt)',
+        '保存标签文件': 'Save label file',
+        
+
+        # ===AI widget 自动标注模块===
+        '加载模型': 'Load model',
+        '标注所有': 'Label all',
+        '选择模型文件': 'Select model file',
+        '加载模型失败': 'Load model failed',
+        '加载模型出错(unknow error) 请检查是否开启了代理软件': 'Load model error (unknown error). Please check whether the proxy software is enabled.',
+        '预测失败': 'Prediction failed',
+        '未获取到预测结果': 'No prediction result',
+        '自动标注提示': 'Auto labeling prompt',
+        '是否覆盖原始标注?': 'Whether to overwrite the original annotation?',
+        '自动标注完成': 'Auto labeling completed',
+        '自动标注失败': 'Auto labeling failed',
+        '请检查标注结果': 'Please review the labeling result.',
+        '请检查模型文件是否正确': 'Please check whether the model files are correct.',
+        '预测完成, 开始自动标注': 'Prediction completed, starting auto labeling.',
+        '请稍等...': 'Please wait...',
+
+        # ======文件树======
+        "展开所有子文件夹": "Expand all subfolders",
+        "输入关键字过滤 - Enter键搜索": "Input keywords to filter - Enter to search",
+        "Enter键搜索": "Enter to search",
+        "复制文件到剪贴板成功": "Copy file to clipboard successfully",
+        "已将文件复制到剪贴板": "The file has been copied to the clipboard",
+        "打开文件": "Open file",
+        "打开所在目录": "Open directory",
+        "复制文件名": "Copy file name",
+        "复制路径": "Copy path",
+        "复制文件到剪贴板": "Copy file to clipboard",
+        "未找到 {text} 文件路径": "File path not found: {text}",
+        "代码不应该运行到这里": "Code should not reach here.",
+
+        # ======画布======
         '提示': 'Notice',
         '请先选中一张图片。': 'Please select an image first.',
         '复制成功': 'Copy successful',
@@ -87,34 +131,28 @@ tr_map = {
         '当前 Json 文件中的 imagePath 与图片路径不一致，请检查！':
             'imagePath inside the current JSON does not match the image path. Please check!',
         '显示RGB值失败!': 'Failed to display RGB values!',
-        '功能互斥': 'Conflicting features',
-        '已禁用画笔标注功能': 'Brush annotation has been disabled.',
-        '画笔功能提示': 'Brush feature notice',
-        '画笔标注功能仅在多边形标注模式下可用，将在下次进入多边形模式时自动启用':
-            'Brush annotation is only available in polygon mode and will be enabled the next time you enter it.',
-        '已禁用滑动标注功能': 'Slide annotation has been disabled.',
-        '预测失败': 'Prediction failed',
-        '请检查模型文件是否正确': 'Please check whether the model files are correct.',
-        '预测完成, 开始自动标注': 'Prediction completed, starting auto labeling.',
-        '请稍等...': 'Please wait...',
-        '自动标注完成': 'Auto labeling completed',
-        '请检查标注结果': 'Please review the labeling result.',
-        '自动标注失败': 'Auto labeling failed',
         '请先进行一次标注': 'Please complete at least one annotation first.',
         '请先进行一次标注后再切换编辑模式':
             'Please finish an annotation before switching to edit mode.',
         '3D 视图提示': '3D View Notice',
         '当前图片不是3D数据，无法显示3D视图':
             'The current image is not 3D data, so the 3D view cannot be displayed.',
-        '存在不合法多边形': 'Invalid polygons detected',
-        '存在不合法多边形,是否切换图片?':
-            'Invalid polygons detected. Do you want to switch image?',
-        '获取标签文件失败': 'Failed to obtain label file',
-        '代码不应该运行到这里': 'Code should not reach here.',
-        '文件大小为0': 'File size is 0',
-        '选择要加载的标签txt文件': 'Choose a label txt file to load',
-        '标签文件 (*.txt)': 'Label files (*.txt)',
-        '保存标签文件': 'Save label file',
+        '创建文本标记': 'Create text flag',
+
+        # ======right_widget 右侧dock模块======
+        # ===flags 文本标记===
+        '删除': 'Delete',
+
+        # ===标签列表===
+        '删除标签': 'Delete label',
+        '是否确定要删除选中的 {count} 个标签？\n注意：这只会从标签列表中删除，不会影响已经标注的形状。':
+            'Are you sure you want to delete the selected {count} labels? \nNote: This will only remove them from the label list and will not affect the already annotated shapes.',
+        '确认删除': 'Confirm deletion',
+        
+        # ===多边形标签===
+        '选择颜色': 'Select color',
+
+        # ===label_count 标签/文本标记数量统计===
         '标签/文本标记数量统计': 'Label/Text Flag Statistics',
         '统计当前文件夹标签/文本标记总数':
             'Count labels/text flags in the current folder',
@@ -134,6 +172,48 @@ tr_map = {
         '当前文件统计结果：\n': 'Current file statistics:\n',
         '\n总数: {count}': '\nTotal: {count}',
         '\n当前文件暂无标注数据': '\nNo annotation data in the current file.',
+
+        # ===设置面板===
+        '功能互斥': 'Conflicting features',
+        '已禁用画笔标注功能': 'Brush annotation has been disabled.',
+        '画笔功能提示': 'Brush feature notice',
+        '画笔标注功能仅在多边形标注模式下可用，将在下次进入多边形模式时自动启用':
+            'Brush annotation is only available in polygon mode and will be enabled the next time you enter it.',
+        '已禁用滑动标注功能': 'Slide annotation has been disabled.',
+        '显示标签名称': 'Display shape label',
+        '标签字体大小': 'Shape label font size',
+        '将标注图片转换为灰度图': 'Convert annotated image to grayscale',
+        '图片缩放': 'Image scaling',
+        '将点转换为十字线': 'Convert points to crosshair',
+        '更改颜色': 'Change color',
+        '更改选中形状的标注颜色': 'Change the color of the selected polygon',
+        '启用画笔标注（按+/-调整大小）': 'Enable brush annotation (adjust size with +/-)',
+        '填充闭合区域': 'Fill closed region',
+        "常规": "Normal",
+        "保持上次缩放比例": "Keep previous scale",
+        "3D": "3D",
+        "自动缩放": "Auto scale",
+        "保持缩放比例": "Keep scale",
+        "蓝色线段标注": "Blue line annotation",
+        "显示旋转框箭头与角度": "Display rotation box arrow and angle",
+        "启用滑动标注将禁用画笔标注功能，两者互斥": "Enabling slide annotation will disable brush annotation and they are mutually exclusive",
+        "滑动标注距离": "Slide annotation distance",
+        "启用后，将高亮标注线段为蓝色": "Enabled, the highlighted annotation line will be blue",
+        "启用后，闭合区域内部将被填充，否则仅保留轮廓": "Enabled, the closed region will be filled, otherwise only the outline will be retained",
+        "画笔大小": "Brush size",
+        "启用后，将点转换为十字线": "Enabled, the points will be converted to crosshair",
+        "启用后，将点转换为十字线": "Enabled, the points will be converted to crosshair",
+        'AI多边形点数简化设置': 'AI polygon simplify epsilon setting',
+        '简化程度说明': 'Simplification degree description',
+        '0.001: 轻微简化': '0.001: Mild simplification',
+        '0.005: 默认简化': '0.005: Default simplification',
+        '0.01: 较多简化': '0.01: Significant simplification',
+        '0.05: 大量简化': '0.05: Substantial simplification',
+        '0.1: 极度简化': '0.1: Extreme simplification',
+        '使用Bbox进行自动标注': 'Use Bbox for auto annotation',
+        '请输入需要自动标注的类别': 'Please enter the categories to be automatically annotated',
+        # ======其他处理======
+
     },
 
     'zh_CN': {

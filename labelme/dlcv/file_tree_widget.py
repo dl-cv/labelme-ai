@@ -7,6 +7,7 @@ from qtpy import QtCore, QtWidgets, QtGui
 from qtpy.QtCore import Qt
 
 from labelme.dlcv.store import STORE
+from labelme.dlcv.dlcv_translator import dlcv_tr
 
 
 class FileTreeItem(QtWidgets.QTreeWidgetItem):
@@ -240,7 +241,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             def expand_all():
                 _expand_all_subfolders(item)
 
-            expand_action = menu.addAction("展开所有子文件夹")
+            expand_action = menu.addAction(dlcv_tr("展开所有子文件夹"))
             expand_action.triggered.connect(expand_all)
             menu.exec_(self.viewport().mapToGlobal(event.pos()))
 
@@ -258,8 +259,8 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
                 ]
                 copy_files_to_clipboard(file_paths)
                 notification(
-                    title="复制文件到剪贴板成功",
-                    text="已将文件复制到剪贴板",
+                    title=dlcv_tr("复制文件到剪贴板成功"),
+                    text=dlcv_tr("已将文件复制到剪贴板"),
                     preset=ToastPreset.SUCCESS)
 
             def open_in_explorer():
@@ -272,13 +273,13 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
                 current_path = str(Path(current_path).absolute())
                 os.system(f'start "" "{current_path}"')
 
-            open_file_action = menu.addAction("打开文件")
-            display_in_explorer_action = menu.addAction("打开所在目录")
+            open_file_action = menu.addAction(dlcv_tr("打开文件"))
+            display_in_explorer_action = menu.addAction(dlcv_tr("打开所在目录"))
             menu.addSeparator()
-            copy_file_name_action = menu.addAction("复制文件名")
-            copy_path_action = menu.addAction("复制路径")
+            copy_file_name_action = menu.addAction(dlcv_tr("复制文件名"))
+            copy_path_action = menu.addAction(dlcv_tr("复制路径"))
             menu.addSeparator()
-            copy_to_clipboard_action = menu.addAction("复制文件到剪贴板")
+            copy_to_clipboard_action = menu.addAction(dlcv_tr("复制文件到剪贴板"))
 
             display_in_explorer_action.triggered.connect(open_in_explorer)
             copy_path_action.triggered.connect(
@@ -382,7 +383,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
                 return [item]
         except KeyError:
             from labelme.dlcv.utils_func import notification, ToastPreset
-            notification(title=f"未找到 {text} 文件路径", text="代码不应该运行到这里", preset=ToastPreset.ERROR)
+            notification(title=dlcv_tr("未找到 {text} 文件路径").format(text=text), text=dlcv_tr("代码不应该运行到这里"), preset=ToastPreset.ERROR)
             return []
 
 
@@ -399,8 +400,8 @@ class FileTreeWidget(QtWidgets.QWidget):
 
         # 创建搜索框
         self.search_box = QtWidgets.QLineEdit()
-        self.search_box.setPlaceholderText("输入关键字过滤 - Enter键搜索")
-        self.search_box.setToolTip("Enter键搜索")
+        self.search_box.setPlaceholderText(dlcv_tr("输入关键字过滤 - Enter键搜索"))
+        self.search_box.setToolTip(dlcv_tr("Enter键搜索"))
         self.layout.addWidget(self.search_box)
 
         # 创建树控件

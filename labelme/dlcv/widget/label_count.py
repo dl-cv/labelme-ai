@@ -143,7 +143,7 @@ class LabelCountDock(QtWidgets.QDockWidget):
             total_labels = sum(label_counter.values())
             for label, count in label_counter.most_common():
                 result += f"{label}: {count}\n"
-            result += dlcv_tr("标签总数: {count}\n").format(count=total_labels)
+            result += dlcv_tr("标签总数: {count}").format(count=total_labels) + "\n"
 
         total = sum(label_counter.values()) + sum(flag_counter.values())
         if total > 0:

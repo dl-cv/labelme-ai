@@ -250,7 +250,7 @@ class MainWindow(QtWidgets.QMainWindow):
             enabled=False,
         )
         save = action(
-            self.tr("&Save\n"),
+            self.tr("&Save"),
             self.saveFile,
             shortcuts["save"],
             "save",
@@ -456,7 +456,7 @@ class MainWindow(QtWidgets.QMainWindow):
         )
 
         undo = action(
-            self.tr("Undo\n"),
+            self.tr("Undo"),
             self.undoShapeEdit,
             shortcuts["undo"],
             "undo",

@@ -484,7 +484,7 @@ class MainWindow(MainWindow):
     def _init_setting_menu(self):
         # 在菜单栏添加设置菜单选项
         self.menus.setting = self.menu(
-            dlcv_tr("系统设置")
+            "系统设置(System Settings)"
         )
 
         # region
@@ -536,11 +536,9 @@ class MainWindow(MainWindow):
                 "ui/font_point_size", None, type=int
             )
         except Exception:
-            current_font_size = None
-        if current_font_size is None:
-            app = QtWidgets.QApplication.instance()
-            if app is not None:
-                current_font_size = app.font().pointSize()
+            # 默认为10
+            current_font_size = 10
+        print(f'@@@当前字体：{current_font_size}')
 
         self.actions.font_size_actions = []
         for size in font_sizes:
@@ -563,10 +561,25 @@ class MainWindow(MainWindow):
 
     def _on_change_language(self, lang_code: str):
         lang_code = lang_code or "zh_CN"
-
         # 保存到设置
         try:
             self.settings.setValue("ui/language", lang_code)
+            if lang_code == "en_US":
+                lang_title = "Language"
+                info = "Please restart the software to apply the revision."
+                action = "Had switched to English"
+            else:
+                lang_title = "语言"
+                info = "请重启软件以应用修改。"
+                action = "已切换为 简体中文"
+            notification(
+                lang_title,
+                action,
+            )
+            notification(
+                lang_title,
+                info,
+            )
         except Exception:
             QtCore.QSettings("labelme", "labelme").setValue("ui/language", lang_code)
 
@@ -1314,11 +1327,11 @@ class MainWindow(MainWindow):
             return self.proj_manager.get_json_path(self.filename)
         except:
             notification(
-                title="获取标签文件失败",
-                text="代码不应该运行到这里",
+                title=dlcv_tr("获取标签文件失败"),
+                text=dlcv_tr("代码不应该运行到这里"),
                 preset=ToastPreset.ERROR,
             )
-            raise Exception("获取标签文件失败")
+            raise Exception(dlcv_tr("获取标签文件失败"))
 
     def get_vertical_scrollbar(self):
         return self.scrollBars[Qt.Vertical]
@@ -1798,14 +1811,14 @@ class MainWindow(MainWindow):
         self._init_text_flag_wgt()
 
         # 修改快捷键文本
-        self.actions.openNextImg.setIconText(
-            dlcv_tr("open next image")
-            + f"({self.actions.openNextImg.shortcut().toString()})"
-        )
-        self.actions.openPrevImg.setIconText(
-            dlcv_tr("open previous image")
-            + f"({self.actions.openPrevImg.shortcut().toString()})"
-        )
+        # self.actions.openNextImg.setIconText(
+        #     dlcv_tr("open next image")
+        #     + f"({self.actions.openNextImg.shortcut().toString()})"
+        # )
+        # self.actions.openPrevImg.setIconText(
+        #     dlcv_tr("open previous image")
+        #     + f"({self.actions.openPrevImg.shortcut().toString()})"
+        # )
 
         # 添加 ctrl + A 全选多边形
         action = QtWidgets.QAction(dlcv_tr("全选多边形"), self)
@@ -1968,13 +1981,13 @@ class MainWindow(MainWindow):
                         "name": "scale_option",
                         "title": dlcv_tr("keep prev scale"),
                         "type": "list",
-                        "value": ScaleEnum.AUTO_SCALE,
+                        "value": dlcv_tr(ScaleEnum.AUTO_SCALE),
                         "limits": [
-                            ScaleEnum.KEEP_PREV_SCALE,
-                            ScaleEnum.AUTO_SCALE,
-                            ScaleEnum.KEEP_SCALE,
+                            dlcv_tr(ScaleEnum.KEEP_PREV_SCALE),
+                            dlcv_tr(ScaleEnum.AUTO_SCALE),
+                            dlcv_tr(ScaleEnum.KEEP_SCALE),
                         ],
-                        "default": ScaleEnum.AUTO_SCALE,
+                        "default": dlcv_tr(ScaleEnum.AUTO_SCALE),
                     },
                     {
                         "name": "convert_img_to_gray",
@@ -2214,7 +2227,7 @@ class MainWindow(MainWindow):
                 )
                 # 新增：恢复缩放选项设置
                 self.parameter.child("other_setting", "scale_option").setValue(
-                    setting_store.get("scale_option", ScaleEnum.AUTO_SCALE)
+                    setting_store.get("scale_option", dlcv_tr(ScaleEnum.AUTO_SCALE))
                 )
                 # 新增：恢复AI多边形简化参数设置
                 self.parameter.child(
@@ -2233,7 +2246,7 @@ class MainWindow(MainWindow):
     def keep_scale(self):
         return (
             self.parameter.child("other_setting", "scale_option").value()
-            == ScaleEnum.KEEP_SCALE
+            == dlcv_tr(ScaleEnum.KEEP_SCALE)
         )
 
     def _on_param_changed(self, param, changes):
@@ -2339,11 +2352,11 @@ class MainWindow(MainWindow):
                     STORE.set_canvas_points_to_crosshair(new_value)
                     self.canvas.update()
                 elif param_name == "scale_option":
-                    if new_value == ScaleEnum.KEEP_PREV_SCALE:
+                    if new_value == dlcv_tr(ScaleEnum.KEEP_PREV_SCALE):
                         self.enableKeepPrevScale(True)
-                    elif new_value == ScaleEnum.AUTO_SCALE:
+                    elif new_value == dlcv_tr(ScaleEnum.AUTO_SCALE):
                         self.enableKeepPrevScale(False)
-                    elif new_value == ScaleEnum.KEEP_SCALE:
+                    elif new_value == dlcv_tr(ScaleEnum.KEEP_SCALE):
                         self.enableKeepPrevScale(False)
 
     # endregion
@@ -2987,7 +3000,7 @@ class MainWindow(MainWindow):
 
 
 class ProjEnum:
-    NORMAL = "常规"
+    NORMAL = "2D"
     O3D = "3D"
     # ------------ 3D 视图 end ------------
 
