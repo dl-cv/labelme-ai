@@ -118,6 +118,9 @@ class MainWindow(MainWindow):
 
         Toast.setPositionRelativeToWidget(self)  # 通知控件
         self.dev_setting = QtCore.QSettings("baiduyun_dev", "ai")
+        
+        # 初始化空格提示时间戳（用于限制提示频率）
+        self._last_space_warning_time = 0
 
         # 移除 [ImageData] 功能, 默认自动保存
         removeAction(self.menus.file, self.actions.saveWithImageData)
@@ -564,24 +567,45 @@ class MainWindow(MainWindow):
         # 保存到设置
         try:
             self.settings.setValue("ui/language", lang_code)
-            if lang_code == "en_US":
-                lang_title = "Language"
-                info = "Please restart the software to apply the revision."
-                action = "Had switched to English"
-            else:
-                lang_title = "语言"
-                info = "请重启软件以应用修改。"
-                action = "已切换为 简体中文"
-            notification(
-                lang_title,
-                action,
-            )
-            notification(
-                lang_title,
-                info,
-            )
         except Exception:
             QtCore.QSettings("labelme", "labelme").setValue("ui/language", lang_code)
+        
+        # 通知用户
+        notification(
+            dlcv_tr("语言设置"),
+            dlcv_tr("语言已更改，请重启软件以应用修改。"),
+            ToastPreset.WARNING,
+            8000
+        )
+        
+        # 弹窗询问是否重启软件
+        # reply = QtWidgets.QMessageBox.question(
+        #     self, 
+        #     dlcv_tr("重启软件"), 
+        #     dlcv_tr("是否重启软件以应用修改？"), 
+        #     QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, 
+        #     QtWidgets.QMessageBox.No
+        # )
+        
+        # if reply == QtWidgets.QMessageBox.Yes:
+        #     # 先确保设置写入磁盘
+        #     try:
+        #         self.settings.sync()
+        #     except Exception:
+        #         pass
+        #     # 使用当前可执行文件与参数重新启动进程（兼容开发与打包环境）
+        #     program = QtCore.QCoreApplication.applicationFilePath()
+        #     arguments = QtWidgets.QApplication.arguments()
+        #     try:
+        #         QtCore.QProcess.startDetached(program, arguments)
+        #     except Exception:
+        #         # 兜底：在极端情况下使用 sys.executable 重启
+        #         try:
+        #             QtCore.QProcess.startDetached(sys.executable, sys.argv[1:])
+        #         except Exception:
+        #             pass
+        #     # 退出当前实例
+        #     QtWidgets.QApplication.quit()
 
     def _on_change_ui_font_point_size(self, point_size: int):
         # 应用到全局 UI 字体
@@ -2917,11 +2941,7 @@ class MainWindow(MainWindow):
             if hasattr(self, "_prev_create_mode"):
                 self.toggleDrawMode(False, createMode=self._prev_create_mode)
             else:
-                notification(
-                    dlcv_tr("请先进行一次标注"),
-                    dlcv_tr("请先进行一次标注后再切换编辑模式"),
-                    ToastPreset.WARNING,
-                )
+                self._prev_create_mode = 'polygon'
 
     # ------------ 编辑和绘制状态切换新动作 end ------------
 
