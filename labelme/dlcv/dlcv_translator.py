@@ -9,8 +9,11 @@ class DlcvTrObject:
 
 
 class DlcvTranslator:
+    lang = None
 
     def __call__(self, *args, **kwargs):
+        if self.lang is None:
+            self.__lazy_init()
         text = args[0]
         return tr_map.get(self.lang, {}).get(text, text)
 
@@ -20,11 +23,9 @@ class DlcvTranslator:
     def get_lang(self):
         return self.lang
 
-    def __init__(self):
-        import locale
-        local_lang = locale.getdefaultlocale()[0]
-        # 如果系统语言不在支持的语言列表中，则默认为英文
-        self.lang =  'en_US'
+    def __lazy_init(self):
+        from labelme.dlcv.store import STORE
+        self.lang = STORE.main_window.settings.value("ui/language", 'en_US')
 
 
 tr_map = {

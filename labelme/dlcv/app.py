@@ -143,6 +143,7 @@ class MainWindow(MainWindow):
 
         # 新增设置菜单
         self._init_setting_menu()
+
         # APPData 目录
         APPDATA_DIR = (
             os.path.expanduser("~")
@@ -473,10 +474,6 @@ class MainWindow(MainWindow):
         self._update_language_menu_checks(self.current_language)
         self.retranslate_ui()
 
-    def _text_by_language(self, zh_text: str, en_text: str) -> str:
-        lang = getattr(self, "current_language", "zh_CN")
-        return zh_text if lang == "zh_CN" else en_text
-
     def _update_language_menu_checks(self, lang_code: str):
         lang = lang_code or "zh_CN"
         if hasattr(self, "actions"):
@@ -489,7 +486,7 @@ class MainWindow(MainWindow):
     def _init_setting_menu(self):
         # 在菜单栏添加设置菜单选项
         self.menus.setting = self.menu(
-            self._text_by_language("系统设置", "System Settings")
+            dlcv_tr("系统设置")
         )
 
         # region
@@ -499,14 +496,10 @@ class MainWindow(MainWindow):
         lang_group = QtWidgets.QActionGroup(self)
         lang_group.setExclusive(True)
 
-        self.actions.lang_zh = QtWidgets.QAction(
-            self._text_by_language("简体中文", "Simplified Chinese"), self
-        )
+        self.actions.lang_zh = QtWidgets.QAction("简体中文", self)
         self.actions.lang_zh.setCheckable(True)
         self.actions.lang_zh.setData("zh_CN")
-        self.actions.lang_en = QtWidgets.QAction(
-            self._text_by_language("英文", "English"), self
-        )
+        self.actions.lang_en = QtWidgets.QAction("英文", self)
         self.actions.lang_en.setCheckable(True)
         self.actions.lang_en.setData("en_US")
 
@@ -533,7 +526,7 @@ class MainWindow(MainWindow):
         # region
         # 字体大小子菜单（应用全局 UI 字体大小）
         self.menus.setting_font = self.menus.setting.addMenu(
-            self._text_by_language("字体大小", "Font Size")
+            dlcv_tr("字体大小")
         )
         font_group = QtWidgets.QActionGroup(self)
         font_group.setExclusive(True)
@@ -572,8 +565,7 @@ class MainWindow(MainWindow):
 
     def _on_change_language(self, lang_code: str):
         lang_code = lang_code or "zh_CN"
-        if lang_code == getattr(self, "current_language", "zh_CN"):
-            return
+
         # 保存到设置
         try:
             self.settings.setValue("ui/language", lang_code)
@@ -592,8 +584,8 @@ class MainWindow(MainWindow):
         except Exception:
             pass
         notification(
-            self._text_by_language("字体大小", "Font Size"),
-            self._text_by_language(f"已设置为 {point_size}", f"Set to {point_size}"),
+            dlcv_tr("字体大小"),
+            dlcv_tr(f"{dlcv_tr('已设置为')} {point_size}"),
             ToastPreset.INFORMATION,
         )
 
