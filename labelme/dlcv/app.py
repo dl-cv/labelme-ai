@@ -564,26 +564,40 @@ class MainWindow(MainWindow):
         # 保存到设置
         try:
             self.settings.setValue("ui/language", lang_code)
-            if lang_code == "en_US":
-                lang_title = "Language"
-                info = "Please restart the software to apply the revision."
-                action = "Had switched to English"
-            else:
-                lang_title = "语言"
-                info = "请重启软件以应用修改。"
-                action = "已切换为 简体中文"
-            notification(
-                lang_title,
-                action,
-            )
-            notification(
-                lang_title,
-                info,
-                ToastPreset.WARNING,
-                6000,
-            )
         except Exception:
             QtCore.QSettings("labelme", "labelme").setValue("ui/language", lang_code)
+        
+        # 通知用户
+        notification(
+            dlcv_tr("语言设置"),
+            dlcv_tr("语言已更改，请重启软件以应用修改。"),
+            ToastPreset.INFORMATION,
+        )
+        
+        # 弹窗询问是否重启软件
+        reply = QtWidgets.QMessageBox.question(
+            self, 
+            dlcv_tr("重启软件"), 
+            dlcv_tr("是否重启软件以应用修改？"), 
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, 
+            QtWidgets.QMessageBox.No
+        )
+        
+        if reply == QtWidgets.QMessageBox.Yes:
+            # 使用 QProcess 重启应用，避免 os.execl 在 Windows 上的问题
+            import subprocess
+            try:
+                # 关闭当前窗口
+                QtWidgets.QApplication.quit()
+                # 启动新进程
+                if getattr(sys, 'frozen', False):
+                    # 如果是打包后的exe
+                    subprocess.Popen([sys.executable] + sys.argv[1:])
+                else:
+                    # 如果是Python脚本运行
+                    subprocess.Popen([sys.executable] + sys.argv)
+            except Exception as e:
+                logger.error(f"Failed to restart application: {e}")
 
     def _on_change_ui_font_point_size(self, point_size: int):
         # 应用到全局 UI 字体

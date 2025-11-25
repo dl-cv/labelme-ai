@@ -54,7 +54,10 @@ tr_map = {
         '已切换为 简体中文': 'Switched to Simplified Chinese',
         '语言设置': 'Language',
         '已设置为': 'Set to',
+        '语言已更改，请重启软件以应用修改。': 'Language changed. Please restart the software to apply the modification.',
         '重置所有视图位置': 'Reset all view positions',
+        '重启软件': 'Restart software',
+        '是否重启软件以应用修改？': 'Would you like to restart the software to apply the changes?',
 
         # ======工具栏======
         '标签文件为空': 'Label file is empty',
