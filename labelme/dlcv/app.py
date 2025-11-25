@@ -466,13 +466,11 @@ class MainWindow(MainWindow):
 
     def initialize_language_context(self, lang_code: str, translator):
         self.current_language = lang_code or "zh_CN"
-        self._qt_translator = translator
         try:
             dlcv_tr.set_lang(self.current_language)
         except Exception:
             pass
         self._update_language_menu_checks(self.current_language)
-        self.retranslate_ui()
 
     def _update_language_menu_checks(self, lang_code: str):
         lang = lang_code or "zh_CN"
@@ -499,7 +497,7 @@ class MainWindow(MainWindow):
         self.actions.lang_zh = QtWidgets.QAction("简体中文", self)
         self.actions.lang_zh.setCheckable(True)
         self.actions.lang_zh.setData("zh_CN")
-        self.actions.lang_en = QtWidgets.QAction("英文", self)
+        self.actions.lang_en = QtWidgets.QAction("English", self)
         self.actions.lang_en.setCheckable(True)
         self.actions.lang_en.setData("en_US")
 
