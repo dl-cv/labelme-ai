@@ -579,6 +579,8 @@ class MainWindow(MainWindow):
             notification(
                 lang_title,
                 info,
+                ToastPreset.WARNING,
+                6000,
             )
         except Exception:
             QtCore.QSettings("labelme", "labelme").setValue("ui/language", lang_code)
