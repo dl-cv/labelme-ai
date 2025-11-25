@@ -8,6 +8,7 @@ from collections import Counter
 import os
 import json
 
+
 class LabelCountDock(QtWidgets.QDockWidget):
     def __init__(self, parent=None):
         super().__init__(dlcv_tr("标签/文本标记数量统计"), parent)
@@ -25,7 +26,9 @@ class LabelCountDock(QtWidgets.QDockWidget):
         layout.addWidget(self.label_count_text)
 
         # 添加统计按钮
-        self.label_count_btn = QtWidgets.QPushButton("统计当前文件夹标签/文本标记总数", main_widget)
+        self.label_count_btn = QtWidgets.QPushButton(
+            dlcv_tr("统计当前文件夹标签/文本标记总数"), main_widget
+        )
         layout.addWidget(self.label_count_btn)
 
         # 去除控件间间距
@@ -46,7 +49,9 @@ class LabelCountDock(QtWidgets.QDockWidget):
         parent = self.parent()
         dir_path = getattr(parent, "lastOpenDir", None)
         if not dir_path or not os.path.isdir(dir_path):
-            self.label_count_text.setText("未检测到有效的图片文件夹，请先导入文件夹。")
+            self.label_count_text.setText(
+                dlcv_tr("未检测到有效的图片文件夹，请先导入文件夹。")
+            )
             return
 
         # 递归遍历文件夹下所有json文件
@@ -80,27 +85,33 @@ class LabelCountDock(QtWidgets.QDockWidget):
 
         if not label_counter and not flag_counter:
             if json_files_count == 0:
-                self.label_count_text.setText("未找到任何JSON文件，请先进行标注。")
+                self.label_count_text.setText(dlcv_tr("未找到任何JSON文件，请先进行标注。"))
             else:
-                self.label_count_text.setText(f"找到 {json_files_count} 个JSON文件，但未统计到任何标签。")
+                self.label_count_text.setText(
+                    dlcv_tr("找到 {count} 个JSON文件，但未统计到任何标签。").format(
+                        count=json_files_count
+                    )
+                )
         else:
-            result = f"统计结果（共扫描 {json_files_count} 个JSON文件）：\n"
+            result = dlcv_tr("统计结果（共扫描 {count} 个JSON文件）：\n").format(
+                count=json_files_count
+            )
             if flag_counter:
-                result += "\n文本标记统计:\n"
+                result += dlcv_tr("\n文本标记统计:\n")
                 total_flags = sum(flag_counter.values())
                 for flag, count in flag_counter.most_common():
                     result += f"{flag}: {count}\n"
-                result += f"文本标记总数: {total_flags}\n"
+                result += dlcv_tr("文本标记总数: {count}\n").format(count=total_flags)
             if label_counter:
-                result += "\n标签统计:\n"
+                result += dlcv_tr("\n标签统计:\n")
                 total_labels = sum(label_counter.values())
                 # 使用most_common()方法按数量降序排列， 返回从高到低排序的元组列表
                 for label, count in label_counter.most_common():
                     result += f"{label}: {count}\n"
-                result += f"标签总数: {total_labels}"
+                result += dlcv_tr("标签总数: {count}").format(count=total_labels)
 
             total = sum(label_counter.values()) + sum(flag_counter.values())
-            result += f'\n\n总数: {total}'
+            result += dlcv_tr("\n\n总数: {count}").format(count=total)
             self.label_count_text.setText(result)
 
     # 统计当前文件的标签/标记数量; 在画布的save函数中调用
@@ -113,32 +124,32 @@ class LabelCountDock(QtWidgets.QDockWidget):
             label = shape.label
             if label:
                 label_counter[label] += 1
-                
+
         # 统计文本标记（只统计值为True的flag文本）
         if isinstance(flags, dict):
             for flag_name, flag_value in flags.items():
                 if flag_value is True:
                     flag_counter[flag_name] += 1
 
-        result = "当前文件统计结果：\n"
+        result = dlcv_tr("当前文件统计结果：\n")
         if flag_counter:
-            result += "\n文本标记统计:\n"
+            result += dlcv_tr("\n文本标记统计:\n")
             total_flags = sum(flag_counter.values())
             for flag, count in flag_counter.most_common():
                 result += f"{flag}: {count}\n"
-            result += f"文本标记总数: {total_flags}\n"
+            result += dlcv_tr("文本标记总数: {count}\n").format(count=total_flags)
         if label_counter:
-            result += "\n标签统计:\n"
+            result += dlcv_tr("\n标签统计:\n")
             total_labels = sum(label_counter.values())
             for label, count in label_counter.most_common():
                 result += f"{label}: {count}\n"
-            result += f"标签总数: {total_labels}\n"
+            result += dlcv_tr("标签总数: {count}").format(count=total_labels) + "\n"
 
         total = sum(label_counter.values()) + sum(flag_counter.values())
         if total > 0:
-            result += f'\n总数: {total}'
+            result += dlcv_tr("\n总数: {count}").format(count=total)
         else:
-            result += '\n当前文件暂无标注数据'
+            result += dlcv_tr("\n当前文件暂无标注数据")
         self.label_count_text.setText(result)
 
         return result

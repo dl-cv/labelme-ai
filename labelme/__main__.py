@@ -176,8 +176,15 @@ def main():
     from labelme.translate.zh_CN import translate_data
     start_backend()
 
+    # 获取语言设置
+    settings = QtCore.QSettings("labelme", "labelme")
+    lang = settings.value("ui/language", "zh_CN")
+
     translator = QtCore.QTranslator()
-    translator.loadFromData(translate_data)
+    # 根据设置加载语言
+    if lang == "zh_CN":
+        translator.loadFromData(translate_data)
+
     app = QtWidgets.QApplication(sys.argv)
     app.setApplicationName(__appname__)
     app.setWindowIcon(newIcon("icon"))
@@ -188,6 +195,10 @@ def main():
         output_file=output_file,
         output_dir=output_dir,
     )
+
+    # 初始化语言环境
+    if hasattr(win, "initialize_language_context"):
+        win.initialize_language_context(lang, translator)
 
     if reset_config:
         logger.info("Resetting Qt config: %s" % win.settings.fileName())

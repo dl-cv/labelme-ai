@@ -39,7 +39,8 @@ def newAction(
     """Create a new action and assign callbacks, shortcuts, etc."""
     a = QtWidgets.QAction(text, parent)
     if icon is not None:
-        a.setIconText(text.replace(" ", "\n"))
+        # 不再自动替换空格为换行符，保持文本在一行
+        a.setIconText(text)
         a.setIcon(newIcon(icon))
     if shortcut is not None:
         if isinstance(shortcut, (list, tuple)):
