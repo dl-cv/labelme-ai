@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from qtpy import QtGui
 
-from labelme.dlcv import tr
+from labelme.dlcv import dlcv_tr
 from labelme.logger import logger
 from labelme import utils
 
@@ -20,11 +20,11 @@ def init_change_color_action(main_window: 'MainWindow'):
     """
     action = utils.newAction(
         main_window,
-        tr("change color"),
+        dlcv_tr("change color"),
         lambda: change_shape_color(main_window),
         None,
         "color",
-        tr("change the color of the selected polygon"),
+        dlcv_tr("change the color of the selected polygon"),
         enabled=False,
     )
     
