@@ -574,33 +574,38 @@ class MainWindow(MainWindow):
         notification(
             dlcv_tr("语言设置"),
             dlcv_tr("语言已更改，请重启软件以应用修改。"),
-            ToastPreset.INFORMATION,
+            ToastPreset.WARNING,
+            8000
         )
         
         # 弹窗询问是否重启软件
-        reply = QtWidgets.QMessageBox.question(
-            self, 
-            dlcv_tr("重启软件"), 
-            dlcv_tr("是否重启软件以应用修改？"), 
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, 
-            QtWidgets.QMessageBox.No
-        )
+        # reply = QtWidgets.QMessageBox.question(
+        #     self, 
+        #     dlcv_tr("重启软件"), 
+        #     dlcv_tr("是否重启软件以应用修改？"), 
+        #     QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, 
+        #     QtWidgets.QMessageBox.No
+        # )
         
-        if reply == QtWidgets.QMessageBox.Yes:
-            # 使用 QProcess 重启应用，避免 os.execl 在 Windows 上的问题
-            import subprocess
-            try:
-                # 关闭当前窗口
-                QtWidgets.QApplication.quit()
-                # 启动新进程
-                if getattr(sys, 'frozen', False):
-                    # 如果是打包后的exe
-                    subprocess.Popen([sys.executable] + sys.argv[1:])
-                else:
-                    # 如果是Python脚本运行
-                    subprocess.Popen([sys.executable] + sys.argv)
-            except Exception as e:
-                logger.error(f"Failed to restart application: {e}")
+        # if reply == QtWidgets.QMessageBox.Yes:
+        #     # 先确保设置写入磁盘
+        #     try:
+        #         self.settings.sync()
+        #     except Exception:
+        #         pass
+        #     # 使用当前可执行文件与参数重新启动进程（兼容开发与打包环境）
+        #     program = QtCore.QCoreApplication.applicationFilePath()
+        #     arguments = QtWidgets.QApplication.arguments()
+        #     try:
+        #         QtCore.QProcess.startDetached(program, arguments)
+        #     except Exception:
+        #         # 兜底：在极端情况下使用 sys.executable 重启
+        #         try:
+        #             QtCore.QProcess.startDetached(sys.executable, sys.argv[1:])
+        #         except Exception:
+        #             pass
+        #     # 退出当前实例
+        #     QtWidgets.QApplication.quit()
 
     def _on_change_ui_font_point_size(self, point_size: int):
         # 应用到全局 UI 字体
