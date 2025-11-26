@@ -14,6 +14,7 @@ class DlcvTranslator:
     def __call__(self, *args, **kwargs):
         if self.lang is None:
             self.__lazy_init()
+            print(f'@@@当前语言设置为: {self.lang}')
         text = args[0]
         return tr_map.get(self.lang, {}).get(text, text)
 
@@ -24,8 +25,33 @@ class DlcvTranslator:
         return self.lang
 
     def __lazy_init(self):
+        """初始化语言设置，优先级：用户设置 > 系统语言 > 默认英文"""
         from labelme.dlcv.store import STORE
-        self.lang = STORE.main_window.settings.value("ui/language", 'en_US')
+        from PyQt5 import QtCore
+        
+        supported_langs = {"zh_CN", "en_US"}
+        self.lang = "en_US"
+        
+        # 优先使用用户设置的语言
+        try:
+            saved_lang = STORE.main_window.settings.value("ui/language", type=str)
+            if saved_lang in supported_langs:
+                self.lang = saved_lang
+                return
+        except (AttributeError, RuntimeError):
+            pass
+        
+        # 其次使用系统语言
+        try:
+            system_lang = QtCore.QLocale.system().name()
+            lang_code = system_lang.split('.')[0].replace('-', '_')
+            if lang_code in supported_langs:
+                self.lang = lang_code
+            elif lang_code.startswith('zh'):
+                self.lang = "zh_CN"
+        except Exception:
+            pass
+
 
 
 tr_map = {
@@ -52,9 +78,7 @@ tr_map = {
         '字体大小': 'Font Size',
         '已切换为 English': 'Switched to English',
         '已切换为 简体中文': 'Switched to Simplified Chinese',
-        '语言设置': 'Language',
         '已设置为': 'Set to',
-        '语言已更改，请重启软件以应用修改。': 'Language changed. Please restart the software to apply the modification.',
         '重置所有视图位置': 'Reset all view positions',
         '重启软件': 'Restart software',
         '是否重启软件以应用修改？': 'Would you like to restart the software to apply the changes?',

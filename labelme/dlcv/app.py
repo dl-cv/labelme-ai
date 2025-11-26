@@ -570,10 +570,23 @@ class MainWindow(MainWindow):
         except Exception:
             QtCore.QSettings("labelme", "labelme").setValue("ui/language", lang_code)
         
+        cn_lang_title = '语言设置'
+        cn_lang_info = '语言已更改，请重启软件以应用修改。'
+    
+        en_lang_title = 'Language Setting'
+        en_lang_info = 'Language changed. Please restart the software to apply the modification.'
+        
         # 通知用户
         notification(
-            dlcv_tr("语言设置"),
-            dlcv_tr("语言已更改，请重启软件以应用修改。"),
+            cn_lang_title,
+            cn_lang_info,
+            ToastPreset.WARNING,
+            8000
+        )
+        
+        notification(
+            en_lang_title,
+            en_lang_info,
             ToastPreset.WARNING,
             8000
         )
