@@ -33,13 +33,13 @@ class DlcvTranslator:
         self.lang = "en_US"
         
         # 优先使用用户设置的语言
-        # try:
-        #     saved_lang = STORE.main_window.settings.value("ui/language", type=str)
-        #     if saved_lang in supported_langs:
-        #         self.lang = saved_lang
-        #         return
-        # except (AttributeError, RuntimeError):
-        #     pass
+        try:
+            saved_lang = STORE.main_window.settings.value("ui/language", type=str)
+            if saved_lang in supported_langs:
+                self.lang = saved_lang
+                return
+        except (AttributeError, RuntimeError):
+            pass
         
         # 其次使用系统语言
         try:
