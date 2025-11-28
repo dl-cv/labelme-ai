@@ -243,7 +243,7 @@ class Shape(Shape):
                 painter.setPen(pen)
             
                 # 显示Label（如果有）- 优化旋转框标签显示
-                if self.label and getattr(STORE, 'canvas_display_rotation_label', True):
+                if self.label and STORE.canvas_display_shape_label:
                     try:
                         # 之前没有对字体进行缩放， 现在对字体进行中心缩放
                         label = self.label
@@ -374,10 +374,7 @@ class Shape(Shape):
 
             # extra 显示标签
             try:
-                # 旋转框使用自己的标签绘制逻辑，跳过通用绘制
-                if self.shape_type == "rotation":
-                    pass
-                elif (
+                if (
                     ShapeType.can_display_label(self.shape_type)
                     and self.label
                     and STORE.canvas_display_shape_label
