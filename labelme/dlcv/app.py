@@ -111,6 +111,7 @@ class MainWindow(MainWindow):
     def __init__(
         self, config=None, filename=None, output=None, output_file=None, output_dir=None
     ):
+        self.settings = QtCore.QSettings("labelme", "labelme")
         # extra 额外属性
         self.action_refresh = None
         STORE.register_main_window(self)
@@ -467,21 +468,9 @@ class MainWindow(MainWindow):
         utils.addActions(self.canvas.menus[0], self.actions.menu)
         # ------------ 查看属性 end ------------
 
-    def initialize_language_context(self, lang_code: str, translator):
-        self.current_language = lang_code or "zh_CN"
-        try:
-            dlcv_tr.set_lang(self.current_language)
-        except Exception:
-            pass
-        self._update_language_menu_checks(self.current_language)
-
-    def _update_language_menu_checks(self, lang_code: str):
-        lang = lang_code or "zh_CN"
-        if hasattr(self, "actions"):
-            if hasattr(self.actions, "lang_en"):
-                self.actions.lang_en.setChecked(lang == "en_US")
-            if hasattr(self.actions, "lang_zh"):
-                self.actions.lang_zh.setChecked(lang != "en_US")
+    def tr(self,*args,**kwargs):
+        dlcv_tr('测试')
+        return super().tr(*args,**kwargs)
 
     # 新增设置菜单
     def _init_setting_menu(self):
@@ -509,13 +498,7 @@ class MainWindow(MainWindow):
         self.menus.setting_lang.addAction(self.actions.lang_zh)
         self.menus.setting_lang.addAction(self.actions.lang_en)
 
-        stored_lang = getattr(self, "current_language", None)
-        if stored_lang:
-            current_lang = stored_lang
-        else:
-            current_lang = QtCore.QSettings("labelme", "labelme").value(
-                "ui/language", "zh_CN"
-            )
+        current_lang = dlcv_tr.get_lang()
         if current_lang == "en_US":
             self.actions.lang_en.setChecked(True)
         else:

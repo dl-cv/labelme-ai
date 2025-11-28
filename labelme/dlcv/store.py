@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING
 
+from qtpy import QtCore
+
 if TYPE_CHECKING:
     from labelme.dlcv.app import MainWindow
 
@@ -22,6 +24,7 @@ class Store:
 
     # main window
     __main_window: 'MainWindow' = None
+    q_translator: QtCore.QTranslator = None
 
     def set_edit_label_name(self, edit_label: callable):
         assert callable(edit_label)
@@ -48,16 +51,15 @@ class Store:
 
     def set_canvas_display_rotation_arrow(self, value: bool):
         self.canvas_display_rotation_arrow = value
-        
+
     def set_canvas_brush_enabled(self, value: bool):
         self.canvas_brush_enabled = value
-        
+
     def set_canvas_brush_size(self, value: int):
         self.canvas_brush_size = value
-        self.main_window.parameter.child("label_setting", "brush_size").setValue(
-            value
-        )
-        
+        self.main_window.parameter.child("label_setting",
+                                         "brush_size").setValue(value)
+
     def set_canvas_brush_fill_region(self, value: bool):
         self.canvas_brush_fill_region = value
 
@@ -67,7 +69,7 @@ class Store:
     # 是否将点转换为十字线
     def set_canvas_points_to_crosshair(self, value: bool):
         self.canvas_points_to_crosshair = value
-    
+
     # 注册 main_window 以供全局访问
     def register_main_window(self, main_window: 'MainWindow'):
         self.__main_window = main_window
