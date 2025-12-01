@@ -284,7 +284,7 @@ class Canvas(CustomCanvas):
         return transformed - self.offset
 
     def __init__(self, *args, **kwargs):
-        self.epsilon = kwargs.pop("epsilon", 10.0)
+        self.epsilon = kwargs.get("epsilon", 10.0)
         self.double_click = kwargs.pop("double_click", "close")
         if self.double_click not in [None, "close"]:
             raise ValueError(

@@ -187,7 +187,7 @@ def get_config(*args, **kwargs):
         "show_label_text_field": True,
         "label_completion": "contains",
         "fit_to_content": {"column": True, "row": False},
-        "epsilon": 10.0,
+        "epsilon": 30.0,
         "canvas": {
             "fill_drawing": True,
             "double_click": "close",
