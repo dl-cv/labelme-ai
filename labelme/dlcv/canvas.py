@@ -840,6 +840,7 @@ class Canvas(CustomCanvas):
 
         # Polygon drawing.
         if self.drawing():
+            self.overrideCursor(CURSOR_DRAW)
             if self.createMode in ["ai_polygon", "ai_mask"]:
                 self.line.shape_type = "points"
             elif self.createMode == "rotation":
@@ -871,7 +872,6 @@ class Canvas(CustomCanvas):
             else:
                 self.line.shape_type = self.createMode
 
-            self.overrideCursor(CURSOR_DRAW)
             if not self.current:
                 self.repaint()  # draw crosshair
                 return
