@@ -2932,12 +2932,15 @@ class MainWindow(MainWindow):
             # 记录当前的绘制模式
             self._prev_create_mode = self.canvas.createMode
             self.toggleDrawMode(True)
+        # 如果在编辑状态,切换回之前的绘制模式
         else:
-            # 如果在编辑状态,切换回之前的绘制模式
+            # 存在记录的绘制模式,切换回之前的绘制模式
             if hasattr(self, "_prev_create_mode"):
                 self.toggleDrawMode(False, createMode=self._prev_create_mode)
             else:
+                # 不存在记录的绘制模式,切换到多边形模式
                 self._prev_create_mode = 'polygon'
+                self.toggleDrawMode(False, createMode=self._prev_create_mode)
 
     # ------------ 编辑和绘制状态切换新动作 end ------------
 
