@@ -781,7 +781,6 @@ class Canvas(CustomCanvas):
         if self.draggingArrow and self.hArrowShape and QtCore.Qt.LeftButton & ev.buttons(
         ):  
             shape = self.hArrowShape
-
             center_x = sum(p.x() for p in shape.points) / len(shape.points)
             center_y = sum(p.y() for p in shape.points) / len(shape.points)
             center = QtCore.QPointF(center_x, center_y)
