@@ -491,6 +491,10 @@ class Canvas(CustomCanvas):
 
             # 优先处理旋转框的特殊交互元素（箭头）
             if self.editing():
+                # 如果选中了顶点， 则需要处理shape的编辑
+                if self.selectedVertex():
+                    self.boundedMoveVertex(pos)
+                    return
                 # 检查是否启用箭头显示
                 if getattr(STORE, 'canvas_display_rotation_arrow', True):
                     # 遍历所有可见的形状，优先检查旋转框的箭头
@@ -775,7 +779,8 @@ class Canvas(CustomCanvas):
 
         # 箭头拖拽处理 - 优先级最高
         if self.draggingArrow and self.hArrowShape and QtCore.Qt.LeftButton & ev.buttons(
-        ):
+        ):  
+            print(f'@@@箭头拖动调整旋转框')
             shape = self.hArrowShape
 
             center_x = sum(p.x() for p in shape.points) / len(shape.points)
