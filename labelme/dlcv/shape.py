@@ -558,14 +558,22 @@ class Shape(Shape):
         return self.shape_type in ["polygon", "rectangle", "rotation"]
 
     # 增加检测方法
-    def isArrowHit(self, point, epsilon=10.0):
-        """检测是否点击在方向箭头上"""
+    def isArrowHit(self, point, epsilon=None):
+        """检测是否点击在红色方向箭头上（严格检测：必须精确命中箭头和箭身）"""
         # 如果关闭了箭头显示，不允许拖拽箭头
         if not getattr(STORE, 'canvas_display_rotation_arrow', True):
             return False
             
         if self.shape_type != "rotation":
             return False
+            
+        # 使用严格的容差：如果未指定epsilon，使用线宽的一半（更严格）
+        if epsilon is None:
+            # 使用线宽的一半作为容差，确保只有真正在线段上的点才算命中
+            epsilon = max(1.0, self.PEN_WIDTH / 2.0)
+        else:
+            # 如果指定了epsilon，使用更小的值确保严格检测
+            epsilon = min(epsilon, max(1.0, self.PEN_WIDTH / 2.0))
             
         # 确保必要的属性已经初始化
         if not hasattr(self, 'arrow_center') or not hasattr(self, 'arrow_end') or self.arrow_center is None or self.arrow_end is None:
@@ -612,8 +620,8 @@ class Shape(Shape):
             arrow_start_y = center_y + (dir_vector.y() * parallel_edge_length * 0.5)
             arrow_start = QtCore.QPointF(arrow_start_x, arrow_start_y)
             
-            # 计算箭头长度：与箭头平行的边的长度的0.3
-            arrow_length = parallel_edge_length * 0.3
+            # 计算箭头长度：与箭头平行的边的长度的0.2（与paint方法保持一致）
+            arrow_length = max(12.0, parallel_edge_length * 0.2)
             
             # 计算箭头终点
             end_x = arrow_start_x + arrow_length * dir_vector.x()
@@ -623,41 +631,63 @@ class Shape(Shape):
             # 临时设置箭头属性
             self.arrow_center = arrow_start
             self.arrow_end = arrow_end
-            
-        # 增大命中检测区域，使箭头更容易点击
-        epsilon = max(epsilon, 10.0)  # 降低最小检测半径从20.0到10.0
-            
-        # 首先检查点击位置是否在箭头终点附近
-        end_point = self.arrow_end
-        if QtCore.QLineF(point, end_point).length() < epsilon * 1.2:  # 降低倍数从1.5到1.2
-            return True
-            
-        # 然后检查是否在箭头起点附近
-        start_point = self.arrow_center
-        if QtCore.QLineF(point, start_point).length() < epsilon * 0.8:  # 缩小起点检测范围
-            return True
-            
-        # 最后检查是否在箭头线段上
-        line = QtCore.QLineF(start_point, end_point)
-        len_line = line.length()
         
-        if len_line == 0:
-            return False
-            
-        # 计算点到线段的投影
-        t = ((point.x() - start_point.x()) * (end_point.x() - start_point.x()) + 
-             (point.y() - start_point.y()) * (end_point.y() - start_point.y())) / (len_line * len_line)
-             
-        if t < 0 or t > 1:
-            # 点的投影在线段之外
-            return False
-            
-        # 点的投影在线段上，计算距离
-        px = start_point.x() + t * (end_point.x() - start_point.x())
-        py = start_point.y() + t * (end_point.y() - start_point.y())
-        dist = QtCore.QLineF(point, QtCore.QPointF(px, py)).length()
+        # 使用箭头属性
+        start_point = self.arrow_center  # 箭头主线段起点
+        end_point = self.arrow_end        # 箭头主线段终点（也是箭头头部起点）
         
-        return dist < epsilon
+        # 计算箭头头部（与paint方法保持一致）
+        arrow_len = QtCore.QLineF(start_point, end_point).length()
+        head_len = arrow_len * 0.2
+        h1 = math.radians(self.direction + 150)
+        h2 = math.radians(self.direction - 150)
+        p1 = QtCore.QPointF(end_point.x() + head_len * math.cos(h1),
+                            end_point.y() + head_len * math.sin(h1))
+        p2 = QtCore.QPointF(end_point.x() + head_len * math.cos(h2),
+                            end_point.y() + head_len * math.sin(h2))
+        
+        # 辅助函数：严格检查点是否在线段上（使用严格的容差）
+        def isPointOnLineSegment(point, line_start, line_end, tolerance):
+            """严格检查点是否在线段上，考虑容差"""
+            line = QtCore.QLineF(line_start, line_end)
+            len_line = line.length()
+            
+            if len_line == 0:
+                # 线段长度为0，检查点是否在起点/终点附近
+                return QtCore.QLineF(point, line_start).length() < tolerance
+            
+            # 计算点到线段的投影
+            t = ((point.x() - line_start.x()) * (line_end.x() - line_start.x()) + 
+                 (point.y() - line_start.y()) * (line_end.y() - line_start.y())) / (len_line * len_line)
+                 
+            # 严格检查：投影必须在线段范围内（0到1之间，包含端点）
+            if t < 0 or t > 1:
+                # 点的投影在线段之外，不算命中
+                return False
+                
+            # 点的投影在线段上，计算精确距离
+            px = line_start.x() + t * (line_end.x() - line_start.x())
+            py = line_start.y() + t * (line_end.y() - line_start.y())
+            dist = QtCore.QLineF(point, QtCore.QPointF(px, py)).length()
+            
+            # 严格检查：距离必须小于容差才算命中
+            return dist < tolerance
+        
+        # 严格检查：必须命中箭头主线段或箭头头部才算选中
+        # 检查是否在主线段上（从start到end，这是红色箭头的主线段）
+        if isPointOnLineSegment(point, start_point, end_point, epsilon):
+            return True
+        
+        # 检查是否在箭头头部左线上（从end到p1）
+        if isPointOnLineSegment(point, end_point, p1, epsilon):
+            return True
+        
+        # 检查是否在箭头头部右线上（从end到p2）
+        if isPointOnLineSegment(point, end_point, p2, epsilon):
+            return True
+        
+        # 严格规则：点在箭头周围都不算命中
+        return False
         
     def isAngleTextHit(self, point):
         """检测是否点击在角度数字上"""
