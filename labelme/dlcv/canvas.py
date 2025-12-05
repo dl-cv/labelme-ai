@@ -780,7 +780,6 @@ class Canvas(CustomCanvas):
         # 箭头拖拽处理 - 优先级最高
         if self.draggingArrow and self.hArrowShape and QtCore.Qt.LeftButton & ev.buttons(
         ):  
-            print(f'@@@箭头拖动调整旋转框')
             shape = self.hArrowShape
 
             center_x = sum(p.x() for p in shape.points) / len(shape.points)
