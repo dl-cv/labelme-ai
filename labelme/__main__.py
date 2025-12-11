@@ -1,6 +1,7 @@
 from labelme.logger import logger  # noqa: F401 先导入logger，防止未正常启动exe就报错
 
 import argparse
+import asyncio
 import codecs
 import logging
 import os
@@ -15,6 +16,44 @@ from labelme import __version__
 from labelme.config import get_config
 from labelme.dlcv.app import MainWindow
 from labelme.utils import newIcon
+
+
+async def start_websocket_keepalive(server_url="ws://localhost:13888/ws/lock"):
+    """
+    Connect to backend WebSocket to maintain connection until app exit.
+    This mechanism allows multiple LabelMe instances to share one backend service.
+    Backend auto-closes only when all clients disconnect.
+    """
+    try:
+        import aiohttp
+    except ImportError:
+        logger.warning(
+            "aiohttp library not installed, WebSocket keepalive disabled. "
+            "Install with: pip install aiohttp"
+        )
+        return
+
+    retry_count = 0
+    max_retries = 5  # Only log errors after 5 failed attempts
+    
+    while True:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.ws_connect(server_url, timeout=aiohttp.ClientTimeout(total=None)) as ws:
+                    logger.info("[OK] Backend lock acquired (WebSocket connected)")
+                    retry_count = 0  # Reset on successful connection
+                    # Keep connection open until cancelled or backend closes
+                    async for msg in ws:
+                        pass
+                    logger.info("[WARN] WebSocket disconnected, retrying...")
+        except asyncio.CancelledError:
+            logger.info("[OK] WebSocket keepalive task cancelled")
+            raise
+        except Exception as e:
+            retry_count += 1
+            if retry_count >= max_retries:
+                logger.debug(f"WebSocket connection failed: {type(e).__name__} - {str(e)[:80]}, retrying in 1s...")
+            await asyncio.sleep(1)
 
 
 def main():
@@ -205,23 +244,31 @@ def main():
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
 
-    with loop:
-        loop.run_forever()
+    # 启动 WebSocket 保活任务（多实例共享后端）
+    lock_task = loop.create_task(start_websocket_keepalive())
 
-    try:
-        from labelme.private.dlcv_ai_widget import shutdown_server
-        shutdown_server()
-    except:
-        pass
+    with loop:
+        try:
+            loop.run_forever()
+        finally:
+            # 程序退出时，取消 WebSocket 保活任务
+            if not lock_task.done():
+                lock_task.cancel()
+                try:
+                    loop.run_until_complete(lock_task)
+                except asyncio.CancelledError:
+                    pass
+    
     sys.exit()
 
 
 def start_backend():
+    """启动后端服务（外部 exe）"""
     try:
         from labelme.private.dlcv_ai_widget import start_server
         start_server()
-    except:
-        pass
+    except Exception as e:
+        logger.debug(f"后端启动失败: {e}")
 
 
 # this main block is required to generate executable by pyinstaller
