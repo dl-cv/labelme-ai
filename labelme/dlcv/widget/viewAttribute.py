@@ -1,6 +1,6 @@
 # 属性查看方法
 import math
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtCore import QPointF
 from qtpy import QtWidgets
 from shapely.geometry import Polygon
@@ -125,3 +125,7 @@ class viewAttribute(QtWidgets.QWidget):
         layout.addWidget(area_label)
         
         self.setLayout(layout)
+
+        # ESC 快捷键关闭窗口
+        esc_shortcut = QtWidgets.QShortcut(QtGui.QKeySequence(QtCore.Qt.Key_Escape), self)
+        esc_shortcut.activated.connect(self.close)
