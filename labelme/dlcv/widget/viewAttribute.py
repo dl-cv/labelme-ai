@@ -6,8 +6,6 @@ from qtpy import QtWidgets
 from shapely.geometry import Polygon
 from labelme.dlcv.shape import Shape,ShapeType
 
-
-
 def get_shape_attribute(shape:Shape):
     """
     输入：shape对象
@@ -55,18 +53,54 @@ def get_shape_attribute(shape:Shape):
         "area": round(area, 2)
     }
 
-def get_window_position(shape, canvas, window_width, window_height, offset=0):
+# 计算窗口显示位置
+def get_window_position(center_point, canvas, window_width, window_height, offset=0):
     """
-    获取标注框右下角在屏幕上的坐标（窗口中心对齐右下角）
+    根据形状中心点计算属性窗口的左上角全局坐标，使属性窗口中心与该点对齐。
+    若越界，尽量保持在屏幕内（左/上边界），右/下边界由调用处再校正。
     """
-    points = shape.points
-    x = max([p.x() for p in points])
-    y = max([p.y() for p in points])
-    canvas_global = canvas.mapToGlobal(QtCore.QPoint(0, 0))
-    # 让窗口中心点对齐shape右下角 
-    screen_x = int(canvas_global.x() + x - window_width // 2 + offset)
-    screen_y = int(canvas_global.y() + y - window_height // 2 + offset)
-    return screen_x, screen_y
+    try:
+        # 1) 画布(图像)坐标 -> 画布部件坐标
+        # 逆 transformPos：widget = (image + offsetToCenter + offset) * scale
+        scale = getattr(canvas, "scale", 1.0) or 1.0
+        offset_to_center = canvas.offsetToCenter()
+        canvas_offset = getattr(canvas, "offset", QtCore.QPointF(0, 0))
+
+        widget_x = int((center_point.x() + offset_to_center.x() + canvas_offset.x()) * scale)
+        widget_y = int((center_point.y() + offset_to_center.y() + canvas_offset.y()) * scale)
+
+        # 2) 画布部件坐标 -> 全局屏幕坐标（中心点）
+        center_global = canvas.mapToGlobal(QtCore.QPoint(widget_x, widget_y))
+
+        # 3) 对话框中心对齐该点 -> 计算左上角
+        x = int(center_global.x() - window_width / 2)
+        y = int(center_global.y() - window_height / 2)
+
+        # 4) 可选偏移（正值向右下偏移）
+        if offset:
+            try:
+                if isinstance(offset, (int, float)):
+                    x += int(offset)
+                    y += int(offset)
+                elif hasattr(offset, "x") and hasattr(offset, "y"):
+                    x += int(offset.x())
+                    y += int(offset.y())
+            except Exception:
+                pass
+
+        # 5) 限制到所在屏幕左/上边界，防止完全飞出左上角
+        screen = QtWidgets.QApplication.screenAt(center_global) if hasattr(QtWidgets.QApplication, "screenAt") else None
+        if screen is None:
+            screen = QtWidgets.QApplication.primaryScreen()
+        if screen is not None:
+            sg = screen.geometry()
+            x = max(x, sg.left())
+            y = max(y, sg.top())
+
+        return x, y
+    except Exception:
+        # 退化：如计算失败，直接返回中心点整数（可能是相对坐标，由调用方兜底）
+        return int(center_point.x()), int(center_point.y())
 
 # ------------ 属性展示窗口类 ------------
 class viewAttribute(QtWidgets.QWidget):
