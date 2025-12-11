@@ -2879,16 +2879,15 @@ class MainWindow(MainWindow):
     def create_attribute_window(self, shape, index=0):
         window_width = 240
         window_height = 120
-
+        # 根据shape， 获取标注的中心点坐标
+        center_point = shape.get_center_point()
+        offset = 100
         # 1. 计算属性
         attr = get_shape_attribute(shape)
         # 2. 计算窗口显示位置
         window_x, window_y = get_window_position(
-            shape, self.canvas, window_width, window_height, offset=0
+            center_point, self.canvas, window_width, window_height, offset=offset
         )
-
-        window_x += 200
-        window_y += 200
 
         # 3. 边界检测
         screen = QtWidgets.QApplication.primaryScreen()
