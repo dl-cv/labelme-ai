@@ -477,6 +477,15 @@ class Canvas(CustomCanvas):
         # extra End
 
         if ev.button() == QtCore.Qt.LeftButton:
+            # 绘制模式下：按住Shift启动画布拖动（AI模式除外）
+            shift_pressed = int(ev.modifiers()) == QtCore.Qt.ShiftModifier
+            if self.drawing() and shift_pressed and self.createMode not in ["ai_polygon", "ai_mask"]:
+                self.draggingCanvas = True
+                self.canvasDragStart = ev.pos() / self.scale
+                self.canvasOffsetStart = self.offset if hasattr(self, 'offset') else QtCore.QPointF(0, 0)
+                self.overrideCursor(QtCore.Qt.OpenHandCursor)
+                return
+
             # 如果启用了画笔功能且在绘图模式，开始画笔绘制
             if self.brush_enabled and self.drawing():
                 if not self.outOfPixmap(pos):
