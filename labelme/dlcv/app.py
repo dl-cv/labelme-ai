@@ -120,9 +120,6 @@ class MainWindow(MainWindow):
         Toast.setPositionRelativeToWidget(self)  # 通知控件
         self.dev_setting = QtCore.QSettings("baiduyun_dev", "ai")
         
-        # 初始化空格提示时间戳（用于限制提示频率）
-        self._last_space_warning_time = 0
-
         # 移除 [ImageData] 功能, 默认自动保存
         removeAction(self.menus.file, self.actions.saveWithImageData)
         removeAction(self.menus.file, self.actions.saveAuto)
@@ -2928,6 +2925,13 @@ class MainWindow(MainWindow):
 
         # 如果当前在绘制状态,切换到编辑状态
         if not self.canvas.editing():
+            # 如果正在绘制, 清除当前标注
+            if self.canvas.current is not None:
+                self.canvas.current = None
+                self.canvas.line.points = []
+                self.canvas.line.point_labels = []
+                # 刷新
+                self.canvas.update()
             # 记录当前的绘制模式
             self._prev_create_mode = self.canvas.createMode
             self.toggleDrawMode(True)
@@ -2940,6 +2944,7 @@ class MainWindow(MainWindow):
                 # 不存在记录的绘制模式,切换到多边形模式
                 self._prev_create_mode = 'polygon'
                 self.toggleDrawMode(False, createMode=self._prev_create_mode)
+            
 
     # ------------ 编辑和绘制状态切换新动作 end ------------
 
