@@ -25,6 +25,9 @@ class Store:
     # main window
     __main_window: 'MainWindow' = None
     q_translator: QtCore.QTranslator = None
+    
+    # WebSocket 连接（全局共享）
+    backend_ws = None
 
     def set_edit_label_name(self, edit_label: callable):
         assert callable(edit_label)
