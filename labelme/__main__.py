@@ -17,13 +17,8 @@ from labelme.config import get_config
 from labelme.dlcv.app import MainWindow
 from labelme.utils import newIcon
 
-
+# 启动 WebSocket 保活任务（多实例共享后端） 此任务用于保持后端服务的连接，当所有客户端连接断开时，后端会自动关闭    
 async def start_websocket_keepalive(server_url="ws://localhost:13888/ws/lock"):
-    """
-    Connect to backend WebSocket to maintain connection until app exit.
-    This mechanism allows multiple LabelMe instances to share one backend service.
-    Backend auto-closes only when all clients disconnect.
-    """
     try:
         import aiohttp
     except ImportError:
@@ -33,23 +28,34 @@ async def start_websocket_keepalive(server_url="ws://localhost:13888/ws/lock"):
         )
         return
 
+    from labelme.dlcv.store import STORE
+    
     retry_count = 0
-    max_retries = 5  # Only log errors after 5 failed attempts
+    max_retries = 5
     
     while True:
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.ws_connect(server_url, timeout=aiohttp.ClientTimeout(total=None)) as ws:
-                    logger.info("[OK] Backend lock acquired (WebSocket connected)")
-                    retry_count = 0  # Reset on successful connection
+                    # Store WebSocket connection globally
+                    STORE.backend_ws = ws
+                    logger.info("[OK] Backend WebSocket connected and stored globally")
+                    retry_count = 0
+                    
                     # Keep connection open until cancelled or backend closes
-                    async for msg in ws:
-                        pass
+                    try:
+                        async for msg in ws:
+                            pass
+                    finally:
+                        STORE.backend_ws = None
+                    
                     logger.info("[WARN] WebSocket disconnected, retrying...")
         except asyncio.CancelledError:
             logger.info("[OK] WebSocket keepalive task cancelled")
+            STORE.backend_ws = None
             raise
         except Exception as e:
+            STORE.backend_ws = None
             retry_count += 1
             if retry_count >= max_retries:
                 logger.debug(f"WebSocket connection failed: {type(e).__name__} - {str(e)[:80]}, retrying in 1s...")
@@ -263,7 +269,7 @@ def main():
 
 
 def start_backend():
-    """启动后端服务（外部 exe）"""
+    """启动后端服务"""
     try:
         from labelme.private.dlcv_ai_widget import start_server
         start_server()
