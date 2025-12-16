@@ -16,7 +16,7 @@ class CustomCanvas(Canvas):
         # 画笔功能
         self.brush_enabled = False  # 是否启用画笔
         self.brush_size = 10  # 画笔大小
-        self.min_brush_size = 3  # 最小画笔大小
+        self.min_brush_size = 2  # 最小画笔大小
         self.brush_drawing = False  # 是否正在使用画笔绘制
         self.brush_erase_mode = False  # 是否为消除模式（右键）
         self.brush_points = []  # 画笔绘制的点集
