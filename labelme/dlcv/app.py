@@ -2077,7 +2077,7 @@ class MainWindow(MainWindow):
                         "type": "int",
                         "value": STORE.canvas_brush_size,
                         "default": STORE.canvas_brush_size,
-                        "min": 3,
+                        "min": 2,
                     },
                     {
                         "name": "highlight_start_point",
