@@ -30,7 +30,7 @@ class DlcvTranslator:
         from PyQt5 import QtCore
 
         supported_langs = tr_map.keys()
-        self.lang = "en_US"
+        self.lang = "zh_CN"
 
         # 优先使用用户设置的语言
         try:
@@ -38,7 +38,7 @@ class DlcvTranslator:
                 "ui/language", type=str)
             if saved_lang in supported_langs:
                 self.lang = saved_lang
-        except (AttributeError, RuntimeError):
+        except:
             # 其次使用系统语言
             try:
                 system_lang = QtCore.QLocale.system().name()
@@ -47,7 +47,7 @@ class DlcvTranslator:
                     self.lang = lang_code
                 elif lang_code.startswith('zh'):
                     self.lang = "zh_CN"
-            except Exception:
+            except:
                 pass
 
         # 加载翻译数据
