@@ -17,51 +17,6 @@ from labelme.config import get_config
 from labelme.dlcv.app import MainWindow
 from labelme.utils import newIcon
 
-# 启动 WebSocket 保活任务（多实例共享后端） 此任务用于保持后端服务的连接，当所有客户端连接断开时，后端会自动关闭    
-async def start_websocket_keepalive(server_url="ws://localhost:13888/ws/lock"):
-    try:
-        import aiohttp
-    except ImportError:
-        logger.warning(
-            "aiohttp library not installed, WebSocket keepalive disabled. "
-            "Install with: pip install aiohttp"
-        )
-        return
-
-    from labelme.dlcv.store import STORE
-    
-    retry_count = 0
-    max_retries = 5
-    
-    while True:
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.ws_connect(server_url, timeout=aiohttp.ClientTimeout(total=None)) as ws:
-                    # Store WebSocket connection globally
-                    STORE.backend_ws = ws
-                    logger.info("[OK] Backend WebSocket connected and stored globally")
-                    retry_count = 0
-                    
-                    # Keep connection open until cancelled or backend closes
-                    try:
-                        async for msg in ws:
-                            pass
-                    finally:
-                        STORE.backend_ws = None
-                    
-                    logger.info("[WARN] WebSocket disconnected, retrying...")
-        except asyncio.CancelledError:
-            logger.info("[OK] WebSocket keepalive task cancelled")
-            STORE.backend_ws = None
-            raise
-        except Exception as e:
-            STORE.backend_ws = None
-            retry_count += 1
-            if retry_count >= max_retries:
-                logger.debug(f"WebSocket connection failed: {type(e).__name__} - {str(e)[:80]}, retrying in 1s...")
-            await asyncio.sleep(1)
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", "-V", action="store_true", help="show version")
@@ -250,18 +205,18 @@ def main():
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
 
-    # 启动 WebSocket 保活任务（多实例共享后端）
-    lock_task = loop.create_task(start_websocket_keepalive())
+    # 启动 WebSocket 初始化任务
+    backend_ws_task = loop.create_task(win._init_backend_ws())
 
     with loop:
         try:
             loop.run_forever()
         finally:
-            # 程序退出时，取消 WebSocket 保活任务
-            if not lock_task.done():
-                lock_task.cancel()
+            # 程序退出时，取消 WebSocket 任务
+            if not backend_ws_task.done():
+                backend_ws_task.cancel()
                 try:
-                    loop.run_until_complete(lock_task)
+                    loop.run_until_complete(backend_ws_task)
                 except asyncio.CancelledError:
                     pass
     

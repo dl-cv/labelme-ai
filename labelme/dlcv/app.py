@@ -50,7 +50,7 @@ from labelme.dlcv.widget.label_count import LabelCountDock
 Image.MAX_IMAGE_PIXELS = None  # Image 最大像素限制, 防止加载大图时报错
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 
-
+# region
 # 2025年6月17日 已弃用
 # class ImageScanner(QtCore.QThread):
 #     sig_scan_done = QtCore.Signal(list)
@@ -102,6 +102,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 #                     images.append(relativePath)
 #         images = natsort.os_sorted(images)
 #         return images
+# endregion
 
 
 class MainWindow(MainWindow):
@@ -111,6 +112,22 @@ class MainWindow(MainWindow):
     def __init__(
         self, config=None, filename=None, output=None, output_file=None, output_dir=None
     ):
+        # 初始化websocket对象
+        try:
+            import aiohttp
+            import asyncio
+        except ImportError:
+            notification(
+                dlcv_tr("缺少依赖"),
+                dlcv_tr("请安装 aiohttp 库以启用后端通信功能。"),
+                ToastPreset.ERROR,
+            )
+            raise
+        self.server_url = "ws://localhost:13888/ws/lock"
+        # 初始化全局 backend_ws 对象
+        STORE.backend_ws = None
+        # 启动异步任务初始化 websocket 连接（延迟到 event loop 创建后）
+        self._backend_ws_task = None
         self.settings = QtCore.QSettings("labelme", "labelme")
         # extra 额外属性
         self.action_refresh = None
@@ -160,6 +177,30 @@ class MainWindow(MainWindow):
         # 确保标签txt目录存在
         if not os.path.exists(self.LABEL_TXT_DIR):
             os.makedirs(self.LABEL_TXT_DIR, exist_ok=True)
+
+    async def _init_backend_ws(self):
+        """异步初始化全局 backend_ws 对象"""
+        import aiohttp
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.ws_connect(
+                    self.server_url, 
+                    timeout=aiohttp.ClientTimeout(total=None)
+                ) as ws:
+                    STORE.backend_ws = ws
+                    from labelme.utils import logger
+                    logger.info("[OK] Backend WebSocket connected")
+                    # 保持连接，直到被取消或断开
+                    try:
+                        async for msg in ws:
+                            pass
+                    finally:
+                        STORE.backend_ws = None
+                        logger.info("[WARN] WebSocket disconnected")
+        except Exception as e:
+            STORE.backend_ws = None
+            from labelme.utils import logger
+            logger.error(f"WebSocket connection failed: {e}")
 
     # https://bbs.dlcv.com.cn/t/topic/590
     # 编辑标签
