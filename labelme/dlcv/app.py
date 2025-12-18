@@ -112,22 +112,9 @@ class MainWindow(MainWindow):
     def __init__(
         self, config=None, filename=None, output=None, output_file=None, output_dir=None
     ):
-        # 初始化websocket对象
-        try:
-            import aiohttp
-            import asyncio
-        except ImportError:
-            notification(
-                dlcv_tr("缺少依赖"),
-                dlcv_tr("请安装 aiohttp 库以启用后端通信功能。"),
-                ToastPreset.ERROR,
-            )
-            raise
         self.server_url = "ws://localhost:13888/ws/lock"
         # 初始化全局 backend_ws 对象
         STORE.backend_ws = None
-        # 初始化 websocket 连接
-        self._backend_ws_task = None
         self.settings = QtCore.QSettings("labelme", "labelme")
         # extra 额外属性
         self.action_refresh = None
