@@ -205,20 +205,14 @@ def main():
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
 
-    # 启动 WebSocket 初始化任务
-    backend_ws_task = loop.create_task(win._init_backend_ws())
+    # 初始化 WebSocket 连接（同步调用）
+    try:
+        win._init_backend_ws()
+    except Exception as e:
+        logger.error(f"WebSocket initialization failed: {e}")
 
     with loop:
-        try:
-            loop.run_forever()
-        finally:
-            # 程序退出时，取消 WebSocket 任务
-            if not backend_ws_task.done():
-                backend_ws_task.cancel()
-                try:
-                    loop.run_until_complete(backend_ws_task)
-                except asyncio.CancelledError:
-                    pass
+        loop.run_forever()
     
     sys.exit()
 
