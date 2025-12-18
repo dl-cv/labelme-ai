@@ -175,6 +175,13 @@ def main():
 
     start_backend()
 
+    # 初始化 WebSocket 连接（同步调用）
+    try:
+        from labelme.dlcv.app import init_backend_ws
+        init_backend_ws()
+    except Exception as e:
+        logger.error(f"WebSocket initialization failed: {e}")
+
     from labelme.dlcv.store import STORE
     translator = QtCore.QTranslator()
     STORE.q_translator = translator
@@ -204,12 +211,6 @@ def main():
 
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
-
-    # 初始化 WebSocket 连接（同步调用）
-    try:
-        win._init_backend_ws()
-    except Exception as e:
-        logger.error(f"WebSocket initialization failed: {e}")
 
     with loop:
         loop.run_forever()

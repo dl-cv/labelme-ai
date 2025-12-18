@@ -112,9 +112,6 @@ class MainWindow(MainWindow):
     def __init__(
         self, config=None, filename=None, output=None, output_file=None, output_dir=None
     ):
-        self.server_url = "ws://localhost:13888/ws/lock"
-        # 初始化全局 backend_ws 对象
-        STORE.backend_ws = None
         self.settings = QtCore.QSettings("labelme", "labelme")
         # extra 额外属性
         self.action_refresh = None
@@ -164,52 +161,6 @@ class MainWindow(MainWindow):
         # 确保标签txt目录存在
         if not os.path.exists(self.LABEL_TXT_DIR):
             os.makedirs(self.LABEL_TXT_DIR, exist_ok=True)
-
-    def _init_backend_ws(self):
-        """初始化全局 backend_ws 对象"""
-        import websocket
-        import threading
-        from labelme.utils import logger
-        
-        def ws_thread():
-            """在后台线程中保持 websocket 连接"""
-            try:
-                ws = websocket.WebSocketApp(
-                    self.server_url,
-                    on_open=self._on_ws_open,
-                    on_message=self._on_ws_message,
-                    on_error=self._on_ws_error,
-                    on_close=self._on_ws_close
-                )
-                STORE.backend_ws = ws
-                ws.run_forever()
-            except Exception as e:
-                STORE.backend_ws = None
-                logger.error(f"WebSocket connection failed: {e}")
-        
-        # 在后台线程中启动 websocket 连接
-        thread = threading.Thread(target=ws_thread, daemon=True)
-        thread.start()
-    
-    def _on_ws_open(self, ws):
-        """WebSocket 连接打开时的回调"""
-        from labelme.utils import logger
-        logger.info("[OK] Backend WebSocket connected")
-    
-    def _on_ws_message(self, ws, message):
-        """WebSocket 收到消息时的回调"""
-        pass
-    
-    def _on_ws_error(self, ws, error):
-        """WebSocket 错误时的回调"""
-        from labelme.utils import logger
-        logger.error(f"WebSocket error: {error}")
-    
-    def _on_ws_close(self, ws, close_status_code, close_msg):
-        """WebSocket 关闭时的回调"""
-        from labelme.utils import logger
-        STORE.backend_ws = None
-        logger.info(f"[WARN] WebSocket disconnected: {close_status_code}, {close_msg}")
 
     # https://bbs.dlcv.com.cn/t/topic/590
     # 编辑标签
@@ -3071,6 +3022,30 @@ class MainWindow(MainWindow):
             sizes = int(sizes[0]), int(sizes[1])
             self.centralWidget().setSizes(sizes)
 
+
+def init_backend_ws():
+    """初始化全局 backend_ws 对象"""
+    import websocket
+    import threading
+    from labelme.utils import logger
+    from labelme.dlcv.store import STORE
+    port = 13888
+    STORE.backend_ws = None
+    def ws_thread():
+        """在后台线程中保持 websocket 连接"""
+        try:
+            ws = websocket.WebSocketApp(
+                f"ws://localhost:{port}/ws/lock"
+            )
+            STORE.backend_ws = ws
+            ws.run_forever()
+        except Exception as e:
+            STORE.backend_ws = None
+            logger.error(f"WebSocket connection failed: {e}")
+    
+    # 在后台线程中启动 websocket 连接
+    thread = threading.Thread(target=ws_thread, daemon=True)
+    thread.start()
 
 class ProjEnum:
     NORMAL = "2D"
