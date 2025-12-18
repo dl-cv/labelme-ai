@@ -50,7 +50,7 @@ from labelme.dlcv.widget.label_count import LabelCountDock
 Image.MAX_IMAGE_PIXELS = None  # Image 最大像素限制, 防止加载大图时报错
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 
-
+# region
 # 2025年6月17日 已弃用
 # class ImageScanner(QtCore.QThread):
 #     sig_scan_done = QtCore.Signal(list)
@@ -102,6 +102,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 #                     images.append(relativePath)
 #         images = natsort.os_sorted(images)
 #         return images
+# endregion
 
 
 class MainWindow(MainWindow):
@@ -3021,6 +3022,30 @@ class MainWindow(MainWindow):
             sizes = int(sizes[0]), int(sizes[1])
             self.centralWidget().setSizes(sizes)
 
+
+def init_backend_ws():
+    """初始化全局 backend_ws 对象"""
+    import websocket
+    import threading
+    from labelme.utils import logger
+    from labelme.dlcv.store import STORE
+    port = 13888
+    STORE.backend_ws = None
+    def ws_thread():
+        """在后台线程中保持 websocket 连接"""
+        try:
+            ws = websocket.WebSocketApp(
+                f"ws://localhost:{port}/ws/lock"
+            )
+            STORE.backend_ws = ws
+            ws.run_forever()
+        except Exception as e:
+            STORE.backend_ws = None
+            logger.error(f"WebSocket connection failed: {e}")
+    
+    # 在后台线程中启动 websocket 连接
+    thread = threading.Thread(target=ws_thread, daemon=True)
+    thread.start()
 
 class ProjEnum:
     NORMAL = "2D"
