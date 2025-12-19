@@ -115,6 +115,8 @@ class MainWindow(MainWindow):
         self.settings = QtCore.QSettings("labelme", "labelme")
         # extra 额外属性
         self.action_refresh = None
+        # 2.5D模式下的文件名到JSON文件名的映射
+        self._2_5d_file_to_json = {}
         STORE.register_main_window(self)
         super().__init__(config, filename, output, output_file, output_dir)
 
@@ -161,6 +163,38 @@ class MainWindow(MainWindow):
         # 确保标签txt目录存在
         if not os.path.exists(self.LABEL_TXT_DIR):
             os.makedirs(self.LABEL_TXT_DIR, exist_ok=True)
+        
+        # 如果是2.5d 模式，则初始化2.5d标注
+        if self.parameter.child('proj_setting', 'proj_type').value() == ProjEnum.O2_5D:
+            self._init_2_5d_annotate()
+
+    # ============2.5d标注相关==============
+    # 触发动作，如果面板中模式切换到2.5d 就触发_init_2_5d_annotate
+    def _init_2_5d_annotate_action(self):
+        """初始化2.5D标注的触发机制"""
+        proj_type_param = self.parameter.child('proj_setting', 'proj_type')
+        
+        def on_proj_type_changed(param, new_value):
+            """只在切换到2.5D模式时触发初始化"""
+            if new_value == ProjEnum.O2_5D:
+                self._init_2_5d_annotate()
+        
+        # 连接信号，只在值改变且为2.5D模式时触发
+        proj_type_param.sigValueChanged.connect(on_proj_type_changed)
+
+    # 初始化2.5d标注
+    def _init_2_5d_annotate(self):
+        # 2.5D模式下，不在这里分配JSON文件
+        # JSON文件分配将在第一次保存标注时自动触发
+        if self.parameter.child('proj_setting', 'proj_type').value() == ProjEnum.O2_5D:
+            print('当前在2.5d标注模式下')
+            # 只有在映射为空时才初始化，避免在项目类型切换时清空已有映射
+            if not self._2_5d_file_to_json:
+                self._2_5d_file_to_json = {}
+        else:
+            print('当前不在2.5d标注模式下')
+            # 不在2.5D模式时，清空映射
+            self._2_5d_file_to_json = {}
 
     # https://bbs.dlcv.com.cn/t/topic/590
     # 编辑标签
@@ -1073,6 +1107,29 @@ class MainWindow(MainWindow):
         if self.is_3d:
             filename = self.getLabelFile()
         # extra End
+        
+        # extra 2.5D模式：第一次保存时分配JSON文件
+        if self.is_2_5d and not self._2_5d_file_to_json:
+            # 获取根目录路径
+            root_path = None
+            if hasattr(self, 'lastOpenDir') and self.lastOpenDir and os.path.exists(self.lastOpenDir):
+                root_path = self.lastOpenDir
+            elif hasattr(self, 'filename') and self.filename and os.path.exists(self.filename):
+                root_path = os.path.dirname(self.filename)
+            
+            if root_path:
+                try:
+                    from labelme.dlcv.widget2_5d.assign_json import assign_json
+                    # 分配JSON文件，返回文件名到JSON文件名的映射
+                    self._2_5d_file_to_json = assign_json(root_path)
+                    print(f'2.5D模式：已分配JSON文件，映射: {self._2_5d_file_to_json}')
+                except Exception as e:
+                    print(f'2.5D模式：分配JSON文件失败: {e}')
+        
+        # extra 2.5D模式：使用分配的JSON文件名
+        if self.is_2_5d:
+            filename = self.getLabelFile()
+        # extra End
 
         lf = LabelFile()
 
@@ -1112,9 +1169,22 @@ class MainWindow(MainWindow):
             flags[key] = flag
 
         # extra 如果当前 shapes 为空, 并且 flags 没有 true, 则删除标签文件
+        # 2.5D模式下，多个图片共享一个JSON文件，不应该因为单个图片没有标注就删除JSON
         if not shapes and not any(flags.values()):
             label_file = self.getLabelFile()
-            if osp.exists(label_file):
+            # 2.5D模式下，不删除共享的JSON文件
+            if self.is_2_5d:
+                # 在2.5D模式下，即使当前图片没有标注，也不删除JSON文件
+                # 因为其他图片可能已经有标注，共享同一个JSON文件
+                # 只更新文件列表的选中状态
+                items = self.fileListWidget.findItems(self.filename, Qt.MatchContains)
+                for item in items:
+                    item.setCheckState(Qt.Unchecked)
+                # 实时更新统计信息
+                if hasattr(self, "label_count_dock"):
+                    self.label_count_dock.count_labels_in_file([], {})
+                return True
+            elif osp.exists(label_file):
                 os.remove(label_file)
                 items = self.fileListWidget.findItems(self.filename, Qt.MatchContains)
                 for item in items:
@@ -1342,6 +1412,18 @@ class MainWindow(MainWindow):
     def getLabelFile(self) -> str:
         try:
             assert self.filename is not None
+            
+            # 2.5D模式：使用公共前缀的JSON文件名
+            if self.is_2_5d and self._2_5d_file_to_json:
+                img_name = os.path.basename(self.filename)
+                # 尝试直接匹配文件名
+                if img_name in self._2_5d_file_to_json:
+                    json_name = self._2_5d_file_to_json[img_name]
+                    # 返回JSON文件的完整路径
+                    img_dir = os.path.dirname(self.filename)
+                    return os.path.join(img_dir, json_name)
+            
+            # 其他模式使用默认逻辑
             return self.proj_manager.get_json_path(self.filename)
         except:
             notification(
@@ -1477,6 +1559,15 @@ class MainWindow(MainWindow):
         # 2025年8月7日 切换图片后，重置绘制的x,y位置
         self.canvas.offset = QtCore.QPointF(0, 0)
         self.canvas.loadPixmap(QtGui.QPixmap.fromImage(image))
+
+        # 2.5D 获取json映射
+        # if self.is_2_5d and self._2_5d_file_to_json:
+        #     img_name = os.path.basename(filename)
+        #     if img_name in self._2_5d_file_to_json:
+        #         json_name = self._2_5d_file_to_json[img_name]
+        #         json_path = os.path.join(os.path.dirname(filename), json_name)
+        #         if Path(json_path) != Path(label_file):
+        #             label_file = json_path
 
         if QtCore.QFile.exists(label_file) and LabelFile.is_label_file(label_file):
             try:
@@ -1678,14 +1769,15 @@ class MainWindow(MainWindow):
     # https://bbs.dlcv.com.cn/t/topic/421
     def setDirty(self):
         super().setDirty()
-
+        
         if self.imagePath is not None and Path(self.imagePath) != Path(self.filename):
-            notification(
-                dlcv_tr("Json 文件数据错误！"),
-                dlcv_tr("当前 Json 文件中的 imagePath 与图片路径不一致，请检查！"),
-                ToastPreset.ERROR,
-            )
-            return
+            if not self.is_2_5d and not self.is_3d: 
+                notification(
+                    dlcv_tr("Json 文件数据错误！"),
+                    dlcv_tr("当前 Json 文件中的 imagePath 与图片路径不一致，请检查！"),
+                    ToastPreset.ERROR,
+                )
+                return
 
         # extra 保存标签文件后,支持 ctrl+Delete 删除标签文件
         if self.hasLabelFile():
@@ -1967,7 +2059,7 @@ class MainWindow(MainWindow):
                         "name": "proj_type",
                         "title": dlcv_tr("project type"),
                         "type": "list",
-                        "limits": [ProjEnum.NORMAL, ProjEnum.O3D],
+                        "limits": [ProjEnum.NORMAL, ProjEnum.O2_5D, ProjEnum.O3D],
                         "default": ProjEnum.NORMAL,
                     },
                 ],
@@ -2253,6 +2345,9 @@ class MainWindow(MainWindow):
                 ).setValue(setting_store.get("ai_polygon_simplify_epsilon", 0.005))
 
         restore_setting()
+        
+        # 初始化2.5D标注的触发机制（在parameter完全初始化后）
+        self._init_2_5d_annotate_action()
 
     def on_setting_dock_changed(
         self, root_parm: Parameter, change_parms: [[Parameter, str, bool]]
@@ -2984,14 +3079,24 @@ class MainWindow(MainWindow):
     @property
     def is_3d(self) -> bool:
         return self.parameter.child("proj_setting", "proj_type").value() == ProjEnum.O3D
+    
+    @property
+    def is_2_5d(self) -> bool:
+        return self.parameter.child("proj_setting", "proj_type").value() == ProjEnum.O2_5D
 
+    # 项目类型切换
     def proj_type_changed(self, param: Parameter, new_value: str):
         if self.is_3d:
             self.o3d_widget.show()
         else:
             self.o3d_widget.hide()
+        
+        if new_value == ProjEnum.O2_5D:
+            print('2.5D模式切换')
+        
         self.settings.setValue("proj_type", new_value)
-
+        
+        
     def _load_file_3d_callback(self):
         if not self.is_3d:
             return
@@ -3049,6 +3154,7 @@ def init_backend_ws():
 
 class ProjEnum:
     NORMAL = "2D"
+    O2_5D = "2.5D"
     O3D = "3D"
     # ------------ 3D 视图 end ------------
 
