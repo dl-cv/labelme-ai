@@ -133,19 +133,10 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             if os.path.isdir(item_path):
                 dir_items.append([item_name, item_path])
             elif os.path.isfile(item_path) and item_name.lower().endswith(self.extensions):
-                # extra 2.5D模式：使用正确的JSON路径获取方法
-                if STORE.main_window.is_2_5d:
-                    json_path = STORE.main_window.proj_2_5d_manager.get_json_path(item_path)
-                else:
-                    json_path = STORE.main_window.proj_manager.get_json_path(item_path)
-                
+                json_path = STORE.main_window.proj_manager.get_json_path(item_path)
                 checked = False
                 if os.path.exists(json_path):
-                    # extra 2.5D模式：检查图片名是否在JSON的imagePath列表中
-                    if STORE.main_window.is_2_5d:
-                        checked = STORE.main_window.proj_2_5d_manager.is_image_in_json(item_path, json_path)
-                    else:
-                        checked = True
+                    checked = STORE.main_window.proj_manager.is_image_in_json(item_path, json_path)
                 file_items.append([item_name, item_path, checked])
 
         # 对收集的项目进行自然排序
@@ -239,23 +230,12 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             print(f'update_state: STORE.main_window is None')
             return
         
-        is_2_5d = STORE.main_window.is_2_5d
-        
         for img_path, file_item in self._file_items.items():
             img_path = file_item.get_path()
-            # extra 2.5D模式：使用正确的JSON路径获取方法
-            if is_2_5d:
-                json_path = STORE.main_window.proj_2_5d_manager.get_json_path(img_path)
-            else:
-                json_path = STORE.main_window.proj_manager.get_json_path(img_path)
-            
+            json_path = STORE.main_window.proj_manager.get_json_path(img_path)
             checked = False
             if os.path.exists(json_path):
-                # extra 2.5D模式：检查图片名是否在JSON的imagePath列表中
-                if is_2_5d:
-                    checked = STORE.main_window.proj_2_5d_manager.is_image_in_json(img_path, json_path)
-                else:
-                    checked = True
+                checked = STORE.main_window.proj_manager.is_image_in_json(img_path, json_path)
             file_item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
 
     def contextMenuEvent(self, event):

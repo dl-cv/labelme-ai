@@ -75,7 +75,7 @@ class O3DWidget(QtWidgets.QDockWidget):
         self.display_with_array(gray_img, depth_img)
 
     def display_with_array(self, gray_img, depth_img):
-        from labelme.dlcv.widget_3d.utils import img2pcd
+        from labelme.dlcv.widget_25d_3d.utils import img2pcd
 
         # 清除之前的几何体
         self.vis.clear_geometries()
@@ -106,7 +106,7 @@ class O3DWidget(QtWidgets.QDockWidget):
 
 
 if __name__ == '__main__':
-    from labelme.dlcv.widget_3d.tests import gray_img_path, depth_img_path
+    from labelme.dlcv.widget_25d_3d.tests import gray_img_path, depth_img_path
 
     app = QtWidgets.QApplication(sys.argv)
     main_window = QtWidgets.QMainWindow()

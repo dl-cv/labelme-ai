@@ -116,8 +116,6 @@ class MainWindow(MainWindow):
         # extra 额外属性
         self.action_refresh = None
         # 2.5D管理器
-        from labelme.dlcv.widget2_5d.manager import Proj2_5DManager
-        self.proj_2_5d_manager = Proj2_5DManager()
         STORE.register_main_window(self)
         super().__init__(config, filename, output, output_file, output_dir)
 
@@ -1078,7 +1076,7 @@ class MainWindow(MainWindow):
         # extra End
         
         # extra 2.5D模式：第一次保存时分配JSON文件
-        if self.is_2_5d and not self.proj_2_5d_manager.file_to_json:
+        if self.is_2_5d and not self.proj_manager.file_to_json:
             # 获取根目录路径
             root_path = None
             if hasattr(self, 'lastOpenDir') and self.lastOpenDir and os.path.exists(self.lastOpenDir):
@@ -1087,7 +1085,7 @@ class MainWindow(MainWindow):
                 root_path = os.path.dirname(self.filename)
             
             if root_path:
-                self.proj_2_5d_manager.assign_json_files(root_path)
+                self.proj_manager.assign_json_files(root_path)
         
         # extra 2.5D模式：使用分配的JSON文件名
         if self.is_2_5d:
@@ -1169,7 +1167,7 @@ class MainWindow(MainWindow):
 
             # extra 2.5D模式：将imagePath改为列表，包含所有使用该JSON的图片名
             if self.is_2_5d:
-                img_name_list = self.proj_2_5d_manager.update_image_path_list(filename)
+                img_name_list = self.proj_manager.update_image_path_list(filename)
                 # 如果找到了图片列表，使用列表作为imagePath；否则使用单个路径
                 if img_name_list:
                     imagePath = img_name_list
@@ -1402,10 +1400,6 @@ class MainWindow(MainWindow):
             assert self.filename is not None
             
             # 2.5D模式：使用公共前缀的JSON文件名来获取json路径
-            if self.is_2_5d:
-                return self.proj_2_5d_manager.get_json_path(self.filename)
-            
-            # 其他模式使用默认逻辑
             return self.proj_manager.get_json_path(self.filename)
         except:
             notification(
@@ -1569,7 +1563,6 @@ class MainWindow(MainWindow):
             self.imageData = self.labelFile.imageData
             # extra 2.5D模式：imagePath可能是列表，需要特殊处理
             if self.is_2_5d and isinstance(self.labelFile.imagePath, list):
-                print(f'2.5D模式：imagePath是列表')
                 # imagePath是列表，使用当前图片名对应的路径
                 current_img_name = os.path.basename(filename)
                 if current_img_name in self.labelFile.imagePath:
@@ -2532,9 +2525,10 @@ class MainWindow(MainWindow):
                     elif new_value == dlcv_tr(ScaleEnum.KEEP_SCALE):
                         self.enableKeepPrevScale(False)
         
-        # 2.5d切换： 当面板的proj_type发生变化时，重新执行get_json_path方法，确保能快速刷新check
-        if param_name == "proj_type" and new_value == ProjEnum.O2_5D and self.lastOpenDir:
-            self.proj_2_5d_manager.assign_json_files(self.lastOpenDir)
+        # 2.5d模式切换： 当面板的proj_type发生变化时，重新执行get_json_path方法，确保能快速刷新check
+        if param_name == "proj_type" and self.lastOpenDir:
+            if new_value == ProjEnum.O2_5D:
+                self.proj_manager.assign_json_files(self.lastOpenDir)
             if hasattr(self, 'fileListWidget') and self.fileListWidget:
                 from qtpy import QtCore
                 QtCore.QTimer.singleShot(500, self.fileListWidget.update_state)
@@ -3112,8 +3106,8 @@ class MainWindow(MainWindow):
 
     # ------------ 3D 视图 ------------
     def _init_3d_widget(self):
-        from labelme.dlcv.widget_3d.o3dwidget import O3DWidget
-        from labelme.dlcv.widget_3d.manager import ProjManager
+        from labelme.dlcv.widget_25d_3d.o3dwidget import O3DWidget
+        from labelme.dlcv.widget_25d_3d.manager import ProjManager
 
         self.o3d_widget = O3DWidget()
         self.proj_manager = ProjManager()
@@ -3158,18 +3152,18 @@ class MainWindow(MainWindow):
             self.o3d_widget.hide()
         
         # 2.5D模式切换处理
-        was_2_5d = bool(self.proj_2_5d_manager._file_to_json)  # 检查之前是否是2.5D模式
+        was_2_5d = bool(self.proj_manager._file_to_json)  # 检查之前是否是2.5D模式
         if new_value == ProjEnum.O2_5D:
             print('切入2.5D模式')
             if self.lastOpenDir:
-                self.proj_2_5d_manager.assign_json_files(self.lastOpenDir)
+                self.proj_manager.assign_json_files(self.lastOpenDir)
                 if hasattr(self, 'fileListWidget') and self.fileListWidget:
                     from qtpy import QtCore
                     QtCore.QTimer.singleShot(500, self.fileListWidget.update_state)
         else:
             print('切出2.5D模式')
             # 切换到非2.5D模式时，清空2.5D映射
-            self.proj_2_5d_manager.clear()
+            self.proj_manager.clear()
             # 如果之前是2.5D模式，切出时需要更新状态
             if was_2_5d and self.lastOpenDir and hasattr(self, 'fileListWidget') and self.fileListWidget:
                 from qtpy import QtCore
