@@ -97,27 +97,15 @@ class LabelFile(object):
                     imageData = utils.img_data_to_png_data(imageData)
             else:
                 # relative path from label file to relative path from cwd
-                # extra 支持imagePath为列表（2.5D模式）
-                if isinstance(data["imagePath"], list):
-                    # 如果是列表，使用第一个图片路径来加载图片数据
-                    if len(data["imagePath"]) > 0:
-                        first_img_path = osp.join(osp.dirname(filename), data["imagePath"][0])
-                        imageData = self.load_image_file(first_img_path)
-                    else:
-                        imageData = None
-                else:
-                    # 字符串格式，使用原有逻辑
-                    imagePath_str = osp.join(osp.dirname(filename), data["imagePath"])
-                    imageData = self.load_image_file(imagePath_str)
+                imagePath = osp.join(osp.dirname(filename), data["imagePath"])
+                imageData = self.load_image_file(imagePath)
             flags = data.get("flags") or {}
-            imagePath = data["imagePath"]  # 保持原始格式（可能是字符串或列表）
-            # extra 只有当imageData不为None时才检查尺寸
-            if imageData is not None:
-                self._check_image_height_and_width(
-                    base64.b64encode(imageData).decode("utf-8"),
-                    data.get("imageHeight"),
-                    data.get("imageWidth"),
-                )
+            imagePath = data["imagePath"]
+            self._check_image_height_and_width(
+                base64.b64encode(imageData).decode("utf-8"),
+                data.get("imageHeight"),
+                data.get("imageWidth"),
+            )
             shapes = [
                 dict(
                     label=s["label"],
