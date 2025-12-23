@@ -3,7 +3,7 @@ import os
 from abc import ABC, abstractmethod
 
 from labelme.dlcv.store import STORE
-from labelme.dlcv.widget_25d_3d.assign_json import assign_json
+from labelme.dlcv.widget_25d_3d._25d_assign_json import assign_json
 from labelme.dlcv.app import ProjEnum
 
 
