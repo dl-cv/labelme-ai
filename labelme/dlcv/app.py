@@ -1118,26 +1118,25 @@ class MainWindow(MainWindow):
             flags[key] = flag
 
         # extra 如果当前 shapes 为空, 并且 flags 没有 true, 则删除标签文件
-        # 2.5D模式下，多个图片共享一个JSON文件，不应该因为单个图片没有标注就删除JSON
         if not shapes and not any(flags.values()):
             label_file = self.getLabelFile()
-            # 2.5D模式下，不删除共享的JSON文件
-            if self.is_2_5d:
-                # 在2.5D模式下，即使当前图片没有标注，也不删除JSON文件
-                # 只更新文件列表的选中状态
-                items = self.fileListWidget.findItems(self.filename, Qt.MatchContains)
-                for item in items:
-                    item.setCheckState(Qt.Unchecked)
-                # 实时更新统计信息
-                if hasattr(self, "label_count_dock"):
-                    self.label_count_dock.count_labels_in_file([], {})
-                return True
-            elif osp.exists(label_file):
+            if osp.exists(label_file):
                 os.remove(label_file)
                 items = self.fileListWidget.findItems(self.filename, Qt.MatchContains)
                 for item in items:
                     item.setCheckState(Qt.Unchecked)
                 logger.info(f"删除{label_file}")
+            # 如果是2.5d模式，则需要更新所有使用该JSON的图片的勾选状态
+            if self.is_2_5d:
+                img_name_list = self.proj_manager.get_img_name_list(self.filename)
+                if img_name_list:
+                    json_dir = os.path.dirname(label_file)
+                    for img_name in img_name_list:
+                        img_path = os.path.join(json_dir, img_name)
+                        items = self.fileListWidget.findItems(img_path, Qt.MatchExactly)
+                        for item in items:
+                            item.setCheckState(Qt.Unchecked)
+            # extra End
             # 实时更新统计信息
             if hasattr(self, "label_count_dock"):
                 self.label_count_dock.count_labels_in_file([], {})
@@ -1153,26 +1152,14 @@ class MainWindow(MainWindow):
             if osp.dirname(filename) and not osp.exists(osp.dirname(filename)):
                 os.makedirs(osp.dirname(filename))
 
-            # extra 2.5D模式：将图片名列表添加到otherData中
-            if self.is_2_5d:
-                img_name_list = self.proj_manager.get_img_name_list(filename)
-                # 如果找到了图片列表，使用列表作为imagePath；否则使用单个路径
-                if img_name_list:
-                    # 确保otherData存在
-                    if self.otherData is None:
-                        self.otherData = {}
-                    self.otherData["img_name_list"] = img_name_list
+            # extra 统一使用get_img_name_list接口管理图片名列表
+            img_name_list = self.proj_manager.get_img_name_list(self.filename)
+            if img_name_list:
+                # 确保otherData存在
+                if self.otherData is None:
+                    self.otherData = {}
+                self.otherData["img_name_list"] = img_name_list
             # extra End
-
-            # extra 3D 需要保存3D数据
-            if self.is_3d and self.otherData is not None:
-                self.otherData.update(
-                    {
-                        "img_name_list": self.proj_manager.get_img_name_list(
-                            self.filename
-                        ),
-                    }
-                )
 
             lf.save(
                 filename=filename,
@@ -1210,13 +1197,12 @@ class MainWindow(MainWindow):
                         for item in items:
                             item.setCheckState(Qt.Unchecked)
             else:
-                # 如果没有图片列表 使用当前图片
                 items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
                 if len(items) == 0:
                     items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
                 if len(items) > 0:
                     for item in items:
-                        item.setCheckState(Qt.Unchecked)
+                        item.setCheckState(Qt.Checked)
             # extra End
 
             # 实时更新统计信息
@@ -1460,18 +1446,6 @@ class MainWindow(MainWindow):
             label_file_without_path = osp.basename(label_file)
             label_file = osp.join(self.output_dir, label_file_without_path)
 
-        # extra 2.5D模式: 加载文件时分配JSON文件
-        if self.is_2_5d and not self.proj_manager.file_to_json:
-            # 获取根目录路径
-            root_path = None
-            if hasattr(self, 'lastOpenDir') and self.lastOpenDir and os.path.exists(self.lastOpenDir):
-                root_path = self.lastOpenDir
-            elif hasattr(self, 'filename') and self.filename and os.path.exists(self.filename):
-                root_path = os.path.dirname(self.filename)
-            
-            if root_path:
-                self.proj_manager.assign_json_files(root_path)
-
         # https://bbs.dlcv.ai/t/topic/328
         # extra 弃用 self.imageData
         assert self.imageData is None
@@ -1561,23 +1535,11 @@ class MainWindow(MainWindow):
                 self.status(self.tr("Error reading %s") % label_file)
                 return False
             self.imageData = self.labelFile.imageData
-            # extra 2.5D模式：检查图片名是否在列表中
-            if self.is_2_5d:
-                current_img_name = os.path.basename(filename)
-                self.imagePath = filename
-                img_name_list = self.labelFile.otherData.get('img_name_list', [])
-                items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
-                check_state = Qt.Checked if current_img_name in img_name_list else Qt.Unchecked
-                for item in items:
-                    item.setCheckState(check_state)
-            else:
-                # 非2.5D模式，使用原有逻辑
-                self.imagePath = filename
-                # 设置勾选
-                items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
-                for item in items:
-                    item.setCheckState(Qt.Checked)
-            # extra End
+            self.imagePath = osp.join(
+                osp.dirname(label_file),
+                self.labelFile.imagePath,
+            )
+            
             self.otherData = self.labelFile.otherData
         else:
             self.imageData = LabelFile.load_image_file(filename)
@@ -1834,6 +1796,14 @@ class MainWindow(MainWindow):
 
         self.fileListWidget.set_root_dir(dirpath)
 
+        # extra 2.5d模式：导入目录时分配json文件
+        if self.is_2_5d and not self.proj_manager.file_to_json:
+            #  获取根目录路径
+            root_path = dirpath
+            if root_path and os.path.exists(root_path):
+                self.proj_manager.assign_json_files(root_path)
+        # extra End
+
         # https://bbs2.dlcv.com.cn/t/topic/1048/3
         dirpath = Path(dirpath)
         label_txt_path = Path(dirpath) / "label.txt"
@@ -1841,29 +1811,33 @@ class MainWindow(MainWindow):
             self._load_label_txt(label_txt_path)
         # End
 
-        # extra 2.5D模式：打开目录后，更新所有已加载文件的勾选状态
-        if self.is_2_5d:
-            print(f'2.5D模式：检查文件勾选')
-            # 递归展开所有文件夹，确保所有文件都被加载
-            self._expand_all_tree_items(self.fileListWidget.invisibleRootItem())
-            # 使用QTimer延迟更新，确保所有文件都已加载完成
-            from qtpy import QtCore
-            QtCore.QTimer.singleShot(500, self.fileListWidget.update_state)  # 增加延迟时间到500ms
+        # extra 统一处理所有模式：打开目录后，更新所有已加载文件的勾选状态
+        # 遍历所有已加载的文件，更新勾选状态
+        for img_path in self.fileListWidget.image_list:
+            # 获取当前图片的文件名
+            current_img_name = os.path.basename(img_path)
+            # 获取对应的JSON文件路径
+            json_path = self.proj_manager.get_json_path(img_path)
+            
+            # 检查JSON文件是否存在且有效
+            should_check = False
+            if os.path.exists(json_path) and LabelFile.is_label_file(json_path):
+                try:
+                    # 读取JSON文件，获取img_name_list字段
+                    label_file = LabelFile(json_path)
+                    img_name_list = label_file.otherData.get('img_name_list', [])
+                    # 检查当前图片名是否在列表中
+                    if current_img_name in img_name_list:
+                        should_check = True
+                except Exception:
+                    # 如果读取失败，不勾选
+                    should_check = False
+            
+            # 更新勾选状态
+            items = self.fileListWidget.findItems(img_path, Qt.MatchExactly)
+            for item in items:
+                item.setCheckState(Qt.Checked if should_check else Qt.Unchecked)
         # extra End
-
-        self.openNextImg(load=load)
-
-    def _expand_all_tree_items(self, item):
-        """递归展开所有文件夹节点，确保所有文件都被加载"""
-        if item is None:
-            return
-        # 展开当前节点
-        if item.childCount() > 0:
-            item.setExpanded(True)
-            # 递归展开所有子节点
-            for i in range(item.childCount()):
-                child = item.child(i)
-                self._expand_all_tree_items(child)
 
     """额外函数"""
 
@@ -2486,14 +2460,6 @@ class MainWindow(MainWindow):
                         self.enableKeepPrevScale(False)
                     elif new_value == dlcv_tr(ScaleEnum.KEEP_SCALE):
                         self.enableKeepPrevScale(False)
-        
-        # 2.5d模式切换： 当面板的proj_type发生变化时，重新执行get_json_path方法，确保能快速刷新check
-        if param_name == "proj_type" and self.lastOpenDir:
-            if new_value == ProjEnum.O2_5D:
-                self.proj_manager.assign_json_files(self.lastOpenDir)
-            if hasattr(self, 'fileListWidget') and self.fileListWidget:
-                from qtpy import QtCore
-                QtCore.QTimer.singleShot(500, self.fileListWidget.update_state)
     # endregion
 
     @property
@@ -3119,17 +3085,14 @@ class MainWindow(MainWindow):
             print('切入2.5D模式')
             if self.lastOpenDir:
                 self.proj_manager.assign_json_files(self.lastOpenDir)
-                if hasattr(self, 'fileListWidget') and self.fileListWidget:
-                    from qtpy import QtCore
-                    QtCore.QTimer.singleShot(500, self.fileListWidget.update_state)
+                self.fileListWidget.update_state()
         else:
             print('切出2.5D模式')
             # 切换到非2.5D模式时，清空2.5D映射
             self.proj_manager.clear()
             # 如果之前是2.5D模式，切出时需要更新状态
-            if was_2_5d and self.lastOpenDir and hasattr(self, 'fileListWidget') and self.fileListWidget:
-                from qtpy import QtCore
-                QtCore.QTimer.singleShot(500, self.fileListWidget.update_state)
+            if was_2_5d and self.lastOpenDir:
+                self.fileListWidget.update_state()
         
         self.settings.setValue("proj_type", new_value)
         

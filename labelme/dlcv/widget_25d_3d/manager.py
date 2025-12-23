@@ -22,7 +22,7 @@ class ProjManagerBase(ABC):
         Returns:
             图片名列表
         """
-        return []
+        return [os.path.basename(path)]
 
 
 class ProjNormalManager(ProjManagerBase):
@@ -30,6 +30,9 @@ class ProjNormalManager(ProjManagerBase):
     
     def get_json_path(self, img_path: str) -> str:
         return str(Path(img_path).with_suffix('.json'))
+
+    def get_img_name_list(self, img_path: str) -> list[str]:
+        return [os.path.basename(img_path)]
 
 
 class Proj3DManager(ProjManagerBase):
@@ -102,8 +105,10 @@ class Proj2_5DManager(ProjManagerBase):
             return os.path.join(os.path.dirname(img_path), json_name)
         return str(Path(img_path).with_suffix('.json'))
     
-    def get_img_name_list(self, json_path: str) -> list[str]:
-        """获取使用指定JSON的所有图片名列表（参数是JSON路径）"""
+    def get_img_name_list(self, img_path: str) -> list[str]:
+        """获取使用指定JSON的所有图片名列表（参数是图片路径）"""
+        # 通过图片路径获取对应的JSON路径
+        json_path = self.get_json_path(img_path)
         json_name = os.path.basename(json_path)
         return [img_name for img_name, json_file in self._file_to_json.items() 
                 if json_file == json_name]
