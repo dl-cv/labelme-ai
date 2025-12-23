@@ -1120,7 +1120,7 @@ class MainWindow(MainWindow):
         # extra 如果当前 shapes 为空, 并且 flags 没有 true, 则删除标签文件
         if not shapes and not any(flags.values()):
             label_file = self.getLabelFile()
-            if osp.exists(label_file):
+            if osp.exists(label_file):                     
                 os.remove(label_file)
                 items = self.fileListWidget.findItems(self.filename, Qt.MatchContains)
                 for item in items:
@@ -1556,13 +1556,7 @@ class MainWindow(MainWindow):
             # 若有flags，则加载flags
             if self.labelFile.flags is not None:
                 flags.update(self.labelFile.flags)
-        else:
-            # extra 如果没有标注文件，取消勾选
-            items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
-            if len(items) > 0:
-                for item in items:
-                    item.setCheckState(Qt.Unchecked)
-            # extra End
+                
         self.loadFlags(flags)
         if self._config["keep_prev"] and self.noShapes():
             self.loadShapes(prev_shapes, replace=False)
@@ -1810,35 +1804,6 @@ class MainWindow(MainWindow):
         if label_txt_path.exists():
             self._load_label_txt(label_txt_path)
         # End
-
-        # extra 统一处理所有模式：打开目录后，更新所有已加载文件的勾选状态
-        # 遍历所有已加载的文件，更新勾选状态
-        for img_path in self.fileListWidget.image_list:
-            # 获取当前图片的文件名
-            current_img_name = os.path.basename(img_path)
-            # 获取对应的JSON文件路径
-            json_path = self.proj_manager.get_json_path(img_path)
-            
-            # 检查JSON文件是否存在且有效
-            should_check = False
-            if os.path.exists(json_path) and LabelFile.is_label_file(json_path):
-                try:
-                    # 读取JSON文件，获取img_name_list字段
-                    label_file = LabelFile(json_path)
-                    img_name_list = label_file.otherData.get('img_name_list', [])
-                    # 检查当前图片名是否在列表中
-                    if current_img_name in img_name_list:
-                        should_check = True
-                except Exception:
-                    # 如果读取失败，不勾选
-                    should_check = False
-            
-            # 更新勾选状态
-            items = self.fileListWidget.findItems(img_path, Qt.MatchExactly)
-            for item in items:
-                item.setCheckState(Qt.Checked if should_check else Qt.Unchecked)
-        # extra End
-
     """额外函数"""
 
     @property
