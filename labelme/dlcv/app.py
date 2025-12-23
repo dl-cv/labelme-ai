@@ -1153,16 +1153,15 @@ class MainWindow(MainWindow):
             if osp.dirname(filename) and not osp.exists(osp.dirname(filename)):
                 os.makedirs(osp.dirname(filename))
 
-            # extra 2.5D模式：将imagePath改为列表，包含所有使用该JSON的图片名
+            # extra 2.5D模式：将图片名列表添加到otherData中
             if self.is_2_5d:
-                img_name_list = self.proj_manager.update_image_path_list(filename)
+                img_name_list = self.proj_manager.get_image_name_list(filename)
                 # 如果找到了图片列表，使用列表作为imagePath；否则使用单个路径
                 if img_name_list:
-                    imagePath = img_name_list
-                else:
-                    # 如果找不到，至少包含当前图片名
-                    current_img_name = os.path.basename(self.filename)
-                    imagePath = [current_img_name]
+                    # 确保otherData存在
+                    if self.otherData is None:
+                        self.otherData = {}
+                    self.otherData["image_name_list"] = img_name_list
             # extra End
 
             # extra 3D 需要保存3D数据
@@ -1192,23 +1191,32 @@ class MainWindow(MainWindow):
 
             # 保存标注时，设置文件列表的勾选状态
             # extra 2.5D模式：需要更新所有使用该JSON的图片的勾选状态
-            if self.is_2_5d and isinstance(self.labelFile.imagePath, list):
-                # imagePath是列表，更新列表中所有图片的勾选状态
-                json_dir = os.path.dirname(filename)
-                for img_name in self.labelFile.imagePath:
-                    img_path = os.path.join(json_dir, img_name)
-                    items = self.fileListWidget.findItems(img_path, Qt.MatchExactly)
-                    for item in items:
-                        item.setCheckState(Qt.Checked)
+            if self.is_2_5d:
+                # 从otherData中获取图片列表
+                img_name_list = self.labelFile.otherData.get('image_name_list', [])
+                if img_name_list:
+                    json_dir = os.path.dirname(filename)
+                    for img_name in img_name_list:
+                        img_path = os.path.join(json_dir, img_name)
+                        items = self.fileListWidget.findItems(img_path, Qt.MatchExactly)
+                        for item in items:
+                            item.setCheckState(Qt.Checked)
+                else:
+                    # 如果没有图片列表 使用当前图片
+                    items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
+                    if len(items) == 0:
+                        items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
+                    if len(items) > 0:
+                        for item in items:
+                            item.setCheckState(Qt.Unchecked)
             else:
-                # 非2.5D模式或imagePath是字符串，使用原有逻辑
-                items = self.fileListWidget.findItems(self.imagePath, Qt.MatchExactly)
+                # 如果没有图片列表 使用当前图片
+                items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
                 if len(items) == 0:
-                    # 如果使用imagePath找不到，尝试使用filename
                     items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
                 if len(items) > 0:
                     for item in items:
-                        item.setCheckState(Qt.Checked)
+                        item.setCheckState(Qt.Unchecked)
             # extra End
 
             # 实时更新统计信息
@@ -1553,38 +1561,22 @@ class MainWindow(MainWindow):
                 self.status(self.tr("Error reading %s") % label_file)
                 return False
             self.imageData = self.labelFile.imageData
-            # extra 2.5D模式：imagePath可能是列表，需要特殊处理
-            if self.is_2_5d and isinstance(self.labelFile.imagePath, list):
-                # imagePath是列表，使用当前图片名对应的路径
+            # extra 2.5D模式：检查图片名是否在列表中
+            if self.is_2_5d:
                 current_img_name = os.path.basename(filename)
-                if current_img_name in self.labelFile.imagePath:
-                    # 当前图片在列表中，使用当前图片的完整路径
-                    self.imagePath = filename
-                else:
-                    # 如果不在列表中，使用列表第一个（兼容旧数据）
-                    if len(self.labelFile.imagePath) > 0:
-                        self.imagePath = os.path.join(
-                            os.path.dirname(label_file),
-                            self.labelFile.imagePath[0],
-                        )
-                    else:
-                        self.imagePath = filename
-            elif isinstance(self.labelFile.imagePath, list):
-                # 非2.5D模式但imagePath是列表（兼容旧数据或格式问题）
-                # 使用列表第一个元素，如果列表为空则使用当前文件名
-                if len(self.labelFile.imagePath) > 0:
-                    self.imagePath = os.path.join(
-                        os.path.dirname(label_file),
-                        self.labelFile.imagePath[0],
-                    )
-                else:
-                    self.imagePath = filename
+                self.imagePath = filename
+                img_name_list = self.labelFile.otherData.get('image_name_list', [])
+                items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
+                check_state = Qt.Checked if current_img_name in img_name_list else Qt.Unchecked
+                for item in items:
+                    item.setCheckState(check_state)
             else:
-                # imagePath是字符串，使用原有逻辑
-                self.imagePath = os.path.join(
-                    os.path.dirname(label_file),
-                    self.labelFile.imagePath,
-                )
+                # 非2.5D模式，使用原有逻辑
+                self.imagePath = filename
+                # 设置勾选
+                items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
+                for item in items:
+                    item.setCheckState(Qt.Checked)
             # extra End
             self.otherData = self.labelFile.otherData
         else:
@@ -1602,28 +1594,6 @@ class MainWindow(MainWindow):
             # 若有flags，则加载flags
             if self.labelFile.flags is not None:
                 flags.update(self.labelFile.flags)
-            # extra 读取标注时，如果有标注文件，设置文件列表的勾选状态
-            # extra 2.5D模式：检查当前图片名是否在imagePath列表中
-            if self.is_2_5d and isinstance(self.labelFile.imagePath, list):
-                # imagePath是列表，检查当前图片名是否在列表中
-                current_img_name = os.path.basename(filename)
-                if current_img_name in self.labelFile.imagePath:
-                    # 当前图片在列表中，设置勾选
-                    items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
-                    for item in items:
-                        item.setCheckState(Qt.Checked)
-                else:
-                    # 当前图片不在列表中，取消勾选
-                    items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
-                    for item in items:
-                        item.setCheckState(Qt.Unchecked)
-            else:
-                # 非2.5D模式或imagePath是字符串，使用原有逻辑
-                items = self.fileListWidget.findItems(self.imagePath, Qt.MatchExactly)
-                if len(items) > 0:
-                    for item in items:
-                        item.setCheckState(Qt.Checked)
-            # extra End
         else:
             # extra 如果没有标注文件，取消勾选
             items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)

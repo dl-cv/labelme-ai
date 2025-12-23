@@ -12,13 +12,8 @@ class ProjManagerBase(ABC):
     def get_json_path(self, img_path: str) -> str:
         pass
 
-    # 新增：定义默认行为（或者设为抽象方法）
-    def is_image_in_json(self, img_path: str, json_path: str) -> bool:
-        """默认行为：只要json文件存在即认为关联成功"""
-        return os.path.exists(json_path)
-
-    def update_image_path_list(self, json_path: str) -> list[str]:
-        """默认行为：不需要更新列表"""
+    def get_image_name_list(self, json_path: str) -> list[str]:
+        """获取使用指定JSON的所有图片名列表"""
         return []
 
 
@@ -91,29 +86,12 @@ class Proj2_5DManager(ProjManagerBase):
             return os.path.join(os.path.dirname(img_path), json_name)
         return str(Path(img_path).with_suffix('.json'))
     
-    def is_image_in_json(self, img_path: str, json_path: str) -> bool:
-        """检查图片是否在JSON的imagePath列表中"""
-        import json
-        img_name = os.path.basename(img_path)
-        if not os.path.exists(json_path):
-            return False
-        try:
-            with open(json_path, 'r', encoding='utf-8') as f:
-                image_path = json.load(f).get("imagePath", [])
-                return img_name in image_path if isinstance(image_path, list) else True
-        except Exception:
-            return False
-    
     def get_image_name_list(self, json_path: str) -> list[str]:
         """获取使用指定JSON的所有图片名列表"""
         json_name = os.path.basename(json_path)
         return [img_name for img_name, json_file in self._file_to_json.items() 
                 if json_file == json_name]
-    
-    def update_image_path_list(self, json_path: str) -> list[str]:
-        """更新JSON的imagePath列表"""
-        return self.get_image_name_list(json_path)
-    
+
     def clear(self):
         """清空映射"""
         self._file_to_json = {}
@@ -160,8 +138,7 @@ class ProjManager:
         """获取图片对应的JSON文件路径（多态委托）"""
         return self.current_manager.get_json_path(img_path)
     
-    # --- 显式暴露特有属性（推荐，有代码提示） ---
-    
+    # --- 显式暴露特有属性 ---
     @property
     def norm_manager(self) -> ProjNormalManager:
         """2D模式管理器"""
@@ -188,7 +165,9 @@ class ProjManager:
     def is_2_5d(self) -> bool:
         """是否2.5D模式"""
         return isinstance(self.current_manager, Proj2_5DManager)
-    
+
+    # region
+    # ============3D模式方法================
     def get_gray_img_path(self, img_path: str) -> str:
         """获取灰度图路径（只有3D Manager有这个方法）"""
         return self.o3d_manager.get_gray_img_path(img_path)
@@ -208,21 +187,17 @@ class ProjManager:
         gray_img_name = os.path.basename(gray_img_path)
         depth_img_name = os.path.basename(depth_img_path)
         return [gray_img_name, depth_img_name, gray_img_name]
+    # endregion
     
-    # 2.5D模式特有方法
+    # region
+    # ============2.5D模式方法================
     def assign_json_files(self, root_path: str) -> dict:
         """分配JSON文件（只有2.5D Manager需要这个）"""
         return self.o2_5d_manager.assign_json_files(root_path)
     
-    def is_image_in_json(self, img_path: str, json_path: str) -> bool:
-        """检查图片是否在JSON的imagePath列表中"""
-        if self.is_2_5d:
-            return self.o2_5d_manager.is_image_in_json(img_path, json_path)
-        return os.path.exists(json_path)
-    
-    def update_image_path_list(self, json_path: str) -> list[str]:
-        """更新JSON的imagePath列表（只有2.5D Manager需要这个）"""
-        return self.o2_5d_manager.update_image_path_list(json_path)
+    def get_image_name_list(self, json_path: str) -> list[str]:
+        """获取使用指定JSON的所有图片名列表（只有2.5D Manager需要这个）"""
+        return self.o2_5d_manager.get_image_name_list(json_path)
     
     def clear(self):
         """清空映射（只有2.5D需要清理）"""
@@ -230,12 +205,13 @@ class ProjManager:
     
     @property
     def file_to_json(self) -> dict:
-        """获取文件到JSON的映射（仅在2.5D模式下有效，返回副本）"""
+        """获取文件到JSON的映射"""
         if self.is_2_5d:
             return self.o2_5d_manager.file_to_json
         return {}
     
     @property
     def _file_to_json(self) -> dict:
-        """内部属性访问（直接返回原始引用，用于检查之前是否是2.5D模式，即使当前不是2.5D模式也能访问）"""
+        """内部属性访问"""
         return self.o2_5d_manager._file_to_json
+    # endregion
