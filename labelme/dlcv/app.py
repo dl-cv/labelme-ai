@@ -1070,15 +1070,9 @@ class MainWindow(MainWindow):
     # 保存 json 的函数： 自动保存标签
     def saveLabels(self, filename: str):
         """filename: json 文件路径"""
-        # extra 保存 3d json
-        if self.is_3d:
+        # extra 保存 3d 或 2.5d json
+        if self.is_3d or self.is_2_5d:
             filename = self.getLabelFile()
-        # extra End
-        
-        # extra 2.5D模式：使用分配的JSON文件名
-        if self.is_2_5d:
-            filename = self.getLabelFile()
-        # extra End
 
         lf = LabelFile()
 
@@ -1556,7 +1550,7 @@ class MainWindow(MainWindow):
             # 若有flags，则加载flags
             if self.labelFile.flags is not None:
                 flags.update(self.labelFile.flags)
-                
+
         self.loadFlags(flags)
         if self._config["keep_prev"] and self.noShapes():
             self.loadShapes(prev_shapes, replace=False)

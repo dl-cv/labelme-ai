@@ -43,7 +43,14 @@ def process_product_data(file_list):
 
 def assign_json(input_dir):
     """分配JSON文件，返回文件名到JSON文件名的映射"""
-    file_names = os.listdir(input_dir)
+    file_names = []
+    image_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif')
+
+    for root,dirs,files in os.walk(input_dir):
+        for file in files:
+            if file.lower().endswith(image_extensions):
+                file_names.append(file)
+                
     output = process_product_data(file_names)
     
     # 创建文件名到JSON文件名的映射
