@@ -12,8 +12,16 @@ class ProjManagerBase(ABC):
     def get_json_path(self, img_path: str) -> str:
         pass
 
-    def get_image_name_list(self, json_path: str) -> list[str]:
-        """获取使用指定JSON的所有图片名列表"""
+    def get_img_name_list(self, path: str) -> list[str]:
+        """
+        获取图片名列表
+        
+        Args:
+            path: 对于2D/3D模式是图片路径，对于2.5D模式是JSON路径
+        
+        Returns:
+            图片名列表
+        """
         return []
 
 
@@ -55,6 +63,14 @@ class Proj3DManager(ProjManagerBase):
         suffix = Path(img_path).suffix
         gray_img_path = self.get_gray_img_path(img_path)
         return gray_img_path.replace(f'_G{suffix}', '.json')
+    
+    def get_img_name_list(self, img_path: str) -> list[str]:
+        """获取3D数据的图片名列表（参数是图片路径）"""
+        gray_img_path = self.get_gray_img_path(img_path)
+        depth_img_path = self.get_depth_img_path(img_path)
+        gray_img_name = os.path.basename(gray_img_path)
+        depth_img_name = os.path.basename(depth_img_path)
+        return [gray_img_name, depth_img_name, gray_img_name]
 
 
 class Proj2_5DManager(ProjManagerBase):
@@ -86,8 +102,8 @@ class Proj2_5DManager(ProjManagerBase):
             return os.path.join(os.path.dirname(img_path), json_name)
         return str(Path(img_path).with_suffix('.json'))
     
-    def get_image_name_list(self, json_path: str) -> list[str]:
-        """获取使用指定JSON的所有图片名列表"""
+    def get_img_name_list(self, json_path: str) -> list[str]:
+        """获取使用指定JSON的所有图片名列表（参数是JSON路径）"""
         json_name = os.path.basename(json_path)
         return [img_name for img_name, json_file in self._file_to_json.items() 
                 if json_file == json_name]
@@ -138,6 +154,18 @@ class ProjManager:
         """获取图片对应的JSON文件路径（多态委托）"""
         return self.current_manager.get_json_path(img_path)
     
+    def get_img_name_list(self, path: str) -> list[str]:
+        """
+        获取图片名列表（多态委托）
+        
+        Args:
+            path: 对于2D/3D模式是图片路径，对于2.5D模式是JSON路径
+        
+        Returns:
+            图片名列表
+        """
+        return self.current_manager.get_img_name_list(path)
+    
     # --- 显式暴露特有属性 ---
     @property
     def norm_manager(self) -> ProjNormalManager:
@@ -153,8 +181,6 @@ class ProjManager:
     def o2_5d_manager(self) -> Proj2_5DManager:
         """2.5D模式管理器"""
         return self._strategies[ProjEnum.O2_5D]
-    
-    # --- 兼容旧接口 ---
     
     @property
     def is_3d(self) -> bool:
@@ -179,28 +205,16 @@ class ProjManager:
     def is_3d_data(self, img_path: str) -> bool:
         """判断是否为3D数据（只有3D Manager有这个方法）"""
         return self.o3d_manager.is_3d_data(img_path)
-    
-    def get_img_name_list(self, img_path: str) -> list[str]:
-        """获取图片名列表（3D模式使用）"""
-        gray_img_path = self.get_gray_img_path(img_path)
-        depth_img_path = self.get_depth_img_path(img_path)
-        gray_img_name = os.path.basename(gray_img_path)
-        depth_img_name = os.path.basename(depth_img_path)
-        return [gray_img_name, depth_img_name, gray_img_name]
     # endregion
     
     # region
     # ============2.5D模式方法================
     def assign_json_files(self, root_path: str) -> dict:
-        """分配JSON文件（只有2.5D Manager需要这个）"""
+        """分配JSON文件"""
         return self.o2_5d_manager.assign_json_files(root_path)
     
-    def get_image_name_list(self, json_path: str) -> list[str]:
-        """获取使用指定JSON的所有图片名列表（只有2.5D Manager需要这个）"""
-        return self.o2_5d_manager.get_image_name_list(json_path)
-    
     def clear(self):
-        """清空映射（只有2.5D需要清理）"""
+        """清空映射"""
         self.o2_5d_manager.clear()
     
     @property

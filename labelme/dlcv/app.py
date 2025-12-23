@@ -1155,13 +1155,13 @@ class MainWindow(MainWindow):
 
             # extra 2.5D模式：将图片名列表添加到otherData中
             if self.is_2_5d:
-                img_name_list = self.proj_manager.get_image_name_list(filename)
+                img_name_list = self.proj_manager.get_img_name_list(filename)
                 # 如果找到了图片列表，使用列表作为imagePath；否则使用单个路径
                 if img_name_list:
                     # 确保otherData存在
                     if self.otherData is None:
                         self.otherData = {}
-                    self.otherData["image_name_list"] = img_name_list
+                    self.otherData["img_name_list"] = img_name_list
             # extra End
 
             # extra 3D 需要保存3D数据
@@ -1193,7 +1193,7 @@ class MainWindow(MainWindow):
             # extra 2.5D模式：需要更新所有使用该JSON的图片的勾选状态
             if self.is_2_5d:
                 # 从otherData中获取图片列表
-                img_name_list = self.labelFile.otherData.get('image_name_list', [])
+                img_name_list = self.labelFile.otherData.get('img_name_list', [])
                 if img_name_list:
                     json_dir = os.path.dirname(filename)
                     for img_name in img_name_list:
@@ -1565,7 +1565,7 @@ class MainWindow(MainWindow):
             if self.is_2_5d:
                 current_img_name = os.path.basename(filename)
                 self.imagePath = filename
-                img_name_list = self.labelFile.otherData.get('image_name_list', [])
+                img_name_list = self.labelFile.otherData.get('img_name_list', [])
                 items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
                 check_state = Qt.Checked if current_img_name in img_name_list else Qt.Unchecked
                 for item in items:
