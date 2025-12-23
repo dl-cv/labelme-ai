@@ -1075,18 +1075,6 @@ class MainWindow(MainWindow):
             filename = self.getLabelFile()
         # extra End
         
-        # extra 2.5D模式：第一次保存时分配JSON文件
-        if self.is_2_5d and not self.proj_manager.file_to_json:
-            # 获取根目录路径
-            root_path = None
-            if hasattr(self, 'lastOpenDir') and self.lastOpenDir and os.path.exists(self.lastOpenDir):
-                root_path = self.lastOpenDir
-            elif hasattr(self, 'filename') and self.filename and os.path.exists(self.filename):
-                root_path = os.path.dirname(self.filename)
-            
-            if root_path:
-                self.proj_manager.assign_json_files(root_path)
-        
         # extra 2.5D模式：使用分配的JSON文件名
         if self.is_2_5d:
             filename = self.getLabelFile()
@@ -1201,6 +1189,7 @@ class MainWindow(MainWindow):
             # extra 保存成功后, self.labelFile 里的数据会被清空, 所以需要重新加载,防止别的地方调用 self.labelFile 时出错
             self.labelFile.load(filename)
             # extra End
+
             # 保存标注时，设置文件列表的勾选状态
             # extra 2.5D模式：需要更新所有使用该JSON的图片的勾选状态
             if self.is_2_5d and isinstance(self.labelFile.imagePath, list):
@@ -1463,6 +1452,18 @@ class MainWindow(MainWindow):
             label_file_without_path = osp.basename(label_file)
             label_file = osp.join(self.output_dir, label_file_without_path)
 
+        # extra 2.5D模式: 加载文件时分配JSON文件
+        if self.is_2_5d and not self.proj_manager.file_to_json:
+            # 获取根目录路径
+            root_path = None
+            if hasattr(self, 'lastOpenDir') and self.lastOpenDir and os.path.exists(self.lastOpenDir):
+                root_path = self.lastOpenDir
+            elif hasattr(self, 'filename') and self.filename and os.path.exists(self.filename):
+                root_path = os.path.dirname(self.filename)
+            
+            if root_path:
+                self.proj_manager.assign_json_files(root_path)
+
         # https://bbs.dlcv.ai/t/topic/328
         # extra 弃用 self.imageData
         assert self.imageData is None
@@ -1535,15 +1536,6 @@ class MainWindow(MainWindow):
         # 2025年8月7日 切换图片后，重置绘制的x,y位置
         self.canvas.offset = QtCore.QPointF(0, 0)
         self.canvas.loadPixmap(QtGui.QPixmap.fromImage(image))
-
-        # 2.5D 获取json映射
-        # if self.is_2_5d and self._2_5d_file_to_json:
-        #     img_name = os.path.basename(filename)
-        #     if img_name in self._2_5d_file_to_json:
-        #         json_name = self._2_5d_file_to_json[img_name]
-        #         json_path = os.path.join(os.path.dirname(filename), json_name)
-        #         if Path(json_path) != Path(label_file):
-        #             label_file = json_path
 
         if QtCore.QFile.exists(label_file) and LabelFile.is_label_file(label_file):
             try:
