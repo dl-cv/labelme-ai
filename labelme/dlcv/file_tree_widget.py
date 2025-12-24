@@ -133,10 +133,8 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             if os.path.isdir(item_path):
                 dir_items.append([item_name, item_path])
             elif os.path.isfile(item_path) and item_name.lower().endswith(self.extensions):
-                checked = False
                 json_path = STORE.main_window.proj_manager.get_json_path(item_path)
-                if os.path.exists(json_path):
-                    checked = True
+                checked = os.path.exists(json_path)
                 file_items.append([item_name, item_path, checked])
 
         # 对收集的项目进行自然排序
