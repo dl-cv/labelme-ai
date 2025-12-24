@@ -99,9 +99,12 @@ class Proj2_5DManager(ProjManagerBase):
                 if root_path and os.path.exists(root_path):
                     self.assign_json_files(root_path)
         
-        img_name = os.path.basename(img_path)
-        if img_name in self._file_to_json:
-            json_name = self._file_to_json[img_name]
+        img_path = str(Path(img_path).absolute().as_posix())
+
+        # 使用完整路径查找映射
+        if img_path in self._file_to_json:
+            json_name = self._file_to_json[img_path]
+            # json文件放在图片所在目录
             return os.path.join(os.path.dirname(img_path), json_name)
         return str(Path(img_path).with_suffix('.json'))
     
@@ -110,8 +113,11 @@ class Proj2_5DManager(ProjManagerBase):
         # 通过图片路径获取对应的JSON路径
         json_path = self.get_json_path(img_path)
         json_name = os.path.basename(json_path)
-        return [img_name for img_name, json_file in self._file_to_json.items() 
-                if json_file == json_name]
+        json_dir = os.path.dirname(json_path)  # 获取JSON文件所在目录
+        
+        # 只返回同一目录下使用该JSON的文件名
+        return [os.path.basename(img_path) for img_path, json_file in self._file_to_json.items() 
+                if json_file == json_name and os.path.dirname(img_path) == json_dir]
 
     def clear(self):
         """清空映射"""

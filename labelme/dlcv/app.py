@@ -1122,14 +1122,19 @@ class MainWindow(MainWindow):
                 logger.info(f"删除{label_file}")
             # 如果是2.5d模式，则需要更新所有使用该JSON的图片的勾选状态
             if self.is_2_5d:
-                img_name_list = self.proj_manager.get_img_name_list(self.filename)
-                if img_name_list:
-                    json_dir = os.path.dirname(label_file)
-                    for img_name in img_name_list:
-                        img_path = os.path.join(json_dir, img_name)
-                        items = self.fileListWidget.findItems(img_path, Qt.MatchExactly)
-                        for item in items:
-                            item.setCheckState(Qt.Unchecked)
+                # 从映射中查找完整路径
+                json_name = os.path.basename(label_file)
+                json_dir = os.path.dirname(label_file)  # 获取JSON文件所在目录
+                proj_manager = self.proj_manager.o2_5d_manager
+                # 只查找同一目录下使用该JSON的完整路径
+                img_paths = [img_path for img_path, json_file in proj_manager._file_to_json.items() 
+                            if json_file == json_name and os.path.dirname(img_path) == json_dir]
+                for img_path in img_paths:
+                    # 标准化路径格式
+                    img_path = str(Path(img_path).absolute().as_posix())
+                    items = self.fileListWidget.findItems(img_path, Qt.MatchExactly)
+                    for item in items:
+                        item.setCheckState(Qt.Unchecked)
             # extra End
             # 实时更新统计信息
             if hasattr(self, "label_count_dock"):
@@ -1176,9 +1181,16 @@ class MainWindow(MainWindow):
                 # 从otherData中获取图片列表
                 img_name_list = self.labelFile.otherData.get('img_name_list', [])
                 if img_name_list:
-                    json_dir = os.path.dirname(filename)
-                    for img_name in img_name_list:
-                        img_path = os.path.join(json_dir, img_name)
+                    # 从映射中查找完整路径
+                    json_name = os.path.basename(filename)
+                    json_dir = os.path.dirname(filename)  # 获取JSON文件所在目录
+                    proj_manager = self.proj_manager.o2_5d_manager
+                    # 只查找同一目录下使用该JSON的完整路径
+                    img_paths = [img_path for img_path, json_file in proj_manager._file_to_json.items() 
+                                if json_file == json_name and os.path.dirname(img_path) == json_dir]
+                    for img_path in img_paths:
+                        # 标准化路径格式
+                        img_path = str(Path(img_path).absolute().as_posix())
                         items = self.fileListWidget.findItems(img_path, Qt.MatchExactly)
                         for item in items:
                             item.setCheckState(Qt.Checked)
