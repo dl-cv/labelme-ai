@@ -6,8 +6,8 @@ from ordered_set import OrderedSet
 from qtpy import QtCore, QtWidgets, QtGui
 from qtpy.QtCore import Qt
 
-from labelme.dlcv.store import STORE
 from labelme.dlcv.dlcv_translator import dlcv_tr
+from labelme.dlcv.store import STORE
 
 
 class FileTreeItem(QtWidgets.QTreeWidgetItem):
@@ -224,16 +224,10 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
 
     def update_state(self):
         """更新所有文件项的勾选状态"""
-        if not STORE.main_window:
-            print(f'update_state: STORE.main_window is None')
-            return
-        
         for img_path, file_item in self._file_items.items():
             img_path = file_item.get_path()
-            checked = False
             json_path = STORE.main_window.proj_manager.get_json_path(img_path)
-            if os.path.exists(json_path):
-                checked = True
+            checked = os.path.exists(json_path)
             file_item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
 
     def contextMenuEvent(self, event):
