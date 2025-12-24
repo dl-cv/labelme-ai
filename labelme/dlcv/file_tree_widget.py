@@ -134,15 +134,6 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
                 dir_items.append([item_name, item_path])
             elif os.path.isfile(item_path) and item_name.lower().endswith(self.extensions):
                 checked = False
-                # 针对2.5D模式：如果映射为空或当前文件不在映射中，重新分配JSON文件
-                if STORE.main_window and STORE.main_window.is_2_5d:
-                    proj_manager = STORE.main_window.proj_manager
-                    # 检查映射是否为空，或者当前文件是否不在映射中
-                    if not proj_manager.file_to_json or item_name not in proj_manager.file_to_json:
-                        if self._root_dir:
-                            # 重新分配JSON文件（会递归扫描所有子目录）
-                            proj_manager.assign_json_files(self._root_dir)
-                
                 json_path = STORE.main_window.proj_manager.get_json_path(item_path)
                 if os.path.exists(json_path):
                     checked = True
