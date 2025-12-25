@@ -1797,7 +1797,9 @@ class MainWindow(MainWindow):
         self.fileListWidget.set_root_dir(dirpath)
 
         # extra 2.5d模式：导入目录时分配json文件
-        if self.is_2_5d and not self.proj_manager.file_to_json:
+        if self.is_2_5d:
+            # 先清空旧的映射，确保每次导入新目录时都重新分配
+            self.proj_manager.clear()
             #  获取根目录路径
             root_path = dirpath
             if root_path and os.path.exists(root_path):
