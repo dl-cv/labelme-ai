@@ -1855,9 +1855,53 @@ class MainWindow(MainWindow):
 
         self._init_shape_color_action()
 
-        # 分割标注
-        self._init_split_shape_action()
+        # [新增] 连接 Canvas 的分割结束信号
+        if hasattr(self.canvas, 'sig_split_finish'):
+            self.canvas.sig_split_finish.connect(self.on_split_finish_callback)
 
+    # [新增] 回调函数：处理分割后的数据同步
+    def on_split_finish_callback(self, old_shape, new_shapes):
+        """
+        接收 Canvas 分割好的图形，进行全量状态刷新。
+        参考 loadFile 的稳定性，使用 loadShapes 进行内存重载。
+        """
+        try:
+            # 1. 先删除旧 shape 的 label（避免重复）
+            self.remLabels([old_shape])
+            
+            # 2. 为新 shapes 添加 labels
+            for new_shape in new_shapes:
+                self.addLabel(new_shape)
+            
+            # 3. 更新 canvas 的 shapes 列表（但不替换，只更新特定部分）
+            # 构造新的 Shape 列表
+            current_shapes = self.canvas.shapes
+            final_shapes = []
+            
+            # 保留没被切的，排除被切的
+            for s in current_shapes:
+                if s is not old_shape:
+                    final_shapes.append(s)
+            
+            # 加入切出来的新图形
+            final_shapes.extend(new_shapes)
+            
+            # 4. 调用 canvas.loadShapes 更新 canvas（这会重建 visible 字典等）
+            self.canvas.loadShapes(final_shapes, replace=True)
+            
+            # 5. 选中新图形
+            self.canvas.selectShapes(new_shapes)
+            
+            # 6. 标记文件已修改
+            self.setDirty()
+            
+            # 7. 打印日志或通知
+            logger.info(f"Split finished: 1 shape -> {len(new_shapes)} shapes")
+            
+        except Exception as e:
+            traceback.print_exc()
+            notification("分割更新失败", str(e), ToastPreset.ERROR)
+    
     def select_shape_by_name(self, shape_name: str):
         select_shape = []
         for shape in self.canvas.shapes:
@@ -2657,182 +2701,6 @@ class MainWindow(MainWindow):
                 utils.addActions(self.canvas.menus[0], self.actions.menu)
 
 
-    # 分割方法：轴对称切割标注 一分为二
-    def split_by_axis(self, shape: Shape):
-        try:
-            # 只支持多边形和矩形
-            if shape.shape_type not in [ShapeType.POLYGON, ShapeType.RECTANGLE]:
-                return
-            
-            # 获取标注json
-            json_path = self.getLabelFile()
-            if not os.path.exists(json_path):
-                notification("分割失败", "找不到JSON文件", ToastPreset.ERROR)
-                return
-            
-            # 读取JSON
-            with open(json_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            # 获取shapes列表
-            shapes = data.get('shapes', [])
-            if not shapes:
-                return
-            
-            # 获取shape的points、label、shape_type用于匹配
-            shape_points = shape.get_points_pos()
-            shape_label = shape.label
-            shape_type = shape.shape_type
-            
-            # 在shapes列表中查找匹配的shape
-            target_idx = None
-            for idx, s in enumerate(shapes):
-                s_points = s.get('points', [])
-                # 比较points数量
-                if len(s_points) != len(shape_points):
-                    continue
-                # 比较每个点（允许小的误差）
-                points_match = all(
-                    abs(s_points[i][0] - shape_points[i][0]) < 1e-6 and
-                    abs(s_points[i][1] - shape_points[i][1]) < 1e-6
-                    for i in range(len(s_points))
-                )
-                if (points_match and
-                    s.get('label', '') == shape_label and
-                    s.get('shape_type', '') == shape_type):
-                    target_idx = idx
-                    break
-            
-            if target_idx is None:
-                notification("分割失败", "未找到匹配的标注", ToastPreset.WARNING)
-                return
-            
-            # 获取原始shape数据
-            original_shape = shapes[target_idx].copy()
-            
-            # 准备分割用的points
-            points_pos = shape_points.copy()
-            
-            # 如果是矩形，转换为4个顶点的多边形
-            if shape_type == ShapeType.RECTANGLE:
-                if len(points_pos) == 2:
-                    (x1, y1), (x2, y2) = points_pos
-                    x1, x2 = sorted([x1, x2])
-                    y1, y2 = sorted([y1, y2])
-                    points_pos = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
-            
-            # 创建多边形
-            polygon = Polygon(points_pos)
-            if not polygon.is_valid:
-                notification("分割失败", "多边形无效，无法分割", ToastPreset.WARNING)
-                return
-            
-            # 计算边界框和中心点
-            xs = [p[0] for p in points_pos]
-            ys = [p[1] for p in points_pos]
-            min_x, max_x = min(xs), max(xs)
-            min_y, max_y = min(ys), max(ys)
-            center_x = (min_x + max_x) / 2
-            center_y = (min_y + max_y) / 2
-            
-            # 决定分割方向（沿较长的边分割）
-            width = max_x - min_x
-            height = max_y - min_y
-            split_along_x = width > height  # 如果宽度大于高度，沿x轴分割（垂直分割线）
-            
-            # 创建分割线（足够长以完全穿过多边形）
-            margin = max(width, height) * 0.5
-            if split_along_x:
-                # 垂直分割线（沿x轴中心）
-                split_line = LineString([
-                    (center_x, min_y - margin),
-                    (center_x, max_y + margin)
-                ])
-            else:
-                # 水平分割线（沿y轴中心）
-                split_line = LineString([
-                    (min_x - margin, center_y),
-                    (max_x + margin, center_y)
-                ])
-            
-            # 分割多边形
-            try:
-                result = split(polygon, split_line)
-                if len(result.geoms) < 2:
-                    notification("分割失败", "分割后未得到两个部分", ToastPreset.WARNING)
-                    return
-                
-                # 获取两个最大的部分（按面积排序）
-                parts = sorted(result.geoms, key=lambda g: g.area, reverse=True)
-                poly1, poly2 = parts[0], parts[1]
-                
-                # 确保是Polygon类型
-                if hasattr(poly1, 'exterior') and hasattr(poly2, 'exterior'):
-                    # 创建第一个新shape
-                    new_shape1 = original_shape.copy()
-                    new_shape1['points'] = list(poly1.exterior.coords[:-1])  # 去除重复的最后一个点
-                    new_shape1['shape_type'] = 'polygon'  # 分割后都是多边形
-                    
-                    # 创建第二个新shape
-                    new_shape2 = original_shape.copy()
-                    new_shape2['points'] = list(poly2.exterior.coords[:-1])
-                    new_shape2['shape_type'] = 'polygon'
-                    
-                    # 替换原shape
-                    shapes[target_idx] = new_shape1
-                    shapes.insert(target_idx + 1, new_shape2)
-                else:
-                    notification("分割失败", "分割结果格式不正确", ToastPreset.WARNING)
-                    return
-                    
-            except Exception as e:
-                notification("分割失败", f"分割过程出错: {str(e)}", ToastPreset.ERROR)
-                return
-            
-            # 更新data并保存
-            data['shapes'] = shapes
-            with open(json_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            
-            # 重新加载文件以更新canvas
-            self.loadFile(self.filename)
-            
-        except Exception as e:
-            notification("分割失败", f"发生错误: {str(e)}", ToastPreset.ERROR)
-            import traceback
-            logger.error(traceback.format_exc())
-       
-
-    def _init_split_shape_action(self):
-        """
-        初始化轴对称切割标注功能，添加到右键菜单
-        """
-        # 创建action
-        action = QtWidgets.QAction(dlcv_tr("轴对称切割标注"), self)
-        action.triggered.connect(self._on_split_shape_triggered)
-        self.addAction(action)
-        
-        # 保存action以便后续使用
-        self.actions.splitShape = action
-        
-        # 添加到右键菜单
-        if hasattr(self.actions, "menu"):
-            self.actions.menu = list(self.actions.menu)
-            # 插入到菜单顶部
-            self.actions.menu.insert(0, action)
-            # 刷新右键菜单
-            self.canvas.menus[0].clear()
-            utils.addActions(self.canvas.menus[0], self.actions.menu)
-    
-    def _on_split_shape_triggered(self):
-        """
-        轴对称切割标注的触发函数
-        """
-        if not self.canvas.selectedShapes:
-            return
-
-        for shape in self.canvas.selectedShapes:
-            self.split_by_axis(shape)
 
     # ----------- OCR 标注 end -----------
 
