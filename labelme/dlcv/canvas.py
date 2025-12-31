@@ -8,7 +8,6 @@ from labelme.widgets.canvas import *
 
 class CustomCanvas(Canvas):
     # 1. 定义一个信号：传递 (被切的老图形, [切出来的新图形1, 新图形2])
-    # 信号必须在类级别定义，不能在 __init__ 中定义
     sig_split_finish = QtCore.Signal(object, list)
 
     def __init__(self, *args, **kwargs):
