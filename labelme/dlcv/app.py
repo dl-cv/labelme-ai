@@ -27,6 +27,7 @@ from pyqtgraph.parametertree import Parameter, ParameterTree
 from pyqttoast import Toast, ToastPreset
 from PIL import ImageFile, Image
 import yaml
+import json
 
 from labelme import __appname__
 from labelme.app import *
@@ -34,7 +35,8 @@ from labelme.dlcv.utils_func import notification, normalize_16b_gray_to_uint8
 from labelme.dlcv.store import STORE
 from labelme.dlcv import dlcv_tr
 from labelme.utils.qt import removeAction, newIcon
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, LineString
+from shapely.ops import split
 from labelme.dlcv.shape import ShapeType
 from labelme.utils import print_time  # noqa
 from labelme.dlcv.shape import Shape
@@ -1853,6 +1855,53 @@ class MainWindow(MainWindow):
 
         self._init_shape_color_action()
 
+        # [新增] 连接 Canvas 的分割结束信号
+        if hasattr(self.canvas, 'sig_split_finish'):
+            self.canvas.sig_split_finish.connect(self.on_split_finish_callback)
+
+    # [新增] 回调函数：处理分割后的数据同步
+    def on_split_finish_callback(self, old_shape, new_shapes):
+        """
+        接收 Canvas 分割好的图形，进行全量状态刷新。
+        参考 loadFile 的稳定性，使用 loadShapes 进行内存重载。
+        """
+        try:
+            # 1. 先删除旧 shape 的 label（避免重复）
+            self.remLabels([old_shape])
+            
+            # 2. 为新 shapes 添加 labels
+            for new_shape in new_shapes:
+                self.addLabel(new_shape)
+            
+            # 3. 更新 canvas 的 shapes 列表（但不替换，只更新特定部分）
+            # 构造新的 Shape 列表
+            current_shapes = self.canvas.shapes
+            final_shapes = []
+            
+            # 保留没被切的，排除被切的
+            for s in current_shapes:
+                if s is not old_shape:
+                    final_shapes.append(s)
+            
+            # 加入切出来的新图形
+            final_shapes.extend(new_shapes)
+            
+            # 4. 调用 canvas.loadShapes 更新 canvas（这会重建 visible 字典等）
+            self.canvas.loadShapes(final_shapes, replace=True)
+            
+            # 5. 选中新图形
+            self.canvas.selectShapes(new_shapes)
+            
+            # 6. 标记文件已修改
+            self.setDirty()
+            
+            # 7. 打印日志或通知
+            logger.info(f"Split finished: 1 shape -> {len(new_shapes)} shapes")
+            
+        except Exception as e:
+            traceback.print_exc()
+            notification("分割更新失败", str(e), ToastPreset.ERROR)
+    
     def select_shape_by_name(self, shape_name: str):
         select_shape = []
         for shape in self.canvas.shapes:
@@ -2650,6 +2699,8 @@ class MainWindow(MainWindow):
                 # 刷新右键菜单
                 self.canvas.menus[0].clear()
                 utils.addActions(self.canvas.menus[0], self.actions.menu)
+
+
 
     # ----------- OCR 标注 end -----------
 

@@ -7,6 +7,8 @@ from labelme.widgets.canvas import *
 
 
 class CustomCanvas(Canvas):
+    # 1. 定义一个信号：传递 (被切的老图形, [切出来的新图形1, 新图形2])
+    sig_split_finish = QtCore.Signal(object, list)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -98,6 +100,7 @@ class CustomCanvas(Canvas):
         self.line.points = []
         self.line.point_labels = []
         self.drawing_with_right_btn = False
+        self.splitting_shape = False
         self.drawingPolygon.emit(False)
 
     def two_points_close_enough(self, p1, p2):
@@ -119,6 +122,7 @@ class CustomCanvas(Canvas):
 
         # 清除绘制多边形的状态
         self.drawing_with_right_btn = False
+        self.splitting_shape = False
         self.drawingPolygon.emit(False)
 
         # 强制重新绘制
@@ -266,6 +270,90 @@ class CustomCanvas(Canvas):
                         ]
         self.update()
 
+    def right_btn_split_shape(self):
+        """
+        右键分割标注（重构版 - Canvas端）：
+        只负责几何计算，计算完成后发送信号通知 App 进行数据更新。
+        """
+        # 前置检查
+        if not self.current or len(self.current.points) < 2:
+            return
+        if not self.selectedShapes:
+            return
+
+        from shapely.ops import split
+        from shapely.geometry import LineString, Polygon
+
+        # 准备切割线
+        line_geo = LineString(self.current.get_points_pos())
+        line_coords = list(line_geo.coords)
+        if len(line_coords) < 2: return
+
+        # 延长切割线
+        dx = line_coords[-1][0] - line_coords[0][0]
+        dy = line_coords[-1][1] - line_coords[0][1]
+        length = (dx**2 + dy**2)**0.5
+        if length < 1e-6: return
+
+        extend_length = max(self.pixmap.width(), self.pixmap.height()) * 2
+        unit_dx, unit_dy = dx / length, dy / length
+        extended_line = LineString([
+            (line_coords[0][0] - unit_dx * extend_length, line_coords[0][1] - unit_dy * extend_length),
+            (line_coords[-1][0] + unit_dx * extend_length, line_coords[-1][1] + unit_dy * extend_length)
+        ])
+
+        # 计算任务列表
+        tasks = [] # 格式: (old_shape, [new_shape1, new_shape2])
+        
+        for shape in self.selectedShapes:
+            if shape.shape_type not in ['polygon', 'rectangle']:
+                continue
+            
+            # 几何转换
+            if shape.shape_type == 'rectangle':
+                shape.convert_to_polygon()
+            
+            points_pos = shape.get_points_pos()
+            shape_poly = Polygon(points_pos)
+
+            if not shape_poly.is_valid or not shape_poly.intersects(extended_line):
+                continue
+
+            try:
+                result = split(shape_poly, extended_line)
+                if len(result.geoms) < 2: continue
+
+                parts = sorted(result.geoms, key=lambda g: g.area, reverse=True)
+                poly1, poly2 = parts[0], parts[1]
+
+                new_shape1 = shape.copy()
+                new_shape1.points = [QtCore.QPointF(p[0], p[1]) for p in poly1.exterior.coords[:-1]]
+                new_shape1.shape_type = 'polygon'
+                new_shape1.close()
+
+                new_shape2 = shape.copy()
+                new_shape2.points = [QtCore.QPointF(p[0], p[1]) for p in poly2.exterior.coords[:-1]]
+                new_shape2.shape_type = 'polygon'
+                new_shape2.close()
+                
+                tasks.append((shape, [new_shape1, new_shape2]))
+
+            except Exception as e:
+                print(f"Split error: {e}")
+                continue
+
+        # 清理绘制状态
+        self.current = None
+        self.line.points = []
+        self.drawing_with_right_btn = False
+        self.update()
+
+        # 发送信号给 App 处理
+        if tasks:
+            # 这里我们假设一次只切一个选中的图形，如果支持多选切割，可以循环发送或改信号结构
+            # 目前逻辑支持批量，我们循环发送即可
+            for old_s, new_s_list in tasks:
+                self.sig_split_finish.emit(old_s, new_s_list)
 
 from labelme.dlcv.shape import Shape
 from labelme.dlcv.store import STORE
@@ -325,6 +413,8 @@ class Canvas(CustomCanvas):
         self.canvasOffsetStart = None
         # 画布偏移初始化
         self.offset = QtCore.QPointF(0, 0)
+        # 右键分割标注相关变量
+        self.splitting_shape = False  # 是否正在分割标注
 
     def canCloseShape(self):
         can = super().canCloseShape()  # fix ai标注时候，直接按下回车导致程序闪退
@@ -555,7 +645,15 @@ class Canvas(CustomCanvas):
             self.mouse_left_click(ev, pos)
 
         elif ev.button() == QtCore.Qt.RightButton and self.editing():
-            self.mouse_right_click(ev, pos)
+            # 右键按下：如果有选中的shape，开始绘制分割线；否则执行选择操作
+            if self.selectedShapes and not self.outOfPixmap(pos):
+                self.splitting_shape = True  # 标记正在分割，阻止右键菜单
+                self.drawing_with_right_btn = True
+                self.current = Shape(shape_type="line")
+                self.current.addPoint(pos, label=1)
+                self.drawingPolygon.emit(True)
+            else:
+                self.mouse_right_click(ev, pos)
 
     # 移动顶点
     def boundedMoveVertex(self, pos: QtCore.QPointF):
@@ -833,7 +931,7 @@ class Canvas(CustomCanvas):
         elif self.brush_enabled and self.drawing():
             self.update()  # 强制更新以显示预览圆
 
-        # extra 右键修改标注 | 左键连续标注
+        # extra 右键修改标注 | 左键连续标注 | 右键分割标注
         if (self.drawing() and self.drawing_with_right_btn) or (
                 self.draw_polygon_with_mousemove
                 and self.createMode == "polygon"):
@@ -845,6 +943,18 @@ class Canvas(CustomCanvas):
                     return
                 self.current.addPoint(pos, label=1)
                 self.line.points = [self.current[-1], pos]
+                self.line.point_labels = [1, 1]
+                self.repaint()
+                return
+        # extra 编辑模式下右键绘制分割线
+        elif self.editing() and self.drawing_with_right_btn and self.current:
+            if not self.outOfPixmap(pos):
+                # 更新线的终点
+                if len(self.current.points) == 1:
+                    self.current.addPoint(pos, label=1)
+                else:
+                    self.current.points[-1] = pos
+                self.line.points = [self.current.points[0], pos]
                 self.line.point_labels = [1, 1]
                 self.repaint()
                 return
@@ -1054,6 +1164,16 @@ class Canvas(CustomCanvas):
 
     # 鼠标释放事件
     def mouseReleaseEvent(self, ev):
+        # extra 右键分割标注结束（编辑模式下，优先处理分割，避免触发右键菜单）
+        if ev.button() == QtCore.Qt.RightButton and self.editing() and self.splitting_shape:
+            self.splitting_shape = False
+            self.drawing_with_right_btn = False
+            if self.current and len(self.current.points) >= 2:
+                self.right_btn_split_shape()
+            self.clear_current_shape()
+            return
+        # extra End
+        
         if ev.button() == QtCore.Qt.RightButton and self.editing():
             menu = self.menus[len(self.selectedShapesCopy) > 0]
             self.restoreCursor()
@@ -1401,7 +1521,6 @@ class Canvas(CustomCanvas):
             self.clear_current_shape()
             self.shapeMoved.emit()
             return
-        # extra End
 
         if self.movingShape and self.hShape:
             index = self.shapes.index(self.hShape)
@@ -1751,6 +1870,14 @@ class Canvas(CustomCanvas):
         # 修复ESC键取消标注时残留问题
         if self.drawing() and key == QtCore.Qt.Key_Escape:
             self.cancelBrushDrawing()  # 添加这一行来清理画笔绘制状态
+        
+        # ESC键退出分割状态（编辑模式下）
+        if self.editing() and key == QtCore.Qt.Key_Escape and self.splitting_shape:
+            self.splitting_shape = False
+            self.drawing_with_right_btn = False
+            self.clear_current_shape()
+            self.update()
+            return
 
         # 画笔大小调整（使用+和-键替代上下箭头键）
         if self.brush_enabled and self.drawing():
