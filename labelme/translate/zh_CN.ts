@@ -520,7 +520,7 @@ Polygons</source>
     <message>
         <location filename="../app.py" line="830"/>
         <source>%s started.</source>
-        <translation>%s 启动完了</translation>
+        <translation>%s 已启动</translation>
     </message>
     <message>
         <location filename="../app.py" line="1404"/>
