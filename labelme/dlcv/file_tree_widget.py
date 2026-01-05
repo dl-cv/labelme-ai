@@ -292,8 +292,8 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
 
             display_in_explorer_action.triggered.connect(open_in_explorer)
             copy_path_action.triggered.connect(
-                lambda: QtWidgets.QApplication.clipboard().setText(item.
-                                                                   get_path()))
+                lambda: QtWidgets.QApplication.clipboard().setText(
+                    os.path.abspath(item.get_path())))
             copy_file_name_action.triggered.connect(
                 lambda: QtWidgets.QApplication.clipboard().setText(
                     item.super_text(0)))
