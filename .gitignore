@@ -13,6 +13,9 @@ labelme/labelme_private
 /build/
 /dist/
 /*.egg-info/
+/.venv/
+installer_output/
+assets/models/*.onnx
 
 *.py[cdo]
 
