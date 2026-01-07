@@ -368,7 +368,7 @@ class Shape(Shape):
                 painter.fillPath(vrtx_path, self._vertex_fill_color)
             # extra end
 
-            if self.fill and self.mask is None:
+            if self.fill and self.mask is None and self.isFillable():
                 color = self.select_fill_color if self.selected else self.fill_color
                 painter.fillPath(line_path, color)
 
@@ -555,7 +555,7 @@ class Shape(Shape):
 
     def isFillable(self):
         """Returns whether the shape is fillable or not."""
-        return self.shape_type in ["polygon", "rectangle", "rotation"]
+        return self.shape_type in [ShapeType.POLYGON, ShapeType.ROTATION, ShapeType.RECTANGLE]
 
     # 增加检测方法
     def isArrowHit(self, point, epsilon=None):
