@@ -329,26 +329,37 @@ class MainWindow(MainWindow):
 
         create_action = functools.partial(utils.newAction, self)
 
-        # 加载读取标签文件
-        load_label_file_action = create_action(
-            dlcv_tr("加载标签文件"),
-            self.load_label_txt_action_callback,
-            "objects",
-            enabled=True,
-            icon="labels",
-        )
-        self.actions.load_label_file = load_label_file_action
-        self.actions.tool.insert(1, self.actions.load_label_file)
+        # https://bbs2.dlcv.com.cn/t/topic/1690
+        # 顶栏工具条移除：加载标签文件 / 保存标签文件 / Save 按钮
+        # - 仅移除“工具条入口”，文件菜单中的保存等能力仍保留
+        if self.actions.save in self.actions.tool:
+            self.actions.tool.remove(self.actions.save)
 
-        save_label_file_action = create_action(
-            dlcv_tr("保存标签文件"),
-            self.save_label_txt_file,
-            "objects",
-            enabled=True,
-            icon="save-as",
-        )
-        self.actions.save_label_file = save_label_file_action
-        self.actions.tool.insert(2, self.actions.save_label_file)
+        # 工具栏去除上一幅/下一幅、编辑多边形
+        for act in (self.actions.openNextImg, self.actions.openPrevImg, self.actions.editMode):
+            if act in self.actions.tool:
+                self.actions.tool.remove(act)
+
+        # https://bbs2.dlcv.com.cn/t/topic/1690
+        # 将「AI Mask Model」从工具条移除（改到右下角设置面板）
+        old_ai_combo = getattr(self, "_selectAiModelComboBox", None)
+
+        def _is_ai_mask_model_action(act) -> bool:
+            if not isinstance(act, QtWidgets.QWidgetAction):
+                return False
+            w = act.defaultWidget()
+            if w is None:
+                return False
+            if old_ai_combo is not None:
+                combo = w.findChild(QtWidgets.QComboBox)
+                if combo is old_ai_combo:
+                    return True
+            for lbl in w.findChildren(QtWidgets.QLabel):
+                if "AI Mask Model" in lbl.text():
+                    return True
+            return False
+
+        self.actions.tool = [a for a in self.actions.tool if not _is_ai_mask_model_action(a)]
 
         # https://bbs.dlcv.com.cn/t/topic/1050
         # 刷新功能
@@ -364,14 +375,14 @@ class MainWindow(MainWindow):
             dlcv_tr("刷新文件夹"),
         )
         self.addAction(self.action_refresh)
-        self.actions.tool.insert(14, self.action_refresh)
+        # 放在「打开目录」之后
+        self.actions.tool.insert(1, self.action_refresh)
 
         # 创建AI多边形
         ai_polygon_mode = self.actions.createAiPolygonMode
         ai_polygon_mode.setIconText(
             ai_polygon_mode.text() + f"({ai_polygon_mode.shortcut().toString()})"
         )
-        self.actions.tool.insert(8, self.actions.createAiPolygonMode)
 
         # 创建多边形
         createMode = self.actions.createMode
@@ -387,7 +398,17 @@ class MainWindow(MainWindow):
             createRectangleMode.text()
             + f"({createRectangleMode.shortcut().toString()})"
         )
-        self.actions.tool.insert(10, self.actions.createRectangleMode)  # 插入到合适位置
+
+        # 将创建相关动作插入到合适位置：AI多边形 -> 多边形 -> 矩形 -> 旋转框
+        try:
+            create_mode_idx = self.actions.tool.index(self.actions.createMode)
+            self.actions.tool.insert(create_mode_idx, self.actions.createAiPolygonMode)
+            # createMode 的位置可能变化，重新获取
+            create_mode_idx = self.actions.tool.index(self.actions.createMode)
+            self.actions.tool.insert(create_mode_idx + 1, self.actions.createRectangleMode)
+        except ValueError:
+            self.actions.tool.append(self.actions.createAiPolygonMode)
+            self.actions.tool.append(self.actions.createRectangleMode)
 
         # 创建旋转框
         createRotationMode = create_action(
@@ -396,13 +417,25 @@ class MainWindow(MainWindow):
             "R",  # 快捷键
             "objects",
             dlcv_tr("开始绘制旋转框 (R)"),
-            enabled=True,
+            enabled=False,
         )
         createRotationMode.setIconText(
             createRotationMode.text() + f"({createRotationMode.shortcut().toString()})"
         )
         self.actions.createRotationMode = createRotationMode
-        self.actions.tool.insert(11, self.actions.createRotationMode)  # 插入到合适位置
+
+        # 未加载图像时，旋转框创建应不可用；加载图像后随 toggleActions(True) 自动启用
+        if hasattr(self.actions, "onLoadActive") and (
+            self.actions.createRotationMode not in self.actions.onLoadActive
+        ):
+            self.actions.onLoadActive = tuple(self.actions.onLoadActive) + (
+                self.actions.createRotationMode,
+            )
+        try:
+            rect_idx = self.actions.tool.index(self.actions.createRectangleMode)
+            self.actions.tool.insert(rect_idx + 1, self.actions.createRotationMode)
+        except ValueError:
+            self.actions.tool.append(self.actions.createRotationMode)
 
         # 同时也插入到画布右键菜单中
         if self.actions.createRotationMode not in self.actions.menu:
@@ -413,19 +446,6 @@ class MainWindow(MainWindow):
         # 亮度对比度禁用
         # https://bbs.dlcv.ai/t/topic/328
         self.actions.brightnessContrast.setVisible(False)
-
-        # 编辑多边形,添加快捷键文本
-        tool_action = self.actions.tool[8]
-        tool_action.setIconText(
-            self.actions.tool[8].text() + f"({tool_action.shortcut().toString()})"
-        )
-
-        # 工具栏去除上一幅下一幅
-        self.actions.tool.remove(self.actions.openNextImg)
-        self.actions.tool.remove(self.actions.openPrevImg)
-
-        # 工具栏去除编辑多边形
-        self.actions.tool.remove(self.actions.editMode)
 
         # dlcv_ai_action
         self._init_dlcv_ai_widget()
@@ -1925,13 +1945,30 @@ class MainWindow(MainWindow):
             from labelme.private.dlcv_ai_widget import DlcvAiWidget, AiController
 
             ai_widget = DlcvAiWidget(self)
+            ai_widget.setSizePolicy(
+                QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred
+            )
+            # https://bbs2.dlcv.com.cn/t/topic/1690
+            # 自动标注区域最大宽度：超过后控件保持左对齐，避免过长影响观感
+            max_ai_toolbar_width = 520
+
+            ai_container = QtWidgets.QWidget(self)
+            ai_container.setSizePolicy(
+                QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred
+            )
+            # 约束“工具条占用宽度”，否则 QWidgetAction 会把剩余空间全部吃掉，看起来像“长度未生效”
+            ai_container.setMaximumWidth(max_ai_toolbar_width)
+            ai_container_layout = QtWidgets.QHBoxLayout(ai_container)
+            ai_container_layout.setContentsMargins(0, 0, 0, 0)
+            ai_container_layout.setSpacing(0)
+            ai_container_layout.addWidget(ai_widget)
             self.action_auto_label = QtWidgets.QAction(dlcv_tr("自动标注(L)"), self)
             self.action_auto_label.setShortcut("L")
             self.action_auto_label.triggered.connect(self.predict)
             self.addAction(self.action_auto_label)
 
             self.ai_widget_action = QtWidgets.QWidgetAction(self)
-            self.ai_widget_action.setDefaultWidget(ai_widget)
+            self.ai_widget_action.setDefaultWidget(ai_container)
             self.actions.tool.append(self.ai_widget_action)
             self.ai_controller = AiController(ai_widget)
             self.ai_controller.sig_predict_done.connect(self.auto_label)
@@ -2225,7 +2262,53 @@ class MainWindow(MainWindow):
 
         self.setting_dock = QtWidgets.QDockWidget(dlcv_tr("setting dock"), self)
         self.setting_dock.setObjectName("setting_dock")
-        self.setting_dock.setWidget(self.parameter_tree)
+
+        # https://bbs2.dlcv.com.cn/t/topic/1690
+        # 将「AI Mask Model」从顶栏移到右下角设置面板
+        ai_model_widget = QtWidgets.QWidget(self)
+        ai_model_layout = QtWidgets.QHBoxLayout(ai_model_widget)
+        ai_model_layout.setContentsMargins(6, 6, 6, 6)
+        ai_model_layout.setSpacing(6)
+        ai_model_label = QtWidgets.QLabel(self.tr("AI Mask Model"), ai_model_widget)
+        ai_model_layout.addWidget(ai_model_label)
+
+        # 重新创建一个 combo，避免依赖工具条上的 QWidgetAction
+        self._selectAiModelComboBox = QtWidgets.QComboBox(ai_model_widget)
+        self._selectAiModelComboBox.setSizePolicy(
+            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed
+        )
+        model_names = [model.name for model in MODELS]
+        self._selectAiModelComboBox.addItems(model_names)
+        if self._config["ai"]["default"] in model_names:
+            model_index = model_names.index(self._config["ai"]["default"])
+        else:
+            logger.warning(
+                "Default AI model is not found: %r",
+                self._config["ai"]["default"],
+            )
+            model_index = 0
+        self._selectAiModelComboBox.setCurrentIndex(model_index)
+        self._selectAiModelComboBox.currentIndexChanged.connect(
+            lambda: self.canvas.initializeAiModel(
+                name=self._selectAiModelComboBox.currentText()
+            )
+            if self.canvas.createMode in ["ai_polygon", "ai_mask"]
+            else None
+        )
+        ai_model_layout.addWidget(self._selectAiModelComboBox, 1)
+
+        setting_container = QtWidgets.QWidget(self)
+        setting_layout = QtWidgets.QVBoxLayout(setting_container)
+        setting_layout.setContentsMargins(0, 0, 0, 0)
+        setting_layout.setSpacing(6)
+        setting_layout.addWidget(ai_model_widget)
+        line = QtWidgets.QFrame(setting_container)
+        line.setFrameShape(QtWidgets.QFrame.HLine)
+        line.setFrameShadow(QtWidgets.QFrame.Sunken)
+        setting_layout.addWidget(line)
+        setting_layout.addWidget(self.parameter_tree)
+
+        self.setting_dock.setWidget(setting_container)
         self.addDockWidget(Qt.RightDockWidgetArea, self.setting_dock)
 
         # 添加到菜单栏->视图->设置面板
