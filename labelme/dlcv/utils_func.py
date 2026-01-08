@@ -93,7 +93,7 @@ def normalize_16b_gray_to_uint8(bgr_img: np.ndarray) -> np.ndarray:
 
 
 if __name__ == "__main__":
-    from labelme.dlcv.widget_3d.tests import gray_img_path, depth_img_path
+    from labelme.dlcv.widget_25d_3d.tests import gray_img_path, depth_img_path
 
     raw_gray_img = cv2.imread(gray_img_path, cv2.IMREAD_UNCHANGED)
     normalized_gray_img = normalize_16b_gray_to_uint8(raw_gray_img)
