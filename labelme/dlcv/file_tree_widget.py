@@ -413,18 +413,24 @@ class FileTreeWidget(QtWidgets.QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        # 供 QSS 精准命中
+        self.setObjectName("fileListPanel")
         self.layout = QtWidgets.QVBoxLayout(self)
-        self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.setSpacing(0)
+        # 贴近截图的“卡片内边距/间距”
+        self.layout.setContentsMargins(8, 8, 8, 8)
+        self.layout.setSpacing(8)
 
         # 创建搜索框
         self.search_box = QtWidgets.QLineEdit()
-        self.search_box.setPlaceholderText(dlcv_tr("输入关键字过滤 - Enter键搜索"))
+        self.search_box.setObjectName("fileSearch")
+        self.search_box.setClearButtonEnabled(True)
+        self.search_box.setPlaceholderText(dlcv_tr("搜索文件名"))
         self.search_box.setToolTip(dlcv_tr("Enter键搜索"))
         self.layout.addWidget(self.search_box)
 
         # 创建树控件
         self.tree_widget = _FileTreeWidget(self)
+        self.tree_widget.setObjectName("fileTree")
         self.layout.addWidget(self.tree_widget)
 
         # 连接搜索信号

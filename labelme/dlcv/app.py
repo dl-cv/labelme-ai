@@ -48,6 +48,7 @@ from labelme.dlcv.widget.viewAttribute import (
 from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
 import os
 from labelme.dlcv.widget.label_count import LabelCountDock
+from labelme.dlcv.ui_style import get_dlcv_modern_light_qss
 
 Image.MAX_IMAGE_PIXELS = None  # Image 最大像素限制, 防止加载大图时报错
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
@@ -147,6 +148,8 @@ class MainWindow(MainWindow):
 
         # 新增设置菜单
         self._init_setting_menu()
+        # 仅改 UI：根据设置应用主题（默认：现代浅色；可在“系统设置”切回原版）
+        self._apply_ui_theme_from_settings()
 
         # APPData 目录
         APPDATA_DIR = (
@@ -163,6 +166,231 @@ class MainWindow(MainWindow):
         # 确保标签txt目录存在
         if not os.path.exists(self.LABEL_TXT_DIR):
             os.makedirs(self.LABEL_TXT_DIR, exist_ok=True)
+
+    # -------------------- UI Theme --------------------
+    def _ensure_original_ui_style_backup(self):
+        """备份原始 UI 样式，用于从新版 UI 一键恢复到原版。"""
+        if getattr(self, "_original_ui_style_backup", None) is not None:
+            return
+        app = QtWidgets.QApplication.instance()
+        style_name = None
+        style_sheet = ""
+        try:
+            if app is not None:
+                try:
+                    style_name = app.style().objectName()
+                except Exception:
+                    style_name = None
+                try:
+                    style_sheet = app.styleSheet() or ""
+                except Exception:
+                    style_sheet = ""
+        except Exception:
+            pass
+        self._original_ui_style_backup = {
+            "qt_style": style_name,
+            "style_sheet": style_sheet,
+        }
+
+        # Tools 工具栏原始参数（用于还原）
+        try:
+            if hasattr(self, "tools") and self.tools is not None:
+                self._original_tools_icon_size = self.tools.iconSize()
+                self._original_tools_button_style = self.tools.toolButtonStyle()
+                layout = self.tools.layout()
+                if layout is not None:
+                    m = layout.contentsMargins()
+                    self._original_tools_layout = {
+                        "spacing": layout.spacing(),
+                        "margins": (m.left(), m.top(), m.right(), m.bottom()),
+                    }
+                else:
+                    self._original_tools_layout = None
+        except Exception:
+            self._original_tools_icon_size = None
+            self._original_tools_button_style = None
+            self._original_tools_layout = None
+
+    def _apply_ui_theme_from_settings(self):
+        """启动时应用主题设置（默认：modern）。"""
+        try:
+            theme = self.settings.value("ui/theme", "modern")
+        except Exception:
+            theme = "modern"
+        self._set_ui_theme(theme, persist=False, notify=False)
+
+    def _on_change_ui_theme(self, theme: str):
+        theme = (theme or "modern").strip().lower()
+        self._set_ui_theme(theme, persist=True, notify=True)
+
+    def _set_ui_theme(self, theme: str, persist: bool = True, notify: bool = True):
+        """切换主题（即时生效）。theme: 'modern' | 'classic'"""
+        theme = (theme or "modern").strip().lower()
+        if theme not in ("modern", "classic"):
+            theme = "modern"
+
+        self._ensure_original_ui_style_backup()
+
+        # 1) 应用/恢复 QSS + Qt Style
+        try:
+            app = QtWidgets.QApplication.instance()
+            if app is not None:
+                if theme == "modern":
+                    # Fusion 更接近截图观感，且跨平台一致
+                    try:
+                        app.setStyle("Fusion")
+                    except Exception:
+                        pass
+                    app.setStyleSheet(get_dlcv_modern_light_qss())
+                else:
+                    # 原版：恢复启动时样式（或至少清空 QSS）
+                    try:
+                        style_name = (self._original_ui_style_backup or {}).get(
+                            "qt_style"
+                        )
+                        if style_name:
+                            app.setStyle(style_name)
+                    except Exception:
+                        pass
+                    try:
+                        original_sheet = (self._original_ui_style_backup or {}).get(
+                            "style_sheet", ""
+                        )
+                        app.setStyleSheet(original_sheet or "")
+                    except Exception:
+                        app.setStyleSheet("")
+        except Exception:
+            logger.error(traceback.format_exc())
+
+        # 2) 同步控件“布局风格参数”（边距/按钮布局），保证两套风格切换一致
+        self._apply_theme_widget_tweaks(theme)
+
+        # 3) 记录设置
+        if persist:
+            try:
+                self.settings.setValue("ui/theme", theme)
+            except Exception:
+                pass
+
+        # 4) 反馈
+        if notify:
+            try:
+                msg = (
+                    dlcv_tr("已切换为新版界面")
+                    if theme == "modern"
+                    else dlcv_tr("已恢复为原版界面")
+                )
+                notification(dlcv_tr("界面风格"), msg, ToastPreset.SUCCESS, 2500)
+            except Exception:
+                pass
+
+    def _apply_theme_widget_tweaks(self, theme: str):
+        """仅调整与主题相关的控件属性/间距（不影响功能）。"""
+        is_modern = theme == "modern"
+
+        # Tools 工具栏：按钮布局/间距/图标尺寸
+        try:
+            if hasattr(self, "tools") and self.tools is not None:
+                btn_style = (
+                    Qt.ToolButtonTextBesideIcon
+                    if is_modern
+                    else Qt.ToolButtonTextUnderIcon
+                )
+                try:
+                    self.tools.setToolButtonStyle(btn_style)
+                except Exception:
+                    pass
+
+                # 同步已创建的按钮（ToolBar 会包装成 QToolButton）
+                for btn in self.tools.findChildren(QtWidgets.QToolButton):
+                    try:
+                        btn.setToolButtonStyle(btn_style)
+                    except Exception:
+                        pass
+
+                # 图标尺寸：现代固定 16；原版恢复备份
+                try:
+                    if is_modern:
+                        self.tools.setIconSize(QtCore.QSize(16, 16))
+                    else:
+                        if getattr(self, "_original_tools_icon_size", None) is not None:
+                            self.tools.setIconSize(self._original_tools_icon_size)
+                except Exception:
+                    pass
+
+                layout = self.tools.layout()
+                if layout is not None:
+                    if is_modern:
+                        layout.setSpacing(8)
+                        layout.setContentsMargins(8, 6, 8, 6)
+                        self.tools.setContentsMargins(8, 6, 8, 6)
+                    else:
+                        # 尽量恢复原版（默认 ToolBar 是 0 间距/0 边距）
+                        spacing = 0
+                        margins = (0, 0, 0, 0)
+                        orig = getattr(self, "_original_tools_layout", None)
+                        if isinstance(orig, dict):
+                            spacing = orig.get("spacing", 0)
+                            margins = orig.get("margins", (0, 0, 0, 0))
+                        layout.setSpacing(spacing)
+                        layout.setContentsMargins(*margins)
+                        try:
+                            self.tools.setContentsMargins(*margins)
+                        except Exception:
+                            pass
+        except Exception:
+            logger.error(traceback.format_exc())
+
+        # 左侧文件列表：搜索框 + 树的内边距/占位文本/清除按钮
+        try:
+            w = getattr(self, "fileListWidget", None)
+            if w is not None and hasattr(w, "search_box") and hasattr(w, "layout"):
+                if is_modern:
+                    w.layout.setContentsMargins(8, 8, 8, 8)
+                    w.layout.setSpacing(8)
+                    w.search_box.setClearButtonEnabled(True)
+                    w.search_box.setPlaceholderText(dlcv_tr("搜索文件名"))
+                else:
+                    w.layout.setContentsMargins(0, 0, 0, 0)
+                    w.layout.setSpacing(0)
+                    w.search_box.setClearButtonEnabled(False)
+                    w.search_box.setPlaceholderText(
+                        dlcv_tr("输入关键字过滤 - Enter键搜索")
+                    )
+        except Exception:
+            logger.error(traceback.format_exc())
+
+        # 右侧统计面板：布局边距/间距
+        try:
+            dock = getattr(self, "label_count_dock", None)
+            if dock is not None:
+                widget = dock.widget()
+                layout = widget.layout() if widget is not None else None
+                if layout is not None:
+                    if is_modern:
+                        layout.setContentsMargins(8, 8, 8, 8)
+                        layout.setSpacing(8)
+                    else:
+                        layout.setContentsMargins(0, 0, 0, 0)
+                        layout.setSpacing(0)
+        except Exception:
+            logger.error(traceback.format_exc())
+
+        # 右侧设置面板：容器边距（原版为 0）
+        try:
+            dock = getattr(self, "setting_dock", None)
+            if dock is not None:
+                widget = dock.widget()
+                layout = widget.layout() if widget is not None else None
+                if layout is not None:
+                    if is_modern:
+                        layout.setContentsMargins(8, 8, 8, 8)
+                        layout.setSpacing(6)
+                    else:
+                        layout.setContentsMargins(0, 0, 0, 0)
+                        layout.setSpacing(6)
+        except Exception:
+            logger.error(traceback.format_exc())
 
     # https://bbs.dlcv.com.cn/t/topic/590
     # 编辑标签
@@ -560,6 +788,41 @@ class MainWindow(MainWindow):
         font_group.triggered.connect(
             lambda act: self._on_change_ui_font_point_size(int(act.data()))
         )
+        # endregion
+
+        # region
+        # 界面风格切换（新版UI / 原版UI）
+        self.menus.setting_theme = self.menus.setting.addMenu(
+            dlcv_tr("界面风格(UI Theme)")
+        )
+        theme_group = QtWidgets.QActionGroup(self)
+        theme_group.setExclusive(True)
+
+        self.actions.ui_theme_modern = QtWidgets.QAction(dlcv_tr("新版UI(现代)"), self)
+        self.actions.ui_theme_modern.setCheckable(True)
+        self.actions.ui_theme_modern.setData("modern")
+
+        self.actions.ui_theme_classic = QtWidgets.QAction(dlcv_tr("原版UI(恢复CSS)"), self)
+        self.actions.ui_theme_classic.setCheckable(True)
+        self.actions.ui_theme_classic.setData("classic")
+
+        theme_group.addAction(self.actions.ui_theme_modern)
+        theme_group.addAction(self.actions.ui_theme_classic)
+        self.menus.setting_theme.addAction(self.actions.ui_theme_modern)
+        self.menus.setting_theme.addAction(self.actions.ui_theme_classic)
+
+        # 读取当前主题（默认 modern）
+        try:
+            current_theme = self.settings.value("ui/theme", "modern")
+        except Exception:
+            current_theme = "modern"
+        current_theme = (current_theme or "modern").strip().lower()
+        if current_theme == "classic":
+            self.actions.ui_theme_classic.setChecked(True)
+        else:
+            self.actions.ui_theme_modern.setChecked(True)
+
+        theme_group.triggered.connect(lambda act: self._on_change_ui_theme(act.data()))
         # endregion
 
         # 尾部分隔线（预留未来扩展）
@@ -2235,6 +2498,7 @@ class MainWindow(MainWindow):
             name="params", type="group", children=setting_kwargs
         )
         self.parameter_tree = ParameterTree(showHeader=False)
+        self.parameter_tree.setObjectName("settingParameterTree")
         self.parameter_tree.setParameters(self.parameter, showTop=False)
         self.parameter.sigTreeStateChanged.connect(self.on_setting_dock_changed)
 
@@ -2298,8 +2562,10 @@ class MainWindow(MainWindow):
         ai_model_layout.addWidget(self._selectAiModelComboBox, 1)
 
         setting_container = QtWidgets.QWidget(self)
+        setting_container.setObjectName("settingPanel")
         setting_layout = QtWidgets.QVBoxLayout(setting_container)
-        setting_layout.setContentsMargins(0, 0, 0, 0)
+        # 贴近截图：整体留白 + 分组更清晰
+        setting_layout.setContentsMargins(8, 8, 8, 8)
         setting_layout.setSpacing(6)
         setting_layout.addWidget(ai_model_widget)
         line = QtWidgets.QFrame(setting_container)
