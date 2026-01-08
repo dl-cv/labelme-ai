@@ -212,29 +212,36 @@ class MainWindow(MainWindow):
             self._original_tools_layout = None
 
     def _apply_ui_theme_from_settings(self):
-        """启动时应用主题设置（默认：modern）。"""
+        """启动时应用主题设置（默认：classic）。"""
         try:
-            theme = self.settings.value("ui/theme", "modern")
+            # 默认使用旧版（classic）；如果用户上次选了新版（modern），则读取并应用
+            theme = self.settings.value("ui/theme", "classic")
         except Exception:
-            theme = "modern"
+            theme = "classic"
         self._set_ui_theme(theme, persist=False, notify=False)
 
     def _on_change_ui_theme(self, theme: str):
-        theme = (theme or "modern").strip().lower()
+        theme = (theme or "classic").strip().lower()
         self._set_ui_theme(theme, persist=True, notify=True)
 
     def _set_ui_theme(self, theme: str, persist: bool = True, notify: bool = True):
         """切换主题（即时生效）。theme: 'modern' | 'classic'"""
-        theme = (theme or "modern").strip().lower()
+        theme = (theme or "classic").strip().lower()
         if theme not in ("modern", "classic"):
-            theme = "modern"
+            theme = "classic"
 
         self._ensure_original_ui_style_backup()
+        self._current_ui_theme = theme
 
         # 1) 应用/恢复 QSS + Qt Style
         try:
             app = QtWidgets.QApplication.instance()
             if app is not None:
+                # 保留当前应用字体（避免切换主题时把字号设置“冲掉”）
+                try:
+                    current_font = app.font()
+                except Exception:
+                    current_font = None
                 if theme == "modern":
                     # Fusion 更接近截图观感，且跨平台一致
                     try:
@@ -259,6 +266,12 @@ class MainWindow(MainWindow):
                         app.setStyleSheet(original_sheet or "")
                     except Exception:
                         app.setStyleSheet("")
+                # 恢复字体（重要：新版 QSS 下字号修改需要稳定生效）
+                if current_font is not None:
+                    try:
+                        app.setFont(current_font)
+                    except Exception:
+                        pass
         except Exception:
             logger.error(traceback.format_exc())
 
@@ -391,6 +404,128 @@ class MainWindow(MainWindow):
                         layout.setSpacing(6)
         except Exception:
             logger.error(traceback.format_exc())
+
+        # Dock 标题栏：新版 UI 使用自定义 titleBarWidget，彻底避免小字号（8/10）被裁切
+        try:
+            self._apply_modern_dock_title_bars(enable=is_modern)
+        except Exception:
+            logger.error(traceback.format_exc())
+
+    def _apply_modern_dock_title_bars(self, enable: bool):
+        docks = []
+        for name in ("file_dock", "setting_dock", "label_count_dock"):
+            dock = getattr(self, name, None)
+            if dock is not None:
+                docks.append(dock)
+
+        for dock in docks:
+            if enable:
+                self._set_dock_custom_title_bar(dock)
+            else:
+                self._unset_dock_custom_title_bar(dock)
+
+    def _unset_dock_custom_title_bar(self, dock: QtWidgets.QDockWidget):
+        tb = dock.titleBarWidget()
+        if tb is None:
+            return
+        if getattr(tb, "objectName", lambda: "")() != "dlcvDockTitleBar":
+            return
+        try:
+            dock.setTitleBarWidget(None)  # 恢复 Qt 默认标题栏
+        except Exception:
+            return
+        try:
+            tb.deleteLater()
+        except Exception:
+            pass
+
+    def _set_dock_custom_title_bar(self, dock: QtWidgets.QDockWidget):
+        # 已设置过则只更新文本/高度
+        tb = dock.titleBarWidget()
+        if tb is not None and tb.objectName() == "dlcvDockTitleBar":
+            label = tb.findChild(QtWidgets.QLabel, "dlcvDockTitleLabel")
+            if label is not None:
+                label.setText(dock.windowTitle())
+                self._update_dock_title_bar_height(tb, label)
+            return
+
+        title_bar = QtWidgets.QWidget(dock)
+        title_bar.setObjectName("dlcvDockTitleBar")
+        layout = QtWidgets.QHBoxLayout(title_bar)
+        layout.setContentsMargins(10, 0, 6, 0)
+        layout.setSpacing(6)
+
+        label = QtWidgets.QLabel(dock.windowTitle(), title_bar)
+        label.setObjectName("dlcvDockTitleLabel")
+        label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+        label.setSizePolicy(
+            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed
+        )
+        layout.addWidget(label, 1)
+
+        # float 按钮（如果允许）
+        if dock.features() & QtWidgets.QDockWidget.DockWidgetFloatable:
+            float_btn = QtWidgets.QToolButton(title_bar)
+            float_btn.setObjectName("dlcvDockTitleBtn")
+            float_btn.setAutoRaise(True)
+            float_btn.setCheckable(True)
+            float_btn.setChecked(dock.isFloating())
+
+            def _sync_float_btn():
+                try:
+                    float_btn.setChecked(dock.isFloating())
+                    icon = dock.style().standardIcon(
+                        QtWidgets.QStyle.SP_TitleBarNormalButton
+                        if dock.isFloating()
+                        else QtWidgets.QStyle.SP_TitleBarMaxButton
+                    )
+                    float_btn.setIcon(icon)
+                except Exception:
+                    pass
+
+            _sync_float_btn()
+            float_btn.clicked.connect(lambda checked, d=dock: d.setFloating(checked))
+            try:
+                dock.topLevelChanged.connect(lambda _: _sync_float_btn())
+            except Exception:
+                pass
+            layout.addWidget(float_btn)
+
+        # close 按钮（如果允许）
+        if dock.features() & QtWidgets.QDockWidget.DockWidgetClosable:
+            close_btn = QtWidgets.QToolButton(title_bar)
+            close_btn.setObjectName("dlcvDockTitleBtn")
+            close_btn.setAutoRaise(True)
+            try:
+                close_btn.setIcon(
+                    dock.style().standardIcon(QtWidgets.QStyle.SP_TitleBarCloseButton)
+                )
+            except Exception:
+                pass
+            close_btn.clicked.connect(dock.close)
+            layout.addWidget(close_btn)
+
+        dock.setTitleBarWidget(title_bar)
+
+        # 标题变化时同步
+        try:
+            dock.windowTitleChanged.connect(label.setText)
+        except Exception:
+            pass
+
+        self._update_dock_title_bar_height(title_bar, label)
+
+    def _update_dock_title_bar_height(
+        self, title_bar: QtWidgets.QWidget, label: QtWidgets.QLabel
+    ):
+        # 关键：用 fontMetrics 精确算高度，确保 8/10 号字也不会被裁切
+        try:
+            fm = label.fontMetrics()
+            h = int(fm.height()) + 12
+            h = max(28, h)
+            title_bar.setFixedHeight(h)
+        except Exception:
+            pass
 
     # https://bbs.dlcv.com.cn/t/topic/590
     # 编辑标签
@@ -813,9 +948,9 @@ class MainWindow(MainWindow):
 
         # 读取当前主题（默认 modern）
         try:
-            current_theme = self.settings.value("ui/theme", "modern")
+            current_theme = self.settings.value("ui/theme", "classic")
         except Exception:
-            current_theme = "modern"
+            current_theme = "classic"
         current_theme = (current_theme or "modern").strip().lower()
         if current_theme == "classic":
             self.actions.ui_theme_classic.setChecked(True)
@@ -893,6 +1028,28 @@ class MainWindow(MainWindow):
             font = app.font()
             font.setPointSize(point_size)
             app.setFont(font)
+            # 修复：新版 QSS 下只有第一次修改字号生效的问题
+            # 原因：部分控件在 QSS + Fusion 下不会在后续 setFont 时自动 repolish
+            try:
+                theme = getattr(self, "_current_ui_theme", None)
+                if not theme:
+                    theme = self.settings.value("ui/theme", "classic")
+                theme = (theme or "classic").strip().lower()
+            except Exception:
+                theme = "classic"
+            if theme == "modern":
+                try:
+                    current_sheet = app.styleSheet() or ""
+                    # 通过“清空再恢复”触发全量 repolish，确保字号再次修改也生效
+                    app.setStyleSheet("")
+                    app.setStyleSheet(current_sheet)
+                except Exception:
+                    pass
+                # 同时重算 dock 标题栏高度（自定义 titleBarWidget）
+                try:
+                    self._apply_theme_widget_tweaks("modern")
+                except Exception:
+                    pass
         try:
             self.settings.setValue("ui/font_point_size", int(point_size))
         except Exception:

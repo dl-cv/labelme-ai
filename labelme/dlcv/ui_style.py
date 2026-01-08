@@ -107,7 +107,10 @@ QDockWidget#Files {{
 }}
 QDockWidget#Files::title {{
     background: #F9FAFB;
-    padding: 8px 10px;
+    /* 兼容大字号：避免标题文字被裁切 */
+    min-height: 30px;
+    /* 小字号更容易被 padding 顶掉可用高度，缩小上下 padding */
+    padding: 3px 10px;
     border-bottom: 1px solid #E5E7EB;
     font-weight: 600;
 }}
@@ -152,9 +155,34 @@ QDockWidget#setting_dock {{
 QDockWidget#label_count_dock::title,
 QDockWidget#setting_dock::title {{
     background: #F9FAFB;
-    padding: 8px 10px;
+    /* 兼容大字号：避免标题文字被裁切 */
+    min-height: 30px;
+    /* 小字号更容易被 padding 顶掉可用高度，缩小上下 padding */
+    padding: 3px 10px;
     border-bottom: 1px solid #E5E7EB;
     font-weight: 600;
+}}
+
+/* 自定义 Dock 标题栏（用于彻底解决 8/10 号字裁切问题） */
+QWidget#dlcvDockTitleBar {{
+    background: #F9FAFB;
+    border-bottom: 1px solid #E5E7EB;
+}}
+QLabel#dlcvDockTitleLabel {{
+    color: #111827;
+    font-weight: 600;
+}}
+QToolButton#dlcvDockTitleBtn {{
+    border: none;
+    background: transparent;
+    padding: 4px;
+    border-radius: 6px;
+}}
+QToolButton#dlcvDockTitleBtn:hover {{
+    background: #F3F4F6;
+}}
+QToolButton#dlcvDockTitleBtn:pressed {{
+    background: #E8F0FF;
 }}
 
 QWidget#settingPanel {{
