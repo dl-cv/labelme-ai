@@ -17,11 +17,13 @@ class LabelCountDock(QtWidgets.QDockWidget):
 
         # 创建主widget和布局
         main_widget = QtWidgets.QWidget(self)
+        main_widget.setObjectName("labelCountPanel")
         layout = QtWidgets.QVBoxLayout(main_widget)
         main_widget.setLayout(layout)
 
         # 标签统计显示区域
         self.label_count_text = QtWidgets.QTextEdit(main_widget)
+        self.label_count_text.setObjectName("labelCountText")
         self.label_count_text.setReadOnly(True)
         layout.addWidget(self.label_count_text)
 
@@ -29,11 +31,13 @@ class LabelCountDock(QtWidgets.QDockWidget):
         self.label_count_btn = QtWidgets.QPushButton(
             dlcv_tr("统计当前文件夹标签/文本标记总数"), main_widget
         )
+        self.label_count_btn.setObjectName("labelCountBtn")
         layout.addWidget(self.label_count_btn)
 
         # 去除控件间间距
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        # 更贴近截图的“卡片内边距/间距”
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
 
         self.setWidget(main_widget)
 

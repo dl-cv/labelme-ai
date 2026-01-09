@@ -48,6 +48,7 @@ from labelme.dlcv.widget.viewAttribute import (
 from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
 import os
 from labelme.dlcv.widget.label_count import LabelCountDock
+from labelme.dlcv.ui_theme_manager import UiThemeManager
 
 Image.MAX_IMAGE_PIXELS = None  # Image 最大像素限制, 防止加载大图时报错
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
@@ -138,6 +139,10 @@ class MainWindow(MainWindow):
 
         self._init_dev_mode()
         self._init_ui()
+
+        # UI 主题由独立组件管理（仅外观，不改功能）
+        self.ui_theme_manager = UiThemeManager(main_window=self, settings=self.settings)
+        self.ui_theme_manager.apply_from_settings()
         self.actions.copy.setEnabled(True)
 
         # 修改复制动作的文本
@@ -164,7 +169,8 @@ class MainWindow(MainWindow):
         # 确保标签txt目录存在
         if not os.path.exists(self.LABEL_TXT_DIR):
             os.makedirs(self.LABEL_TXT_DIR, exist_ok=True)
-        
+
+    # UI 主题切换逻辑已抽离到 `UiThemeManager`（见 `labelme/dlcv/ui_theme_manager.py`）
     # https://bbs.dlcv.com.cn/t/topic/590
     # 编辑标签
     def _edit_label(self, value=None):
@@ -563,6 +569,15 @@ class MainWindow(MainWindow):
         )
         # endregion
 
+        # region
+        # 界面风格切换（独立组件负责安装与切换）
+        try:
+            if hasattr(self, "ui_theme_manager") and self.ui_theme_manager is not None:
+                self.ui_theme_manager.install_to_setting_menu(self.menus.setting)
+        except Exception:
+            logger.error(traceback.format_exc())
+        # endregion
+
         # 尾部分隔线（预留未来扩展）
         self.menus.setting.addSeparator()
 
@@ -631,6 +646,11 @@ class MainWindow(MainWindow):
             font = app.font()
             font.setPointSize(point_size)
             app.setFont(font)
+            try:
+                if hasattr(self, "ui_theme_manager") and self.ui_theme_manager is not None:
+                    self.ui_theme_manager.on_app_font_changed()
+            except Exception:
+                logger.error(traceback.format_exc())
         try:
             self.settings.setValue("ui/font_point_size", int(point_size))
         except Exception:
@@ -1136,7 +1156,7 @@ class MainWindow(MainWindow):
         # extra 如果当前 shapes 为空, 并且 flags 没有 true, 则删除标签文件
         if not shapes and not any(flags.values()):
             label_file = self.getLabelFile()
-            if osp.exists(label_file):                     
+            if osp.exists(label_file):
                 os.remove(label_file)
                 items = self.fileListWidget.findItems(self.filename, Qt.MatchContains)
                 for item in items:
@@ -1149,7 +1169,7 @@ class MainWindow(MainWindow):
                 json_dir = os.path.dirname(label_file)  # 获取JSON文件所在目录
                 proj_manager = self.proj_manager.o2_5d_manager
                 # 只查找同一目录下使用该JSON的完整路径
-                img_paths = [img_path for img_path, json_file in proj_manager._file_to_json.items() 
+                img_paths = [img_path for img_path, json_file in proj_manager._file_to_json.items()
                             if json_file == json_name and os.path.dirname(img_path) == json_dir]
                 for img_path in img_paths:
                     # 标准化路径格式
@@ -1208,7 +1228,7 @@ class MainWindow(MainWindow):
                     json_dir = os.path.dirname(filename)  # 获取JSON文件所在目录
                     proj_manager = self.proj_manager.o2_5d_manager
                     # 只查找同一目录下使用该JSON的完整路径
-                    img_paths = [img_path for img_path, json_file in proj_manager._file_to_json.items() 
+                    img_paths = [img_path for img_path, json_file in proj_manager._file_to_json.items()
                                 if json_file == json_name and os.path.dirname(img_path) == json_dir]
                     for img_path in img_paths:
                         # 标准化路径格式
@@ -1409,7 +1429,7 @@ class MainWindow(MainWindow):
     def getLabelFile(self) -> str:
         try:
             assert self.filename is not None
-            
+
             # 2.5D模式：使用公共前缀的JSON文件名来获取json路径
             return self.proj_manager.get_json_path(self.filename)
         except:
@@ -1567,7 +1587,7 @@ class MainWindow(MainWindow):
                 osp.dirname(label_file),
                 self.labelFile.imagePath,
             )
-            
+
             self.otherData = self.labelFile.otherData
         else:
             self.imageData = LabelFile.load_image_file(filename)
@@ -1749,9 +1769,9 @@ class MainWindow(MainWindow):
     # https://bbs.dlcv.com.cn/t/topic/421
     def setDirty(self):
         super().setDirty()
-        
+
         if self.imagePath is not None and Path(self.imagePath) != Path(self.filename):
-            if not self.is_2_5d and not self.is_3d: 
+            if not self.is_2_5d and not self.is_3d:
                 notification(
                     dlcv_tr("Json 文件数据错误！"),
                     dlcv_tr("当前 Json 文件中的 imagePath 与图片路径不一致，请检查！"),
@@ -2292,6 +2312,7 @@ class MainWindow(MainWindow):
             name="params", type="group", children=setting_kwargs
         )
         self.parameter_tree = ParameterTree(showHeader=False)
+        self.parameter_tree.setObjectName("settingParameterTree")
         self.parameter_tree.setParameters(self.parameter, showTop=False)
         self.parameter.sigTreeStateChanged.connect(self.on_setting_dock_changed)
 
@@ -2355,8 +2376,10 @@ class MainWindow(MainWindow):
         ai_model_layout.addWidget(self._selectAiModelComboBox, 1)
 
         setting_container = QtWidgets.QWidget(self)
+        setting_container.setObjectName("settingPanel")
         setting_layout = QtWidgets.QVBoxLayout(setting_container)
-        setting_layout.setContentsMargins(0, 0, 0, 0)
+        # 贴近截图：整体留白 + 分组更清晰
+        setting_layout.setContentsMargins(8, 8, 8, 8)
         setting_layout.setSpacing(6)
         setting_layout.addWidget(ai_model_widget)
         line = QtWidgets.QFrame(setting_container)
@@ -2442,7 +2465,7 @@ class MainWindow(MainWindow):
                 ).setValue(setting_store.get("ai_polygon_simplify_epsilon", 0.005))
 
         restore_setting()
-        
+
     def on_setting_dock_changed(
         self, root_parm: Parameter, change_parms: [[Parameter, str, bool]]
     ):
@@ -3174,7 +3197,7 @@ class MainWindow(MainWindow):
     @property
     def is_3d(self) -> bool:
         return self.parameter.child("proj_setting", "proj_type").value() == ProjEnum.O3D
-    
+
     @property
     def is_2_5d(self) -> bool:
         return self.parameter.child("proj_setting", "proj_type").value() == ProjEnum.O2_5D
@@ -3185,7 +3208,7 @@ class MainWindow(MainWindow):
             self.o3d_widget.show()
         else:
             self.o3d_widget.hide()
-        
+
         # 2.5D模式切换处理
         was_2_5d = bool(self.proj_manager._file_to_json)  # 检查之前是否是2.5D模式
         if new_value == ProjEnum.O2_5D:
@@ -3200,10 +3223,10 @@ class MainWindow(MainWindow):
             # 如果之前是2.5D模式，切出时需要更新状态
             if was_2_5d and self.lastOpenDir:
                 self.fileListWidget.update_state()
-        
+
         self.settings.setValue("proj_type", new_value)
-        
-        
+
+
     def _load_file_3d_callback(self):
         if not self.is_3d:
             return
