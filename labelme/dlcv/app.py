@@ -118,6 +118,7 @@ class MainWindow(MainWindow):
         self.settings = QtCore.QSettings("labelme", "labelme")
         # extra 额外属性
         self.action_refresh = None
+        # 2.5D管理器
         STORE.register_main_window(self)
         super().__init__(config, filename, output, output_file, output_dir)
 
@@ -170,7 +171,6 @@ class MainWindow(MainWindow):
             os.makedirs(self.LABEL_TXT_DIR, exist_ok=True)
 
     # UI 主题切换逻辑已抽离到 `UiThemeManager`（见 `labelme/dlcv/ui_theme_manager.py`）
-
     # https://bbs.dlcv.com.cn/t/topic/590
     # 编辑标签
     def _edit_label(self, value=None):
@@ -1112,10 +1112,9 @@ class MainWindow(MainWindow):
     # 保存 json 的函数： 自动保存标签
     def saveLabels(self, filename: str):
         """filename: json 文件路径"""
-        # extra 保存 3d json
-        if self.is_3d:
+        # extra 保存 3d 或 2.5d json
+        if self.is_3d or self.is_2_5d:
             filename = self.getLabelFile()
-        # extra End
 
         lf = LabelFile()
 
@@ -1151,7 +1150,7 @@ class MainWindow(MainWindow):
         for i in range(self.flag_widget.count()):
             item = self.flag_widget.item(i)
             key = item.text()
-            flag = item.checkState() == Qt.Checked
+            flag = item.checkState(0) == Qt.Checked
             flags[key] = flag
 
         # extra 如果当前 shapes 为空, 并且 flags 没有 true, 则删除标签文件
@@ -1163,6 +1162,22 @@ class MainWindow(MainWindow):
                 for item in items:
                     item.setCheckState(Qt.Unchecked)
                 logger.info(f"删除{label_file}")
+            # 如果是2.5d模式，则需要更新所有使用该JSON的图片的勾选状态
+            if self.is_2_5d:
+                # 从映射中查找完整路径
+                json_name = os.path.basename(label_file)
+                json_dir = os.path.dirname(label_file)  # 获取JSON文件所在目录
+                proj_manager = self.proj_manager.o2_5d_manager
+                # 只查找同一目录下使用该JSON的完整路径
+                img_paths = [img_path for img_path, json_file in proj_manager._file_to_json.items()
+                            if json_file == json_name and os.path.dirname(img_path) == json_dir]
+                for img_path in img_paths:
+                    # 标准化路径格式
+                    img_path = str(Path(img_path).absolute().as_posix())
+                    items = self.fileListWidget.findItems(img_path, Qt.MatchExactly)
+                    for item in items:
+                        item.setCheckState(Qt.Unchecked)
+            # extra End
             # 实时更新统计信息
             if hasattr(self, "label_count_dock"):
                 self.label_count_dock.count_labels_in_file([], {})
@@ -1178,15 +1193,14 @@ class MainWindow(MainWindow):
             if osp.dirname(filename) and not osp.exists(osp.dirname(filename)):
                 os.makedirs(osp.dirname(filename))
 
-            # extra 3D 需要保存3D数据
-            if self.is_3d and self.otherData is not None:
-                self.otherData.update(
-                    {
-                        "img_name_list": self.proj_manager.get_img_name_list(
-                            self.filename
-                        ),
-                    }
-                )
+            # extra 统一使用get_img_name_list接口管理图片名列表
+            img_name_list = self.proj_manager.get_img_name_list(self.filename)
+            if img_name_list:
+                # 确保otherData存在
+                if self.otherData is None:
+                    self.otherData = {}
+                self.otherData["img_name_list"] = img_name_list
+            # extra End
 
             lf.save(
                 filename=filename,
@@ -1202,12 +1216,42 @@ class MainWindow(MainWindow):
             # extra 保存成功后, self.labelFile 里的数据会被清空, 所以需要重新加载,防止别的地方调用 self.labelFile 时出错
             self.labelFile.load(filename)
             # extra End
-            items = self.fileListWidget.findItems(self.imagePath, Qt.MatchExactly)
-            if len(items) > 0:
-                # if len(items) != 1:
-                #     raise RuntimeError("There are duplicate files.")
-                for item in items:
-                    item.setCheckState(Qt.Checked)
+
+            # 保存标注时，设置文件列表的勾选状态
+            # extra 2.5D模式：需要更新所有使用该JSON的图片的勾选状态
+            if self.is_2_5d:
+                # 从otherData中获取图片列表
+                img_name_list = self.labelFile.otherData.get('img_name_list', [])
+                if img_name_list:
+                    # 从映射中查找完整路径
+                    json_name = os.path.basename(filename)
+                    json_dir = os.path.dirname(filename)  # 获取JSON文件所在目录
+                    proj_manager = self.proj_manager.o2_5d_manager
+                    # 只查找同一目录下使用该JSON的完整路径
+                    img_paths = [img_path for img_path, json_file in proj_manager._file_to_json.items()
+                                if json_file == json_name and os.path.dirname(img_path) == json_dir]
+                    for img_path in img_paths:
+                        # 标准化路径格式
+                        img_path = str(Path(img_path).absolute().as_posix())
+                        items = self.fileListWidget.findItems(img_path, Qt.MatchExactly)
+                        for item in items:
+                            item.setCheckState(Qt.Checked)
+                else:
+                    # 如果没有图片列表 使用当前图片
+                    items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
+                    if len(items) == 0:
+                        items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
+                    if len(items) > 0:
+                        for item in items:
+                            item.setCheckState(Qt.Unchecked)
+            else:
+                items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
+                if len(items) == 0:
+                    items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
+                if len(items) > 0:
+                    for item in items:
+                        item.setCheckState(Qt.Checked)
+            # extra End
 
             # 实时更新统计信息
             if hasattr(self, "label_count_dock"):
@@ -1385,6 +1429,8 @@ class MainWindow(MainWindow):
     def getLabelFile(self) -> str:
         try:
             assert self.filename is not None
+
+            # 2.5D模式：使用公共前缀的JSON文件名来获取json路径
             return self.proj_manager.get_json_path(self.filename)
         except:
             notification(
@@ -1541,6 +1587,7 @@ class MainWindow(MainWindow):
                 osp.dirname(label_file),
                 self.labelFile.imagePath,
             )
+
             self.otherData = self.labelFile.otherData
         else:
             self.imageData = LabelFile.load_image_file(filename)
@@ -1557,6 +1604,7 @@ class MainWindow(MainWindow):
             # 若有flags，则加载flags
             if self.labelFile.flags is not None:
                 flags.update(self.labelFile.flags)
+
         self.loadFlags(flags)
         if self._config["keep_prev"] and self.noShapes():
             self.loadShapes(prev_shapes, replace=False)
@@ -1723,12 +1771,13 @@ class MainWindow(MainWindow):
         super().setDirty()
 
         if self.imagePath is not None and Path(self.imagePath) != Path(self.filename):
-            notification(
-                dlcv_tr("Json 文件数据错误！"),
-                dlcv_tr("当前 Json 文件中的 imagePath 与图片路径不一致，请检查！"),
-                ToastPreset.ERROR,
-            )
-            return
+            if not self.is_2_5d and not self.is_3d:
+                notification(
+                    dlcv_tr("Json 文件数据错误！"),
+                    dlcv_tr("当前 Json 文件中的 imagePath 与图片路径不一致，请检查！"),
+                    ToastPreset.ERROR,
+                )
+                return
 
         # extra 保存标签文件后,支持 ctrl+Delete 删除标签文件
         if self.hasLabelFile():
@@ -1789,15 +1838,22 @@ class MainWindow(MainWindow):
 
         self.fileListWidget.set_root_dir(dirpath)
 
+        # extra 2.5d模式：导入目录时分配json文件
+        if self.is_2_5d:
+            # 先清空旧的映射，确保每次导入新目录时都重新分配
+            self.proj_manager.clear()
+            #  获取根目录路径
+            root_path = dirpath
+            if root_path and os.path.exists(root_path):
+                self.proj_manager.assign_json_files(root_path)
+        # extra End
+
         # https://bbs2.dlcv.com.cn/t/topic/1048/3
         dirpath = Path(dirpath)
         label_txt_path = Path(dirpath) / "label.txt"
         if label_txt_path.exists():
             self._load_label_txt(label_txt_path)
         # End
-
-        self.openNextImg(load=load)
-
     """额外函数"""
 
     @property
@@ -2074,7 +2130,7 @@ class MainWindow(MainWindow):
                         "name": "proj_type",
                         "title": dlcv_tr("project type"),
                         "type": "list",
-                        "limits": [ProjEnum.NORMAL, ProjEnum.O3D],
+                        "limits": [ProjEnum.NORMAL, ProjEnum.O2_5D, ProjEnum.O3D],
                         "default": ProjEnum.NORMAL,
                     },
                 ],
@@ -2532,7 +2588,6 @@ class MainWindow(MainWindow):
                         self.enableKeepPrevScale(False)
                     elif new_value == dlcv_tr(ScaleEnum.KEEP_SCALE):
                         self.enableKeepPrevScale(False)
-
     # endregion
 
     @property
@@ -3109,8 +3164,8 @@ class MainWindow(MainWindow):
 
     # ------------ 3D 视图 ------------
     def _init_3d_widget(self):
-        from labelme.dlcv.widget_3d.o3dwidget import O3DWidget
-        from labelme.dlcv.widget_3d.manager import ProjManager
+        from labelme.dlcv.widget_25d_3d.o3dwidget import O3DWidget
+        from labelme.dlcv.widget_25d_3d.manager import ProjManager
 
         self.o3d_widget = O3DWidget()
         self.proj_manager = ProjManager()
@@ -3143,12 +3198,34 @@ class MainWindow(MainWindow):
     def is_3d(self) -> bool:
         return self.parameter.child("proj_setting", "proj_type").value() == ProjEnum.O3D
 
+    @property
+    def is_2_5d(self) -> bool:
+        return self.parameter.child("proj_setting", "proj_type").value() == ProjEnum.O2_5D
+
+    # 项目类型切换
     def proj_type_changed(self, param: Parameter, new_value: str):
         if self.is_3d:
             self.o3d_widget.show()
         else:
             self.o3d_widget.hide()
+
+        # 2.5D模式切换处理
+        was_2_5d = bool(self.proj_manager._file_to_json)  # 检查之前是否是2.5D模式
+        if new_value == ProjEnum.O2_5D:
+            print('切入2.5D模式')
+            if self.lastOpenDir:
+                self.proj_manager.assign_json_files(self.lastOpenDir)
+                self.fileListWidget.update_state()
+        else:
+            print('切出2.5D模式')
+            # 切换到非2.5D模式时，清空2.5D映射
+            self.proj_manager.clear()
+            # 如果之前是2.5D模式，切出时需要更新状态
+            if was_2_5d and self.lastOpenDir:
+                self.fileListWidget.update_state()
+
         self.settings.setValue("proj_type", new_value)
+
 
     def _load_file_3d_callback(self):
         if not self.is_3d:
@@ -3207,6 +3284,7 @@ def init_backend_ws():
 
 class ProjEnum:
     NORMAL = "2D"
+    O2_5D = "2.5D"
     O3D = "3D"
     # ------------ 3D 视图 end ------------
 

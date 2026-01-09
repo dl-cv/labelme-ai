@@ -208,10 +208,15 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         if not root_dir or not os.path.exists(root_dir):
             return
 
+        self._root_dir = root_dir  # 保存根目录路径
         self.clear()
         # 只加载根目录下的文件夹
         root_item = self.invisibleRootItem()
         self._load_directory_contents(root_dir, root_item)
+
+    def get_root_dir(self) -> str:
+        """获取当前根目录路径"""
+        return self._root_dir
 
     def clear(self):
         """清空文件树
@@ -227,6 +232,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         return super().currentItem()
 
     def update_state(self):
+        """更新所有文件项的勾选状态"""
         for img_path, file_item in self._file_items.items():
             img_path = file_item.get_path()
             json_path = STORE.main_window.proj_manager.get_json_path(img_path)
