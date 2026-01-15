@@ -135,7 +135,14 @@ class MainWindow(MainWindow):
         self.addDockWidget(Qt.LeftDockWidgetArea, self.file_dock)
 
         #
-        self.menus.help.actions()[0].setText(dlcv_tr("使用文档"))
+        branding = getattr(STORE, "branding", None) or {}
+        app_cfg = branding.get("App") or branding.get("app") or {}
+        v = app_cfg.get("DisplayURL", app_cfg.get("displayurl", None))
+        show_help = True if v is None else str(v).strip().lower() not in ("0", "false", "no", "off")
+        if show_help:
+            self.menus.help.actions()[0].setText(dlcv_tr("使用文档"))
+        else:
+            self.menus.help.menuAction().setVisible(False)
 
         self._init_dev_mode()
         self._init_ui()
@@ -322,7 +329,7 @@ class MainWindow(MainWindow):
 
     def tutorial(self):
         # url = 'https://github.com/labelmeai/labelme/tree/main/examples/tutorial'
-        url = r"https://docs.dlcv.com.cn/labelme/basic%20function/"
+        url = r"https://docs.dlcv.com.cn/labelme/basic_function/"
         # url = "https://bbs.dlcv.com.cn/labelmeai"  # NOQA
         webbrowser.open(url)
 
