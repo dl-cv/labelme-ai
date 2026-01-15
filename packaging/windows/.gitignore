@@ -1,6 +1,0 @@
-_assets/models/*
-!_assets/models/.gitkeep
-_pyinstaller_build/
-_pyinstaller_dist/
-*.log
-
