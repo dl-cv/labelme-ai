@@ -80,10 +80,16 @@ QToolBar#ToolsToolBar QToolButton {{
     border: 1px solid #D6DAE3;
     border-radius: 6px;
     /* 1) 减少高度/内边距 2) 缩小图标与文字区域的留白 */
-    padding: 4px 6px;
+    /* 右侧再收紧一点，避免“文字右侧空一截”的观感 */
+    padding: 3px 4px 3px 6px;
     color: #111827;
-    min-height: 28px;
+    min-height: 26px;
     margin: 0px;
+}}
+/* 若某些 ToolButton 绑定了 menu，会预留 indicator 空间；这里把它收紧 */
+QToolBar#ToolsToolBar QToolButton::menu-indicator {{
+    image: none;
+    width: 0px;
 }}
 QToolBar#ToolsToolBar QToolButton:hover {{
     background: #F3F4F6;
@@ -156,6 +162,20 @@ QTreeWidget#fileTree::item:selected:!active {{
     /* 明确指定，避免某些平台/Style 下选中态 padding 变化导致位移 */
     padding: 2px 6px;
     margin: 0px;
+}}
+
+/* 关键：缩进/分支区域由 branch 子控件绘制，选中时也一起涂底色，避免“选中行从文字处才开始变色” */
+QTreeWidget#fileTree::branch:selected,
+QTreeWidget#fileTree::branch:selected:active,
+QTreeWidget#fileTree::branch:selected:!active {{
+    background: palette(highlight);
+}}
+
+/* 固定 item view 里的复选框尺寸/边距，避免选中态导致文本视觉位移 */
+QTreeWidget#fileTree::indicator {{
+    width: 14px;
+    height: 14px;
+    margin: 0px 6px 0px 2px;
 }}
 
 /* -------------------- Right Panels: Stats + Settings -------------------- */
