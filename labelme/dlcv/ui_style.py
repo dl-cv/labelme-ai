@@ -67,20 +67,23 @@ QMenu::item:disabled {{
 QToolBar#ToolsToolBar {{
     background: #FFFFFF;
     border: 0px;
-    padding: 6px 8px;
+    /* 现代风格工具栏：整体更紧凑 */
+    padding: 4px 6px;
 }}
 QToolBar#ToolsToolBar::separator {{
     background: #E5E7EB;
     width: 1px;
-    margin: 6px 8px;
+    margin: 4px 6px;
 }}
 QToolBar#ToolsToolBar QToolButton {{
     background: #FFFFFF;
     border: 1px solid #D6DAE3;
     border-radius: 6px;
-    padding: 6px 10px;
+    /* 1) 减少高度/内边距 2) 缩小图标与文字区域的留白 */
+    padding: 4px 6px;
     color: #111827;
-    min-height: 32px;
+    min-height: 28px;
+    margin: 0px;
 }}
 QToolBar#ToolsToolBar QToolButton:hover {{
     background: #F3F4F6;
@@ -136,14 +139,23 @@ QTreeWidget#fileTree {{
     border: 1px solid #E5E7EB;
     border-radius: 6px;
     outline: none;
+    /* 让选中高亮覆盖整行（含 checkbox/缩进），避免“选中项右移”的观感 */
+    show-decoration-selected: 1;
 }}
 QTreeWidget#fileTree::item {{
-    padding: 6px 8px;
+    /* 左侧文件列表：行距尽量贴近原版 */
+    padding: 2px 6px;
     color: #111827;
 }}
-QTreeWidget#fileTree::item:selected {{
-    background: #E8F0FF;
-    color: #111827;
+QTreeWidget#fileTree::item:selected,
+QTreeWidget#fileTree::item:selected:active,
+QTreeWidget#fileTree::item:selected:!active {{
+    /* 选中态：跟随系统高亮，更接近原版表现 */
+    background: palette(highlight);
+    color: palette(highlighted-text);
+    /* 明确指定，避免某些平台/Style 下选中态 padding 变化导致位移 */
+    padding: 2px 6px;
+    margin: 0px;
 }}
 
 /* -------------------- Right Panels: Stats + Settings -------------------- */
