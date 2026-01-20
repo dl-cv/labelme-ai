@@ -516,6 +516,8 @@ class UiThemeManager:
         label.setObjectName("dlcvDockTitleLabel")
         label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
         label.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        # 允许标题在 Dock 变窄时收缩（避免长标题把右侧按钮/内容“挤坏”）
+        label.setMinimumWidth(0)
         layout.addWidget(label, 1)
 
         # float 按钮（如果允许）

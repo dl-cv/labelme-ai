@@ -238,6 +238,30 @@ QToolButton#dlcvDockTitleBtn:pressed {{
     background: #E8F0FF;
 }}
 
+/* -------------------- Right Docks: Lists (Label/Polygon/Flags) -------------------- */
+QDockWidget#Flags,
+QDockWidget#Labels,
+QDockWidget[objectName="Label List"] {{
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+}}
+
+QDockWidget#Flags QListWidget,
+QDockWidget#Labels QListView,
+QDockWidget[objectName="Label List"] QListWidget {{
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 6px;
+    outline: none;
+    padding: 4px;
+}}
+
+QDockWidget#Flags QListWidget::item,
+QDockWidget#Labels QListView::item,
+QDockWidget[objectName="Label List"] QListWidget::item {{
+    padding: 2px 6px;
+}}
+
 QWidget#settingPanel {{
     background: transparent;
 }}
