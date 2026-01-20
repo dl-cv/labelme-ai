@@ -343,6 +343,26 @@ class MainWindow(MainWindow):
 
         create_action = functools.partial(utils.newAction, self)
 
+        def _cleanup_toolbar_separators(actions: list):
+            """清理工具条分隔符（None）。
+
+            典型场景：移除某个 QWidgetAction 后，前后残留的 None 可能变成连续两个，
+            最终在工具条上显示为两个竖线（||）。
+            """
+            cleaned = []
+            for act in actions:
+                if act is None:
+                    # 去掉开头/连续分割线
+                    if not cleaned or cleaned[-1] is None:
+                        continue
+                    cleaned.append(None)
+                else:
+                    cleaned.append(act)
+            # 去掉尾部分割线
+            while cleaned and cleaned[-1] is None:
+                cleaned.pop()
+            return cleaned
+
         # https://bbs2.dlcv.com.cn/t/topic/1690
         # 顶栏工具条移除：加载标签文件 / 保存标签文件 / Save 按钮
         # - 仅移除“工具条入口”，文件菜单中的保存等能力仍保留
@@ -470,6 +490,7 @@ class MainWindow(MainWindow):
         self.actions.menu = self.actions.menu[0:7] + self.actions.menu[8:]
 
         # https://bbs.dlcv.ai/t/topic/167
+        self.actions.tool = _cleanup_toolbar_separators(list(self.actions.tool))
         super().populateModeActions()
         self.menus.edit.clear()
         actions = (

@@ -287,9 +287,9 @@ class UiThemeManager:
                 if layout is not None:
                     if is_modern:
                         # 现代风格：整体更紧凑，减少工具栏高度/留白
-                        layout.setSpacing(6)
-                        layout.setContentsMargins(6, 4, 6, 4)
-                        tools.setContentsMargins(6, 4, 6, 4)
+                        layout.setSpacing(8)
+                        layout.setContentsMargins(8, 6, 8, 6)
+                        tools.setContentsMargins(8, 6, 8, 6)
                     else:
                         spacing = 0
                         margins = (0, 0, 0, 0)

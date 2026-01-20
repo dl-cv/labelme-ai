@@ -68,12 +68,12 @@ QToolBar#ToolsToolBar {{
     background: #FFFFFF;
     border: 0px;
     /* 现代风格工具栏：整体更紧凑 */
-    padding: 4px 6px;
+    padding: 6px 8px;
 }}
 QToolBar#ToolsToolBar::separator {{
     background: #E5E7EB;
     width: 1px;
-    margin: 4px 6px;
+    margin: 6px 8px;
 }}
 QToolBar#ToolsToolBar QToolButton {{
     background: #FFFFFF;
@@ -81,9 +81,9 @@ QToolBar#ToolsToolBar QToolButton {{
     border-radius: 6px;
     /* 1) 减少高度/内边距 2) 缩小图标与文字区域的留白 */
     /* 右侧再收紧一点，避免“文字右侧空一截”的观感 */
-    padding: 3px 4px 3px 6px;
+    padding: 4px -15px 4px 6px;
     color: #111827;
-    min-height: 26px;
+    min-height: 35px;
     margin: 0px;
 }}
 /* 若某些 ToolButton 绑定了 menu，会预留 indicator 空间；这里把它收紧 */
