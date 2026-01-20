@@ -67,20 +67,37 @@ QMenu::item:disabled {{
 QToolBar#ToolsToolBar {{
     background: #FFFFFF;
     border: 0px;
+    /* 现代风格工具栏：整体更紧凑 */
     padding: 6px 8px;
 }}
 QToolBar#ToolsToolBar::separator {{
-    background: #E5E7EB;
+    /* 分隔符不要用背景色“铺满”，否则在某些 Style/缩放下会变成一整条粗灰块 */
+    background: transparent;
+    /* 注意：width 在部分 Style 下可能不生效，因此线条用 border 来保证永远是 1px */
     width: 1px;
     margin: 6px 8px;
+}}
+QToolBar#ToolsToolBar::separator:horizontal {{
+    border-left: 1px solid #E5E7EB;
+}}
+QToolBar#ToolsToolBar::separator:vertical {{
+    border-top: 1px solid #E5E7EB;
 }}
 QToolBar#ToolsToolBar QToolButton {{
     background: #FFFFFF;
     border: 1px solid #D6DAE3;
     border-radius: 6px;
-    padding: 6px 10px;
+    /* 1) 减少高度/内边距 2) 缩小图标与文字区域的留白 */
+    /* 右侧再收紧一点，避免“文字右侧空一截”的观感 */
+    padding: 4px -15px 4px 6px;
     color: #111827;
-    min-height: 32px;
+    min-height: 35px;
+    margin: 0px;
+}}
+/* 若某些 ToolButton 绑定了 menu，会预留 indicator 空间；这里把它收紧 */
+QToolBar#ToolsToolBar QToolButton::menu-indicator {{
+    image: none;
+    width: 0px;
 }}
 QToolBar#ToolsToolBar QToolButton:hover {{
     background: #F3F4F6;
@@ -136,14 +153,50 @@ QTreeWidget#fileTree {{
     border: 1px solid #E5E7EB;
     border-radius: 6px;
     outline: none;
+    /* 让选中高亮覆盖整行（含 checkbox/缩进），避免“选中项右移”的观感 */
+    show-decoration-selected: 1;
 }}
 QTreeWidget#fileTree::item {{
-    padding: 6px 8px;
+    /* 左侧文件列表：行距尽量贴近原版 */
+    padding: 2px 6px;
     color: #111827;
 }}
-QTreeWidget#fileTree::item:selected {{
-    background: #E8F0FF;
-    color: #111827;
+QTreeWidget#fileTree::item:selected,
+QTreeWidget#fileTree::item:selected:active,
+QTreeWidget#fileTree::item:selected:!active {{
+    /* 选中态：跟随系统高亮，更接近原版表现 */
+    background: palette(highlight);
+    color: palette(highlighted-text);
+    /* 明确指定，避免某些平台/Style 下选中态 padding 变化导致位移 */
+    padding: 2px 6px;
+    margin: 0px;
+}}
+
+/* 关键：缩进/分支区域由 branch 子控件绘制，选中时也一起涂底色，避免“选中行从文字处才开始变色” */
+QTreeWidget#fileTree::branch:selected,
+QTreeWidget#fileTree::branch:selected:active,
+QTreeWidget#fileTree::branch:selected:!active {{
+    background: palette(highlight);
+}}
+
+/* 固定 item view 里的复选框尺寸/边距，避免选中态导致文本视觉位移 */
+QTreeWidget#fileTree::indicator {{
+    width: 14px;
+    height: 14px;
+    margin: 0px 6px 0px 2px;
+    /* 现代风格下（Fusion）默认复选框会带圆角，这里强制画成正方形 */
+    border: 1px solid #D1D5DB;
+    border-radius: 0px;
+    background: #FFFFFF;
+}}
+
+QTreeWidget#fileTree::indicator:unchecked:hover {{
+    border-color: {accent};
+}}
+
+QTreeWidget#fileTree::indicator:checked {{
+    /* 用资源里的 done.png 作为对勾，避免依赖平台默认绘制 */
+    image: url(:/done.png);
 }}
 
 /* -------------------- Right Panels: Stats + Settings -------------------- */
@@ -183,6 +236,30 @@ QToolButton#dlcvDockTitleBtn:hover {{
 }}
 QToolButton#dlcvDockTitleBtn:pressed {{
     background: #E8F0FF;
+}}
+
+/* -------------------- Right Docks: Lists (Label/Polygon/Flags) -------------------- */
+QDockWidget#Flags,
+QDockWidget#Labels,
+QDockWidget[objectName="Label List"] {{
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+}}
+
+QDockWidget#Flags QListWidget,
+QDockWidget#Labels QListView,
+QDockWidget[objectName="Label List"] QListWidget {{
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 6px;
+    outline: none;
+    padding: 4px;
+}}
+
+QDockWidget#Flags QListWidget::item,
+QDockWidget#Labels QListView::item,
+QDockWidget[objectName="Label List"] QListWidget::item {{
+    padding: 2px 6px;
 }}
 
 QWidget#settingPanel {{
