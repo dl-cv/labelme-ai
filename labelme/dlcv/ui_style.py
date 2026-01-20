@@ -71,9 +71,17 @@ QToolBar#ToolsToolBar {{
     padding: 6px 8px;
 }}
 QToolBar#ToolsToolBar::separator {{
-    background: #E5E7EB;
+    /* 分隔符不要用背景色“铺满”，否则在某些 Style/缩放下会变成一整条粗灰块 */
+    background: transparent;
+    /* 注意：width 在部分 Style 下可能不生效，因此线条用 border 来保证永远是 1px */
     width: 1px;
     margin: 6px 8px;
+}}
+QToolBar#ToolsToolBar::separator:horizontal {{
+    border-left: 1px solid #E5E7EB;
+}}
+QToolBar#ToolsToolBar::separator:vertical {{
+    border-top: 1px solid #E5E7EB;
 }}
 QToolBar#ToolsToolBar QToolButton {{
     background: #FFFFFF;
