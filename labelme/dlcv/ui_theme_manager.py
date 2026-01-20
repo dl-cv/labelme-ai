@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from qtpy import QtCore, QtWidgets
+from qtpy import QtCore, QtWidgets, QtGui
 from qtpy.QtCore import Qt
 
 from labelme.dlcv.dlcv_translator import dlcv_tr
@@ -47,6 +47,7 @@ class UiThemeManager:
         self._original_tools_button_style = None
         self._original_tools_layout: Optional[Dict[str, Any]] = None
         self._original_file_tree_indentation: Optional[int] = None
+        self._dock_title_icon_cache: Dict[tuple, QtGui.QIcon] = {}
 
         # theme menu handle (optional)
         self._theme_menu: Optional[QtWidgets.QMenu] = None
@@ -379,17 +380,77 @@ class UiThemeManager:
 
     def _apply_modern_dock_title_bars(self, enable: bool) -> None:
         mw = self.main_window
-        docks = []
-        for name in ("file_dock", "setting_dock", "label_count_dock"):
-            dock = getattr(mw, name, None)
-            if dock is not None:
-                docks.append(dock)
+        # 统一所有 Dock 的标题栏样式（右侧“文本标记/标签列表/设置面板/统计”等都包含在内）
+        try:
+            docks = mw.findChildren(QtWidgets.QDockWidget)
+        except Exception:
+            docks = []
+            for name in (
+                "file_dock",
+                "setting_dock",
+                "label_count_dock",
+                "flag_dock",
+                "shape_dock",
+                "label_dock",
+            ):
+                dock = getattr(mw, name, None)
+                if dock is not None:
+                    docks.append(dock)
 
         for dock in docks:
             if enable:
                 self._set_dock_custom_title_bar(dock)
             else:
                 self._unset_dock_custom_title_bar(dock)
+
+    def _make_dock_title_icon(self, kind: str, color: QtGui.QColor, size: int = 12) -> QtGui.QIcon:
+        """为 Dock 标题栏生成统一风格的小图标（close / float / dock）。"""
+        key = (kind, color.name(), int(size))
+        cached = self._dock_title_icon_cache.get(key)
+        if cached is not None:
+            return cached
+
+        s = int(size)
+        pm = QtGui.QPixmap(s, s)
+        pm.fill(Qt.transparent)
+
+        p = QtGui.QPainter(pm)
+        try:
+            p.setRenderHint(QtGui.QPainter.Antialiasing, True)
+            pen = QtGui.QPen(color)
+            pen.setWidthF(1.6)
+            pen.setCapStyle(Qt.RoundCap)
+            pen.setJoinStyle(Qt.RoundJoin)
+            p.setPen(pen)
+
+            pad = 3.0
+            sf = float(s)
+
+            if kind == "close":
+                p.drawLine(QtCore.QPointF(pad, pad), QtCore.QPointF(sf - pad, sf - pad))
+                p.drawLine(QtCore.QPointF(sf - pad, pad), QtCore.QPointF(pad, sf - pad))
+            elif kind == "float":
+                # 两个重叠方框：表示“浮动/弹出”
+                r1 = QtCore.QRectF(4.0, 3.0, sf - 7.0, sf - 7.0)
+                r2 = QtCore.QRectF(3.0, 4.0, sf - 7.0, sf - 7.0)
+                p.drawRect(r1)
+                p.drawRect(r2)
+            elif kind == "dock":
+                # 一个方框 + 底部横线：表示“停靠回面板”
+                r = QtCore.QRectF(3.0, 3.0, sf - 6.0, sf - 6.0)
+                p.drawRect(r)
+                y = sf - 4.2
+                p.drawLine(QtCore.QPointF(3.0, y), QtCore.QPointF(sf - 3.0, y))
+            else:
+                # fallback：画一个方框
+                r = QtCore.QRectF(3.0, 3.0, sf - 6.0, sf - 6.0)
+                p.drawRect(r)
+        finally:
+            p.end()
+
+        icon = QtGui.QIcon(pm)
+        self._dock_title_icon_cache[key] = icon
+        return icon
 
     def _unset_dock_custom_title_bar(self, dock: QtWidgets.QDockWidget) -> None:
         tb = dock.titleBarWidget()
@@ -407,6 +468,18 @@ class UiThemeManager:
             pass
 
     def _set_dock_custom_title_bar(self, dock: QtWidgets.QDockWidget) -> None:
+        def _apply_btn_geometry(btn: QtWidgets.QToolButton) -> None:
+            try:
+                btn.setAutoRaise(True)
+                btn.setFocusPolicy(Qt.NoFocus)
+                btn.setCursor(Qt.PointingHandCursor)
+                btn.setFixedSize(26, 26)
+                btn.setIconSize(QtCore.QSize(12, 12))
+            except Exception:
+                pass
+
+        icon_color = QtGui.QColor("#6B7280")
+
         # 已设置过则只更新文本/高度
         tb = dock.titleBarWidget()
         if tb is not None and tb.objectName() == "dlcvDockTitleBar":
@@ -414,12 +487,27 @@ class UiThemeManager:
             if label is not None:
                 label.setText(dock.windowTitle())
                 self._update_dock_title_bar_height(tb, label)
+
+            # 同步按钮大小与图标（保证切换主题/字体后外观一致）
+            for btn in tb.findChildren(QtWidgets.QToolButton):
+                if getattr(btn, "objectName", lambda: "")() != "dlcvDockTitleBtn":
+                    continue
+                _apply_btn_geometry(btn)
+                try:
+                    if btn.isCheckable():  # float / dock
+                        kind = "dock" if dock.isFloating() else "float"
+                        btn.setIcon(self._make_dock_title_icon(kind, icon_color, 12))
+                    else:  # close
+                        btn.setIcon(self._make_dock_title_icon("close", icon_color, 12))
+                except Exception:
+                    pass
             return
 
         title_bar = QtWidgets.QWidget(dock)
         title_bar.setObjectName("dlcvDockTitleBar")
         layout = QtWidgets.QHBoxLayout(title_bar)
-        layout.setContentsMargins(10, 0, 6, 0)
+        # 增大标题栏高度观感：增加上下边距
+        layout.setContentsMargins(10, 3, 6, 3)
         layout.setSpacing(6)
 
         label = QtWidgets.QLabel(dock.windowTitle(), title_bar)
@@ -432,19 +520,16 @@ class UiThemeManager:
         if dock.features() & QtWidgets.QDockWidget.DockWidgetFloatable:
             float_btn = QtWidgets.QToolButton(title_bar)
             float_btn.setObjectName("dlcvDockTitleBtn")
-            float_btn.setAutoRaise(True)
             float_btn.setCheckable(True)
             float_btn.setChecked(dock.isFloating())
+            _apply_btn_geometry(float_btn)
 
             def _sync_float_btn() -> None:
                 try:
                     float_btn.setChecked(dock.isFloating())
-                    icon = dock.style().standardIcon(
-                        QtWidgets.QStyle.SP_TitleBarNormalButton
-                        if dock.isFloating()
-                        else QtWidgets.QStyle.SP_TitleBarMaxButton
-                    )
-                    float_btn.setIcon(icon)
+                    kind = "dock" if dock.isFloating() else "float"
+                    float_btn.setIcon(self._make_dock_title_icon(kind, icon_color, 12))
+                    float_btn.setToolTip(dlcv_tr("停靠") if dock.isFloating() else dlcv_tr("浮动"))
                 except Exception:
                     pass
 
@@ -460,9 +545,10 @@ class UiThemeManager:
         if dock.features() & QtWidgets.QDockWidget.DockWidgetClosable:
             close_btn = QtWidgets.QToolButton(title_bar)
             close_btn.setObjectName("dlcvDockTitleBtn")
-            close_btn.setAutoRaise(True)
+            _apply_btn_geometry(close_btn)
             try:
-                close_btn.setIcon(dock.style().standardIcon(QtWidgets.QStyle.SP_TitleBarCloseButton))
+                close_btn.setIcon(self._make_dock_title_icon("close", icon_color, 12))
+                close_btn.setToolTip(dlcv_tr("关闭"))
             except Exception:
                 pass
             close_btn.clicked.connect(dock.close)
@@ -482,8 +568,9 @@ class UiThemeManager:
         # 关键：用 fontMetrics 精确算高度，确保 8/10 号字也不会被裁切
         try:
             fm = label.fontMetrics()
-            h = int(fm.height()) + 12
-            h = max(28, h)
+            # 加高一些：更接近现代 UI 的标题栏高度
+            h = int(fm.height()) + 18
+            h = max(34, h)
             title_bar.setFixedHeight(h)
         except Exception:
             pass
