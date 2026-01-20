@@ -1739,7 +1739,7 @@ class MainWindow(MainWindow):
         if not self.mayContinue():
             return
 
-        defaultOpenDirPath = dirpath if dirpath else "."
+        defaultOpenDirPath = dirpath if dirpath else os.path.join(os.path.expanduser("~"), "Desktop")
         if self.lastOpenDir and osp.exists(self.lastOpenDir):
             defaultOpenDirPath = self.lastOpenDir
         else:
