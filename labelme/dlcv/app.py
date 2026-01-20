@@ -1739,11 +1739,8 @@ class MainWindow(MainWindow):
         if not self.mayContinue():
             return
 
-        defaultOpenDirPath = dirpath if dirpath else "."
-        if self.lastOpenDir and osp.exists(self.lastOpenDir):
-            defaultOpenDirPath = self.lastOpenDir
-        else:
-            defaultOpenDirPath = osp.dirname(self.filename) if self.filename else "."
+        # 使用继承的 _defaultOpenDirPath() 方法，优先级：lastOpenDir -> current file dir -> Desktop
+        defaultOpenDirPath = dirpath if dirpath and osp.exists(dirpath) else self._defaultOpenDirPath()
 
         targetDirPath = str(
             QtWidgets.QFileDialog.getExistingDirectory(
@@ -1754,10 +1751,13 @@ class MainWindow(MainWindow):
                 | QtWidgets.QFileDialog.DontResolveSymlinks,
             )
         )
-        if targetDirPath:
-            # extra 打开空文件夹，图片置空
-            self.resetState()
-            self.canvas.loadPixmap(QtGui.QPixmap())
+        # 用户取消时直接返回，避免传入空路径
+        if not targetDirPath:
+            return
+        
+        # extra 打开空文件夹，图片置空
+        self.resetState()
+        self.canvas.loadPixmap(QtGui.QPixmap())
         self.importDirImages(targetDirPath)
 
     # https://bbs.dlcv.com.cn/t/topic/421
@@ -1840,6 +1840,13 @@ class MainWindow(MainWindow):
             return
 
         self.lastOpenDir = dirpath
+        # 立即持久化 lastOpenDir，确保下次启动或下次打开目录时能记住
+        try:
+            if hasattr(self, "settings") and self.settings is not None:
+                self.settings.setValue("lastOpenDir", self.lastOpenDir)
+                self.settings.sync()
+        except Exception:
+            pass
         self.filename = None
         self.fileListWidget.clear()
 
@@ -2090,7 +2097,17 @@ class MainWindow(MainWindow):
                 self.importDirImages(str(dataset_full_path))
         else:
             # https://bbs.dlcv.ai/t/topic/94
-            self.lastOpenDir = self.settings.value("lastOpenDir", None)
+            # 归一化 lastOpenDir：转为 str，过滤空值，检查路径存在性
+            lastOpenDir_raw = self.settings.value("lastOpenDir", None)
+            if lastOpenDir_raw:
+                lastOpenDir_str = str(lastOpenDir_raw).strip()
+                if lastOpenDir_str and osp.exists(lastOpenDir_str):
+                    self.lastOpenDir = lastOpenDir_str
+                else:
+                    self.lastOpenDir = None
+            else:
+                self.lastOpenDir = None
+            
             if len(sys.argv) > 1:  # 右键打开文件夹
                 path_dir = sys.argv[1]
 
