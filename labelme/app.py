@@ -881,6 +881,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # XXX: Could be completely declarative.
         # Restore application settings.
         self.settings = QtCore.QSettings("labelme", "labelme")
+        # Remember last opened directory across sessions (used by Open Dir/Open dialogs)
+        lastOpenDir = self.settings.value("lastOpenDir", "") or ""
+        lastOpenDir = str(lastOpenDir)
+        self.lastOpenDir = lastOpenDir if lastOpenDir and osp.exists(lastOpenDir) else None
         self.recentFiles = self.settings.value("recentFiles", []) or []
         size = self.settings.value("window/size", QtCore.QSize(600, 500))
         position = self.settings.value("window/position", QtCore.QPoint(0, 0))
@@ -1832,6 +1836,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings.setValue("window/position", self.pos())
         self.settings.setValue("window/state", self.saveState())
         self.settings.setValue("recentFiles", self.recentFiles)
+        self.settings.setValue("lastOpenDir", self.lastOpenDir if self.lastOpenDir else "")
         # ask the use for where to save the labels
         # self.settings.setValue('window/geometry', self.saveGeometry())
 
@@ -1916,7 +1921,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def openFile(self, _value=False):
         if not self.mayContinue():
             return
-        path = osp.dirname(str(self.filename)) if self.filename else "."
+        # Default to last opened dir; if first time, default to Desktop.
+        path = self._defaultOpenDirPath()
         formats = [
             "*.{}".format(fmt.data().decode())
             for fmt in QtGui.QImageReader.supportedImageFormats()
@@ -1935,6 +1941,13 @@ class MainWindow(QtWidgets.QMainWindow):
         if fileDialog.exec_():
             fileName = fileDialog.selectedFiles()[0]
             if fileName:
+                # Update last open dir for future dialogs
+                try:
+                    self.lastOpenDir = osp.dirname(str(fileName))
+                    if hasattr(self, "settings") and self.settings is not None:
+                        self.settings.setValue("lastOpenDir", self.lastOpenDir)
+                except Exception:
+                    pass
                 self.loadFile(fileName)
 
     def changeOutputDirDialog(self, _value=False):
@@ -2103,6 +2116,30 @@ class MainWindow(QtWidgets.QMainWindow):
     def currentPath(self):
         return osp.dirname(str(self.filename)) if self.filename else "."
 
+    def _desktopPath(self):
+        # Prefer Qt-provided desktop path (handles Windows localization/redirection)
+        try:
+            desktop = QtCore.QStandardPaths.writableLocation(
+                QtCore.QStandardPaths.DesktopLocation
+            )
+        except Exception:
+            desktop = ""
+        desktop = str(desktop) if desktop else ""
+        if desktop and osp.exists(desktop):
+            return desktop
+
+        home = osp.expanduser("~")
+        fallback = osp.join(home, "Desktop")
+        return fallback if osp.exists(fallback) else home
+
+    def _defaultOpenDirPath(self):
+        # Priority: lastOpenDir (persisted) -> current file dir -> Desktop
+        if self.lastOpenDir and osp.exists(self.lastOpenDir):
+            return self.lastOpenDir
+        if self.filename:
+            return osp.dirname(str(self.filename))
+        return self._desktopPath()
+
     def toggleKeepPrevMode(self):
         self._config["keep_prev"] = not self._config["keep_prev"]
 
@@ -2146,11 +2183,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.mayContinue():
             return
 
-        defaultOpenDirPath = dirpath if dirpath else "."
-        if self.lastOpenDir and osp.exists(self.lastOpenDir):
-            defaultOpenDirPath = self.lastOpenDir
-        else:
-            defaultOpenDirPath = osp.dirname(self.filename) if self.filename else "."
+        defaultOpenDirPath = dirpath if dirpath else self._defaultOpenDirPath()
 
         targetDirPath = str(
             QtWidgets.QFileDialog.getExistingDirectory(
@@ -2161,6 +2194,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 | QtWidgets.QFileDialog.DontResolveSymlinks,
             )
         )
+        if not targetDirPath:
+            return
         self.importDirImages(targetDirPath)
 
     # 修复导入文件过多，每次 self.fileListWidget.count() 都会导致卡顿
@@ -2208,6 +2243,12 @@ class MainWindow(QtWidgets.QMainWindow):
             return
 
         self.lastOpenDir = dirpath
+        # Persist immediately so next run can default to this directory
+        try:
+            if hasattr(self, "settings") and self.settings is not None:
+                self.settings.setValue("lastOpenDir", self.lastOpenDir)
+        except Exception:
+            pass
         self.filename = None
         self.fileListWidget.clear()
 
