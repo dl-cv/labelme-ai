@@ -176,6 +176,19 @@ QTreeWidget#fileTree::indicator {{
     width: 14px;
     height: 14px;
     margin: 0px 6px 0px 2px;
+    /* 现代风格下（Fusion）默认复选框会带圆角，这里强制画成正方形 */
+    border: 1px solid #D1D5DB;
+    border-radius: 0px;
+    background: #FFFFFF;
+}}
+
+QTreeWidget#fileTree::indicator:unchecked:hover {{
+    border-color: {accent};
+}}
+
+QTreeWidget#fileTree::indicator:checked {{
+    /* 用资源里的 done.png 作为对勾，避免依赖平台默认绘制 */
+    image: url(:/done.png);
 }}
 
 /* -------------------- Right Panels: Stats + Settings -------------------- */

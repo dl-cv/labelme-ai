@@ -46,6 +46,7 @@ class UiThemeManager:
         self._original_tools_icon_size = None
         self._original_tools_button_style = None
         self._original_tools_layout: Optional[Dict[str, Any]] = None
+        self._original_file_tree_indentation: Optional[int] = None
 
         # theme menu handle (optional)
         self._theme_menu: Optional[QtWidgets.QMenu] = None
@@ -320,6 +321,24 @@ class UiThemeManager:
                     w.layout.setSpacing(0)
                     w.search_box.setClearButtonEnabled(False)
                     w.search_box.setPlaceholderText(dlcv_tr("输入关键字过滤 - Enter键搜索"))
+
+                # 文件树缩进：现代风格缩进过长，改为原来的一半；切回 classic 恢复原值
+                tree = getattr(w, "tree_widget", None)
+                if tree is not None:
+                    if self._original_file_tree_indentation is None:
+                        try:
+                            self._original_file_tree_indentation = int(tree.indentation())
+                        except Exception:
+                            self._original_file_tree_indentation = None
+
+                    if self._original_file_tree_indentation is not None:
+                        try:
+                            if is_modern:
+                                tree.setIndentation(max(8, self._original_file_tree_indentation // 2))
+                            else:
+                                tree.setIndentation(self._original_file_tree_indentation)
+                        except Exception:
+                            pass
         except Exception:
             logger.error("file list tweak failed:\n%s", traceback_format())
 
