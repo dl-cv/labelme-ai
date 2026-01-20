@@ -418,29 +418,30 @@ class UiThemeManager:
         try:
             p.setRenderHint(QtGui.QPainter.Antialiasing, True)
             pen = QtGui.QPen(color)
-            pen.setWidthF(1.6)
-            pen.setCapStyle(Qt.RoundCap)
-            pen.setJoinStyle(Qt.RoundJoin)
+            # 线性/直角风格（更接近 Windows 标题栏图标观感）
+            pen.setWidthF(1.4)
+            pen.setCapStyle(Qt.SquareCap)
+            pen.setJoinStyle(Qt.MiterJoin)
             p.setPen(pen)
 
-            pad = 3.0
+            # 12px icon：留白略小一点，画面更“利落”
+            pad = 2.5
             sf = float(s)
 
             if kind == "close":
                 p.drawLine(QtCore.QPointF(pad, pad), QtCore.QPointF(sf - pad, sf - pad))
                 p.drawLine(QtCore.QPointF(sf - pad, pad), QtCore.QPointF(pad, sf - pad))
             elif kind == "float":
-                # 两个重叠方框：表示“浮动/弹出”
-                r1 = QtCore.QRectF(4.0, 3.0, sf - 7.0, sf - 7.0)
-                r2 = QtCore.QRectF(3.0, 4.0, sf - 7.0, sf - 7.0)
-                p.drawRect(r1)
-                p.drawRect(r2)
-            elif kind == "dock":
-                # 一个方框 + 底部横线：表示“停靠回面板”
-                r = QtCore.QRectF(3.0, 3.0, sf - 6.0, sf - 6.0)
+                # 单个方框：表示“浮动/弹出”（类似最大化）
+                r = QtCore.QRectF(pad, pad, sf - pad * 2, sf - pad * 2)
                 p.drawRect(r)
-                y = sf - 4.2
-                p.drawLine(QtCore.QPointF(3.0, y), QtCore.QPointF(sf - 3.0, y))
+            elif kind == "dock":
+                # 两个重叠方框：表示“还原/停靠回面板”（类似还原窗口）
+                w = sf - 6.0
+                r_back = QtCore.QRectF(2.5, 2.0, w, w)
+                r_front = QtCore.QRectF(3.5, 3.0, w, w)
+                p.drawRect(r_back)
+                p.drawRect(r_front)
             else:
                 # fallback：画一个方框
                 r = QtCore.QRectF(3.0, 3.0, sf - 6.0, sf - 6.0)
@@ -478,7 +479,8 @@ class UiThemeManager:
             except Exception:
                 pass
 
-        icon_color = QtGui.QColor("#6B7280")
+        # 图标颜色：跟随标题文字色（避免固定灰导致“颜色不对”）
+        icon_color = QtGui.QColor("#111827")
 
         # 已设置过则只更新文本/高度
         tb = dock.titleBarWidget()
