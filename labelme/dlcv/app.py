@@ -1333,6 +1333,31 @@ class MainWindow(MainWindow):
                 self.simplifyShapePoints(last_shape)
                 logger.info(f"简化后点数: {len(last_shape.points)}")
 
+        # 检查当前形状是否合法
+        current_shape = self.canvas.current
+        if current_shape is not None:
+            shape_type = current_shape.shape_type
+            points_count = len(current_shape.points)
+            
+            # 如果是关键点（points），点数>=1即可
+            # 如果不是关键点，点数必须>=2
+            if shape_type == "points":
+                if points_count < 1:
+                    self.errorMessage(
+                        self.tr("Invalid shape"),
+                        self.tr("关键点标注至少需要1个点")
+                    )
+                    self._cancel_shape_creation()
+                    return
+            else:
+                if points_count < 2:
+                    self.errorMessage(
+                        self.tr("Invalid shape"),
+                        self.tr("{}标注至少需要2个点").format(shape_type)
+                    )
+                    self._cancel_shape_creation()
+                    return
+
         items = self.uniqLabelList.selectedItems()
         text = None
 
