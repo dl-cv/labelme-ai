@@ -1,6 +1,7 @@
 import sys
 import time  # noqa
 import traceback
+import math
 from pathlib import Path
 
 import labelme.dlcv.ai
@@ -1334,29 +1335,22 @@ class MainWindow(MainWindow):
                 logger.info(f"简化后点数: {len(last_shape.points)}")
 
         # 检查当前形状是否合法
-        current_shape = self.canvas.current
-        if current_shape is not None:
+        # 注意：在newShape被调用时，current已经被移动到shapes列表中了
+        if self.canvas.shapes:
+            current_shape = self.canvas.shapes[-1]
             shape_type = current_shape.shape_type
-            points_count = len(current_shape.points)
+            points = current_shape.points
             
-            # 如果是关键点（points），点数>=1即可
-            # 如果不是关键点，点数必须>=2
-            if shape_type == "points":
-                if points_count < 1:
-                    self.errorMessage(
-                        self.tr("Invalid shape"),
-                        self.tr("关键点标注至少需要1个点")
-                    )
-                    self._cancel_shape_creation()
-                    return
-            else:
-                if points_count < 2:
-                    self.errorMessage(
-                        self.tr("Invalid shape"),
-                        self.tr("{}标注至少需要2个点").format(shape_type)
-                    )
-                    self._cancel_shape_creation()
-                    return
+            # 如果是关键点（points），不需要验证
+            if shape_type != ShapeType.POINTS:
+                # 检查前后两个点的坐标是否重合
+                if len(points) >= 2:
+                    # 检查相邻两个点是否重合
+                    for i in range(len(points) - 1):
+                        if points[i].x() == points[i + 1].x() and points[i].y() == points[i + 1].y():
+                            # 如果坐标重合，直接取消并返回
+                            self._cancel_shape_creation()
+                            return
 
         items = self.uniqLabelList.selectedItems()
         text = None
