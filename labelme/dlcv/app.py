@@ -1178,7 +1178,7 @@ class MainWindow(MainWindow):
         for i in range(self.flag_widget.count()):
             item = self.flag_widget.item(i)
             key = item.text()
-            flag = item.checkState(0) == Qt.Checked
+            flag = item.checkState() == Qt.Checked
             flags[key] = flag
 
         # extra 如果当前 shapes 为空, 并且 flags 没有 true, 则删除标签文件
