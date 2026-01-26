@@ -1372,7 +1372,7 @@ class MainWindow(MainWindow):
 
             # https://bbs2.dlcv.com.cn/t/topic/1048/3
             # 保存 label.txt
-            label_txt_path = Path(self.lastOpenDir) / "label.txt"
+            label_txt_path = Path(self.fileListWidget.tree_widget.get_root_dir()) / "label.txt"
             self._save_label_txt(label_txt_path)
             # extra end
         else:

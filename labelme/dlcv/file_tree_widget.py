@@ -208,8 +208,9 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         if not root_dir or not os.path.exists(root_dir):
             return
 
-        self._root_dir = root_dir  # 保存根目录路径
         self.clear()
+
+        self._root_dir = root_dir  # 保存根目录路径
         # 只加载根目录下的文件夹
         root_item = self.invisibleRootItem()
         self._load_directory_contents(root_dir, root_item)
