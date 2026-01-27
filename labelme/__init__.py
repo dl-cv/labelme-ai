@@ -14,7 +14,7 @@ __appname__ = "LabelmeAI"
 # e.g., 1.0.0a0, 1.0.0a1, 1.0.0b0, 1.0.0rc0, 1.0.0, 1.0.0.post0
 
 
-__version__ = "2026.01.26.0"
+__version__ = "2026.01.27.0"
 
 
 QT4 = QT_VERSION[0] == "4"
