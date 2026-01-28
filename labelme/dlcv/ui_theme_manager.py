@@ -398,6 +398,8 @@ class UiThemeManager:
                     docks.append(dock)
 
         for dock in docks:
+            if not dock.isVisible():
+                continue
             if enable:
                 self._set_dock_custom_title_bar(dock)
             else:
