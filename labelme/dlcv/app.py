@@ -1899,7 +1899,7 @@ class MainWindow(MainWindow):
         self.fileListWidget = FileTreeWidget(self)
 
         def file_selection_changed():
-            item = self.fileListWidget.currentItem()
+            item = self.fileListWidget.selectedItems()[0]
             file_path = item.get_path()
             if Path(file_path).is_file():
                 self.fileSelectionChanged()
