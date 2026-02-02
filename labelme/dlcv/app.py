@@ -1347,13 +1347,9 @@ class MainWindow(MainWindow):
             if not text:
                 self.labelDialog.edit.setText(previous_text)
 
-        if text and not self.validateLabel(text):
-            self.errorMessage(
-                self.tr("Invalid label"),
-                self.tr("Invalid label '{}' with validation type '{}'").format(
-                    text, self._config["validate_label"]
-                ),
-            )
+        message = self.validateLabelName(text) if text else None
+        if message:
+            self.errorMessage(self.tr("Invalid label"), message)
             text = ""
         if text:
             self.labelList.clearSelection()
