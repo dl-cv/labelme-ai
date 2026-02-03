@@ -1,6 +1,7 @@
 import sys
 import time  # noqa
 import traceback
+import math
 from pathlib import Path
 
 import labelme.dlcv.ai
@@ -1332,6 +1333,24 @@ class MainWindow(MainWindow):
                 logger.info(f"简化前点数: {len(last_shape.points)}")
                 self.simplifyShapePoints(last_shape)
                 logger.info(f"简化后点数: {len(last_shape.points)}")
+
+        # 检查当前形状是否合法
+        # 注意：在newShape被调用时，current已经被移动到shapes列表中了
+        if self.canvas.shapes:
+            current_shape = self.canvas.shapes[-1]
+            shape_type = current_shape.shape_type
+            points = current_shape.points
+            
+            # 如果是关键点（points），不需要验证
+            if shape_type != ShapeType.POINTS:
+                # 检查前后两个点的坐标是否重合
+                if len(points) >= 2:
+                    # 检查相邻两个点是否重合
+                    for i in range(len(points) - 1):
+                        if points[i].x() == points[i + 1].x() and points[i].y() == points[i + 1].y():
+                            # 如果坐标重合，直接取消并返回
+                            self._cancel_shape_creation()
+                            return
 
         items = self.uniqLabelList.selectedItems()
         text = None
