@@ -1527,7 +1527,7 @@ class MainWindow(MainWindow):
         if osp.getsize(file_path) <= 0:
             self.errorMessage(
                 self.tr("Error opening file"),
-                self.tr("文件大小为0"),
+                dlcv_tr("文件大小为0"),
             )
             return True
 

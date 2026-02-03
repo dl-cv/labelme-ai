@@ -90,7 +90,7 @@ tr_map = {
         '系统设置':
         'System Settings',
         '语言(Language)':
-        '语言(Language)',
+        'Language',
         '简体中文':
         'Simplified Chinese',
         '英文':
@@ -400,6 +400,14 @@ tr_map = {
         'Please select an annotation first',
         '分割更新失败':
         'Segmentation update failed',
+        
+        # ======错误提示======
+        '错误':
+        'Error',
+        '类别名称不能是 Python 关键字：{}':
+        'Category name cannot be a Python keyword: {}',
+        '以下类别名称是 Python 关键字，无法保存：{}':
+        'The following category names are Python keywords and cannot be saved: {}',
     
         # ======其他处理======
     },
@@ -445,9 +453,9 @@ tr_map = {
         'Font Size': '字体大小',
         
         # 界面风格
-        'UI Theme': '界面风格(UI Theme)',
-        'Modern UI': '新版UI(现代)',
-        'Classic UI (Restore CSS)': '原版UI(恢复CSS)',
+        'UI Theme': '界面风格',
+        'Modern UI': '新版UI（现代）',
+        'Classic UI (Restore CSS)': '原版UI（恢复CSS）',
         'Switched to Modern UI': '已切换为新版界面',
         'Restored to Classic UI': '已恢复为原版界面',
         'Dock': '停靠',
@@ -457,7 +465,7 @@ tr_map = {
         'Attributes': '属性',
         'Annotation': '标注',
         'Select All Polygons': '全选多边形',
-        'Auto Label (L)': '自动标注(L)',
+        'Auto Label (L)': '自动标注（L）',
         'Rotate Counterclockwise': '逆时针旋转',
         'Rotate Clockwise': '顺时针旋转',
         'Toggle Edit/Draw Mode': '编辑和绘制状态切换',
@@ -476,6 +484,11 @@ tr_map = {
         'Score Threshold': '分数阈值',
         'IoU Threshold': 'IoU阈值',
         'AI Mask Model': 'AI掩膜模型',
+        
+        # 错误提示
+        'Error': '错误',
+        'Category name cannot be a Python keyword: {}': '类别名称不能是 Python 关键字：{}',
+        'The following category names are Python keywords and cannot be saved: {}': '以下类别名称是 Python 关键字，无法保存：{}',
     },
 }
 
