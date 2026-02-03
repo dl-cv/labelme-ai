@@ -2,6 +2,7 @@
 
 import functools
 import html
+import keyword
 import math
 import os
 import os.path as osp
@@ -37,6 +38,8 @@ from labelme.widgets import UniqueLabelQListWidget
 from labelme.widgets import ZoomWidget
 
 from . import utils
+
+keywords = keyword.kwlist + getattr(keyword, "softkwlist", [])
 
 # FIXME
 # - [medium] Set max zoom value to something big enough for FitWidth/Window
@@ -1149,17 +1152,34 @@ class MainWindow(QtWidgets.QMainWindow):
     def popLabelListMenu(self, point):
         self.menus.labelList.exec_(self.labelList.mapToGlobal(point))
 
-    def validateLabel(self, label):
+    def validateLabelName(self, label):
+        if label is None:
+            return None
+
+        if hasattr(label, "strip"):
+            label = label.strip()
+        else:
+            label = label.trimmed()
+        label = str(label)
+
+        if label in keywords:
+            return self.tr("类别名称不能是 Python 关键字：{}").format(label)
+
         # no validation
         if self._config["validate_label"] is None:
-            return True
+            return None
 
         for i in range(self.uniqLabelList.count()):
             label_i = self.uniqLabelList.item(i).data(Qt.UserRole)
             if self._config["validate_label"] in ["exact"]:
                 if label_i == label:
-                    return True
-        return False
+                    return None
+        return self.tr("Invalid label '{}' with validation type '{}'").format(
+            label, self._config["validate_label"]
+        )
+
+    def validateLabel(self, label):
+        return self.validateLabelName(label) is None
 
     def _edit_label(self, value=None):
         if not self.canvas.editing():
@@ -1233,14 +1253,11 @@ class MainWindow(QtWidgets.QMainWindow):
             )
 
     def _update_item(self, item, text, flags, group_id, description):
-        if not self.validateLabel(text):
-            self.errorMessage(
-                self.tr("Invalid label"),
-                self.tr("Invalid label '{}' with validation type '{}'").format(
-                    text, self._config["validate_label"]
-                ),
-            )
-            return
+        if text is not None:
+            message = self.validateLabelName(text)
+            if message:
+                self.errorMessage(self.tr("Invalid label"), message)
+                return
 
         shape = item.shape()
 
@@ -1430,6 +1447,26 @@ class MainWindow(QtWidgets.QMainWindow):
     def saveLabels(self, filename):
         lf = LabelFile()
 
+        invalidLabels = []
+        for item in self.labelList:
+            label = item.shape().label
+            if hasattr(label, "strip"):
+                label = label.strip()
+            else:
+                label = label.trimmed()
+            label = str(label)
+            if label in keywords:
+                invalidLabels.append(label)
+        if invalidLabels:
+            invalidLabels = sorted(set(invalidLabels))
+            self.errorMessage(
+                self.tr("Invalid label"),
+                self.tr("以下类别名称是 Python 关键字，无法保存：{}").format(
+                    ", ".join(invalidLabels)
+                ),
+            )
+            return False
+
         def format_shape(s):
             data = s.other_data.copy()
             data.update(
@@ -1538,13 +1575,9 @@ class MainWindow(QtWidgets.QMainWindow):
             if not text:
                 self.labelDialog.edit.setText(previous_text)
 
-        if text and not self.validateLabel(text):
-            self.errorMessage(
-                self.tr("Invalid label"),
-                self.tr("Invalid label '{}' with validation type '{}'").format(
-                    text, self._config["validate_label"]
-                ),
-            )
+        message = self.validateLabelName(text) if text else None
+        if message:
+            self.errorMessage(self.tr("Invalid label"), message)
             text = ""
         if text:
             self.labelList.clearSelection()

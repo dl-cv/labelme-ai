@@ -1,4 +1,5 @@
 import re
+import keyword
 
 from qtpy import QT_VERSION
 from qtpy import QtCore
@@ -9,6 +10,8 @@ import labelme.utils
 from labelme.logger import logger
 
 QT5 = QT_VERSION[0] == "5"
+
+keywords = keyword.kwlist + getattr(keyword, "softkwlist", [])
 
 
 # TODO(unknown):
@@ -139,7 +142,16 @@ class LabelDialog(QtWidgets.QDialog):
             text = text.strip()
         else:
             text = text.trimmed()
+        text = str(text)
+        if text in keywords:
+            QtWidgets.QMessageBox.warning(
+                self,
+                self.tr("错误"),
+                self.tr("类别名称不能是 Python 关键字：{}").format(text),
+            )
+            return
         if text:
+            self.edit.setText(text)
             self.accept()
 
     def labelDoubleClicked(self, item):

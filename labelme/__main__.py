@@ -1,3 +1,12 @@
+import sys
+from pathlib import Path
+
+# 判断是否是 python 启动
+if sys.argv[-1].endswith('.py'):
+    labelme_path = str(Path(__file__).parent.parent)
+    print(f"labelme_path: {labelme_path}")
+    sys.path.insert(0, labelme_path)
+
 from labelme.logger import logger  # noqa: F401 先导入logger，防止未正常启动exe就报错
 
 import argparse
@@ -5,7 +14,6 @@ import asyncio
 import codecs
 import logging
 import os
-import sys
 
 import yaml
 from qtpy import QtCore
