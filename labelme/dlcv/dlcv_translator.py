@@ -364,6 +364,43 @@ tr_map = {
         'Use Bbox for auto annotation',
         '请输入需要自动标注的类别':
         'Please enter the categories to be automatically annotated',
+        
+        # ======界面风格======
+        '界面风格(UI Theme)':
+        'UI Theme',
+        '新版UI(现代)':
+        'Modern UI',
+        '原版UI(恢复CSS)':
+        'Classic UI (Restore CSS)',
+        '已切换为新版界面':
+        'Switched to Modern UI',
+        '已恢复为原版界面':
+        'Restored to Classic UI',
+        '停靠':
+        'Dock',
+        '浮动':
+        'Float',
+        
+        # ======其他功能======
+        '属性':
+        'Attributes',
+        '标注':
+        'Annotation',
+        '全选多边形':
+        'Select All Polygons',
+        '自动标注(L)':
+        'Auto Label (L)',
+        '逆时针旋转':
+        'Rotate Counterclockwise',
+        '顺时针旋转':
+        'Rotate Clockwise',
+        '编辑和绘制状态切换':
+        'Toggle Edit/Draw Mode',
+        '请先选中一个标注':
+        'Please select an annotation first',
+        '分割更新失败':
+        'Segmentation update failed',
+    
         # ======其他处理======
     },
     'zh_CN': {
@@ -406,6 +443,39 @@ tr_map = {
         'System Setting': '系统设置',
         'Language': '语言',
         'Font Size': '字体大小',
+        
+        # 界面风格
+        'UI Theme': '界面风格(UI Theme)',
+        'Modern UI': '新版UI(现代)',
+        'Classic UI (Restore CSS)': '原版UI(恢复CSS)',
+        'Switched to Modern UI': '已切换为新版界面',
+        'Restored to Classic UI': '已恢复为原版界面',
+        'Dock': '停靠',
+        'Float': '浮动',
+        
+        # 其他功能
+        'Attributes': '属性',
+        'Annotation': '标注',
+        'Select All Polygons': '全选多边形',
+        'Auto Label (L)': '自动标注(L)',
+        'Rotate Counterclockwise': '逆时针旋转',
+        'Rotate Clockwise': '顺时针旋转',
+        'Toggle Edit/Draw Mode': '编辑和绘制状态切换',
+        'Please select an annotation first': '请先选中一个标注',
+        'Segmentation update failed': '分割更新失败',
+        
+        # 属性窗口
+        'Width:': '宽度:',
+        'Height:': '高度:',
+        'Area:': '面积:',
+        
+        # AI标注相关
+        'AI Prompt': 'AI提示',
+        'e.g., dog,cat,bird': '例如：狗、猫、鸟',
+        'Submit': '提交',
+        'Score Threshold': '分数阈值',
+        'IoU Threshold': 'IoU阈值',
+        'AI Mask Model': 'AI掩膜模型',
     },
 }
 
