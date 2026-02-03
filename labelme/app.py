@@ -22,6 +22,7 @@ from labelme import __appname__
 from labelme import ai
 from labelme.ai import MODELS
 from labelme.config import get_config
+from labelme.dlcv import dlcv_tr
 from labelme.label_file import LabelFile
 from labelme.label_file import LabelFileError
 from labelme.logger import logger
@@ -1163,7 +1164,7 @@ class MainWindow(QtWidgets.QMainWindow):
         label = str(label)
 
         if label in keywords:
-            return self.tr("类别名称不能是 Python 关键字：{}").format(label)
+            return dlcv_tr("类别名称不能是 Python 关键字：{}").format(label)
 
         # no validation
         if self._config["validate_label"] is None:
@@ -1461,7 +1462,7 @@ class MainWindow(QtWidgets.QMainWindow):
             invalidLabels = sorted(set(invalidLabels))
             self.errorMessage(
                 self.tr("Invalid label"),
-                self.tr("以下类别名称是 Python 关键字，无法保存：{}").format(
+                dlcv_tr("以下类别名称是 Python 关键字，无法保存：{}").format(
                     ", ".join(invalidLabels)
                 ),
             )

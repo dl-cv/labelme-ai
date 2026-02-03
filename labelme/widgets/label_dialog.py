@@ -7,6 +7,7 @@ from qtpy import QtGui
 from qtpy import QtWidgets
 
 import labelme.utils
+from labelme.dlcv import dlcv_tr
 from labelme.logger import logger
 
 QT5 = QT_VERSION[0] == "5"
@@ -146,8 +147,8 @@ class LabelDialog(QtWidgets.QDialog):
         if text in keywords:
             QtWidgets.QMessageBox.warning(
                 self,
-                self.tr("错误"),
-                self.tr("类别名称不能是 Python 关键字：{}").format(text),
+                dlcv_tr("错误"),
+                dlcv_tr("类别名称不能是 Python 关键字：{}").format(text),
             )
             return
         if text:
