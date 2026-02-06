@@ -295,11 +295,13 @@ class CustomCanvas(Canvas):
             if shape.shape_type not in ['polygon', 'rectangle']:
                 continue
             
-            # 几何转换
+            # 几何转换（使用副本，避免原地修改污染 undo 快照）
+            work_shape = shape
             if shape.shape_type == 'rectangle':
-                shape.convert_to_polygon()
+                work_shape = shape.copy()
+                work_shape.convert_to_polygon()
             
-            points_pos = shape.get_points_pos()
+            points_pos = work_shape.get_points_pos()
             shape_poly = Polygon(points_pos)
 
             if not shape_poly.is_valid or not shape_poly.intersects(line_geo):
