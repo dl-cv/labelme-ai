@@ -2008,38 +2008,32 @@ class MainWindow(MainWindow):
         """
         接收 Canvas 分割好的图形，进行全量状态刷新。
         参考 loadFile 的稳定性，使用 loadShapes 进行内存重载。
+        
+        注意：不能使用 remLabels 删除旧标签再 addLabel 添加新标签，
+        因为 remLabels -> removeItem -> removeRows 会触发 itemDropped 信号
+        -> labelOrderChanged -> canvas.loadShapes([]) 导致 undo 栈被污染。
+        应该先构造好最终的 shapes 列表，再用 labelList.clear() + loadShapes 一次性重建。
         """
         try:
-            # 1. 先删除旧 shape 的 label（避免重复）
-            self.remLabels([old_shape])
-            
-            # 2. 为新 shapes 添加 labels
-            for new_shape in new_shapes:
-                self.addLabel(new_shape)
-            
-            # 3. 更新 canvas 的 shapes 列表（但不替换，只更新特定部分）
-            # 构造新的 Shape 列表
-            current_shapes = self.canvas.shapes
+            # 1. 构造新的 Shape 列表（先算好，再统一更新）
             final_shapes = []
-            
-            # 保留没被切的，排除被切的
-            for s in current_shapes:
+            for s in self.canvas.shapes:
                 if s is not old_shape:
                     final_shapes.append(s)
-            
-            # 加入切出来的新图形
             final_shapes.extend(new_shapes)
             
-            # 4. 调用 canvas.loadShapes 更新 canvas（这会重建 visible 字典等）
-            self.canvas.loadShapes(final_shapes, replace=True)
+            # 2. 清空 labelList 再通过 loadShapes 一次性重建标签和 canvas
+            #    labelList.clear() 使用 model().clear()，不会触发 itemDropped 信号
+            #    loadShapes 内部会调用 canvas.loadShapes -> storeShapes() 保存切割后状态
+            self.labelList.clear()
+            self.loadShapes(final_shapes)
             
-            # 5. 选中新图形
+            # 3. 选中新图形
             self.canvas.selectShapes(new_shapes)
             
-            # 6. 标记文件已修改
+            # 4. 标记文件已修改
             self.setDirty()
             
-            # 7. 打印日志或通知
             logger.info(f"Split finished: 1 shape -> {len(new_shapes)} shapes")
             
         except Exception as e:
@@ -3054,6 +3048,8 @@ class MainWindow(MainWindow):
 
         if self.canvas.drawing() and self.canvas.current:
             self.canvas.current.shape_type = self.canvas.createMode
+        
+        self.canvas.restoreCursor()
 
     # ------------ zx触发事件动作 ------------
     def _init_trigger_action(self):
