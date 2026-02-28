@@ -1345,12 +1345,11 @@ class MainWindow(MainWindow):
             if shape_type != ShapeType.POINTS:
                 # 检查前后两个点的坐标是否重合
                 if len(points) >= 2:
-                    # 检查相邻两个点是否重合
-                    for i in range(len(points) - 1):
-                        if points[i].x() == points[i + 1].x() and points[i].y() == points[i + 1].y():
-                            # 如果坐标重合，直接取消并返回
-                            self._cancel_shape_creation()
-                            return
+                    # 最前面两个点是否重合
+                    list_point = current_shape.get_points_pos()
+                    if list_point[0] == list_point[1]:
+                        self._cancel_shape_creation()
+                        return
 
         items = self.uniqLabelList.selectedItems()
         text = None

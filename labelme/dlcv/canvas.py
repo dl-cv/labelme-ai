@@ -2063,6 +2063,9 @@ class Canvas(CustomCanvas):
             end_y = arrow_start_y + arrow_length * dir_vector.y()
             self.current.arrow_end = QtCore.QPointF(end_x, end_y)
 
+        if self.current and self.current.shape_type == ShapeType.POLYGON:
+            if len(self.current.points) < 3:
+                return
 
         # 调用父类的finalise方法完成提交
         super().finalise()
