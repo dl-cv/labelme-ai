@@ -106,7 +106,17 @@ class Shape(Shape):
             self.close()
 
     def addPoint(self, point: QtCore.QPointF, label=1):
-        super().addPoint(point, label)
+        if self.points and point == self.points[0]:
+            self.close()
+        else:
+            # 检查是否是重复的点（与列表中最后一个点相同）, 防止用户连续点击同一位置时，重复的是最近添加的点
+            if self.points:
+                last_point = self.points[-1]
+                if abs(point.x() - last_point.x()) < 1e-6 and abs(point.y() - last_point.y()) < 1e-6:
+                    return  # 重复点，直接返回不添加
+
+            self.points.append(point)
+            self.point_labels.append(label)
 
     def paint(self, painter):
         if self.mask is None and not self.points:
