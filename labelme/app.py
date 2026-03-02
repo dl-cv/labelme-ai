@@ -1646,9 +1646,13 @@ class MainWindow(QtWidgets.QMainWindow):
         old_v_value = self.scrollBars[Qt.Vertical].value()
         canvas_offset = getattr(self.canvas, "offset", QtCore.QPointF(0, 0))
 
-        # Keep the logical point under the cursor fixed across zoom levels.
+        # Keep the same logical point under the same viewport pixel.
         logical_anchor = (
             QtCore.QPointF(pos) / old_scale - old_center - canvas_offset
+        )
+        viewport_anchor = QtCore.QPointF(
+            pos.x() - old_h_value,
+            pos.y() - old_v_value,
         )
 
         units = 1.1
@@ -1658,32 +1662,32 @@ class MainWindow(QtWidgets.QMainWindow):
         new_scale = self.canvas.scale
         new_center = self.canvas.offsetToCenter()
 
-        anchor_after_zoom = (
+        anchor_widget_after_zoom = (
             logical_anchor + new_center + canvas_offset
         ) * new_scale
-        x_shift = anchor_after_zoom.x() - pos.x()
-        y_shift = anchor_after_zoom.y() - pos.y()
-
-        target_h_value = old_h_value + x_shift
-        target_v_value = old_v_value + y_shift
+        target_h_value = anchor_widget_after_zoom.x() - viewport_anchor.x()
+        target_v_value = anchor_widget_after_zoom.y() - viewport_anchor.y()
 
         self.setScroll(Qt.Horizontal, target_h_value)
         self.setScroll(Qt.Vertical, target_v_value)
 
         # If scrollbars are clamped (e.g. image smaller than viewport),
-        # use canvas offset as residual compensation so blank areas behave
-        # the same as image areas during zoom.
+        # solve canvas offset by back-substitution to preserve anchor exactly.
         if hasattr(self.canvas, "offset"):
-            new_h_value = self.scrollBars[Qt.Horizontal].value()
-            new_v_value = self.scrollBars[Qt.Vertical].value()
-            residual_x = target_h_value - new_h_value
-            residual_y = target_v_value - new_v_value
-            if residual_x or residual_y:
-                self.canvas.offset -= QtCore.QPointF(
-                    residual_x / new_scale,
-                    residual_y / new_scale,
-                )
-                self.canvas.update()
+            actual_h_value = self.scrollBars[Qt.Horizontal].value()
+            actual_v_value = self.scrollBars[Qt.Vertical].value()
+            solved_offset_x = (
+                (viewport_anchor.x() + actual_h_value) / new_scale
+                - logical_anchor.x()
+                - new_center.x()
+            )
+            solved_offset_y = (
+                (viewport_anchor.y() + actual_v_value) / new_scale
+                - logical_anchor.y()
+                - new_center.y()
+            )
+            self.canvas.offset = QtCore.QPointF(solved_offset_x, solved_offset_y)
+            self.canvas.update()
 
     def setFitWindow(self, value=True):
         if value:
