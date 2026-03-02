@@ -1604,12 +1604,32 @@ class MainWindow(QtWidgets.QMainWindow):
         self.scrollBars[orientation].setValue(int(value))
         self.scroll_values[orientation][self.filename] = value
 
+    def minimumZoomValue(self):
+        if self.image is None or self.image.isNull():
+            return 1
+        pixmap = self.canvas.pixmap
+        if pixmap is None or pixmap.isNull():
+            return 1
+
+        viewport_w = max(1.0, self.centralWidget().width() - 2.0)
+        viewport_h = max(1.0, self.centralWidget().height() - 2.0)
+        image_w = max(1.0, float(pixmap.width()))
+        image_h = max(1.0, float(pixmap.height()))
+
+        # Ensure the image keeps at least 1/5 of viewport on both axes.
+        min_scale = max(
+            viewport_w / (5.0 * image_w),
+            viewport_h / (5.0 * image_h),
+        )
+        return max(1, int(math.ceil(min_scale * 100)))
+
     def setZoom(self, value):
         self.actions.fitWidth.setChecked(False)
         self.actions.fitWindow.setChecked(False)
         self.zoomMode = self.MANUAL_ZOOM
-        self.zoomWidget.setValue(value)
-        self.zoom_values[self.filename] = (self.zoomMode, value)
+        zoom_value = max(self.minimumZoomValue(), int(value))
+        self.zoomWidget.setValue(zoom_value)
+        self.zoom_values[self.filename] = (self.zoomMode, zoom_value)
 
     def addZoom(self, increment=1.1):
         zoom_value = self.zoomWidget.value() * increment
