@@ -386,8 +386,8 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             menu.addSeparator()
             copy_file_name_action = menu.addAction(dlcv_tr("复制文件名"))
             copy_path_action = menu.addAction(dlcv_tr("复制路径"))
-            menu.addSeparator()
             copy_to_clipboard_action = menu.addAction(dlcv_tr("复制文件到剪贴板"))
+            menu.addSeparator()
             delete_action = menu.addAction(dlcv_tr("删除图片及标注"))
 
             display_in_explorer_action.triggered.connect(open_in_explorer)
