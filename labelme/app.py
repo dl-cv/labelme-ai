@@ -1620,27 +1620,50 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setZoom(zoom_value)
 
     def zoomRequest(self, delta, pos):
-        canvas_width_old = self.canvas.width()
+        old_scale = self.canvas.scale
+        old_center = self.canvas.offsetToCenter()
+        old_h_value = self.scrollBars[Qt.Horizontal].value()
+        old_v_value = self.scrollBars[Qt.Vertical].value()
+        canvas_offset = getattr(self.canvas, "offset", QtCore.QPointF(0, 0))
+
+        # Keep the logical point under the cursor fixed across zoom levels.
+        logical_anchor = (
+            QtCore.QPointF(pos) / old_scale - old_center - canvas_offset
+        )
+
         units = 1.1
         if delta < 0:
             units = 0.9
         self.addZoom(units)
+        new_scale = self.canvas.scale
+        new_center = self.canvas.offsetToCenter()
 
-        canvas_width_new = self.canvas.width()
-        if canvas_width_old != canvas_width_new:
-            canvas_scale_factor = canvas_width_new / canvas_width_old
+        anchor_after_zoom = (
+            logical_anchor + new_center + canvas_offset
+        ) * new_scale
+        x_shift = anchor_after_zoom.x() - pos.x()
+        y_shift = anchor_after_zoom.y() - pos.y()
 
-            x_shift = round(pos.x() * canvas_scale_factor) - pos.x()
-            y_shift = round(pos.y() * canvas_scale_factor) - pos.y()
+        target_h_value = old_h_value + x_shift
+        target_v_value = old_v_value + y_shift
 
-            self.setScroll(
-                Qt.Horizontal,
-                self.scrollBars[Qt.Horizontal].value() + x_shift,
-            )
-            self.setScroll(
-                Qt.Vertical,
-                self.scrollBars[Qt.Vertical].value() + y_shift,
-            )
+        self.setScroll(Qt.Horizontal, target_h_value)
+        self.setScroll(Qt.Vertical, target_v_value)
+
+        # If scrollbars are clamped (e.g. image smaller than viewport),
+        # use canvas offset as residual compensation so blank areas behave
+        # the same as image areas during zoom.
+        if hasattr(self.canvas, "offset"):
+            new_h_value = self.scrollBars[Qt.Horizontal].value()
+            new_v_value = self.scrollBars[Qt.Vertical].value()
+            residual_x = target_h_value - new_h_value
+            residual_y = target_v_value - new_v_value
+            if residual_x or residual_y:
+                self.canvas.offset -= QtCore.QPointF(
+                    residual_x / new_scale,
+                    residual_y / new_scale,
+                )
+                self.canvas.update()
 
     def setFitWindow(self, value=True):
         if value:
