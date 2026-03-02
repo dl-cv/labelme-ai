@@ -289,6 +289,98 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
                 current_path = str(Path(current_path).absolute())
                 os.system(f'start "" "{current_path}"')
 
+            def delete_images_and_labels():
+                # 只处理图片文件节点，忽略文件夹节点
+                file_items = []
+                for file_item in items:
+                    if file_item and file_item.childCount() == 0:
+                        file_path = file_item.get_path()
+                        if file_path and os.path.isfile(file_path):
+                            file_items.append(file_item)
+
+                if not file_items:
+                    return
+
+                msg_box = QtWidgets.QMessageBox
+                yes, no = msg_box.Yes, msg_box.No
+
+                confirm = msg_box.question(
+                    self,
+                    dlcv_tr("确认删除"),
+                    dlcv_tr("你将要删除选中的 {count} 张图片及其标注文件，是否继续？").format(
+                        count=len(file_items)
+                    ),
+                    yes | no,
+                    no,
+                )
+                if confirm != yes:
+                    return
+
+                main_window = STORE.main_window
+                current_file = getattr(main_window, "filename", None)
+                current_file_abs = (
+                    str(Path(current_file).absolute().as_posix()) if current_file else None
+                )
+
+                deleted_count = 0
+                failed = []
+                deleted_current = False
+
+                for file_item in file_items:
+                    img_path = file_item.get_path()
+                    img_path_abs = str(Path(img_path).absolute().as_posix())
+
+                    if current_file_abs and img_path_abs == current_file_abs:
+                        deleted_current = True
+
+                    try:
+                        # 先算出标注路径，再删除图片与标注
+                        json_path = main_window.proj_manager.get_json_path(img_path_abs)
+                        if os.path.exists(img_path_abs):
+                            os.remove(img_path_abs)
+                            deleted_count += 1
+                        if json_path and os.path.exists(json_path):
+                            os.remove(json_path)
+                    except Exception as e:
+                        failed.append((img_path_abs, str(e)))
+
+                if deleted_current and main_window is not None:
+                    main_window.resetState()
+                    main_window.canvas.loadPixmap(QtGui.QPixmap())
+                    main_window.filename = None
+                    self.clearSelection()
+
+                # 删除后重建树，确保 item 立即刷新
+                root_dir = self.get_root_dir()
+                if root_dir and os.path.exists(root_dir):
+                    self.set_root_dir(root_dir)
+
+                # 若存在过滤关键字，重建后继续应用
+                parent_widget = self.parent()
+                if (
+                    parent_widget is not None
+                    and hasattr(parent_widget, "search_box")
+                    and hasattr(parent_widget, "tree_widget")
+                ):
+                    search_text = parent_widget.search_box.text().strip()
+                    if search_text:
+                        parent_widget.tree_widget.search(search_text)
+
+                if failed:
+                    msg_box.warning(
+                        self,
+                        dlcv_tr("删除部分失败"),
+                        dlcv_tr("成功删除 {success} 张，失败 {failed} 张。").format(
+                            success=deleted_count, failed=len(failed)
+                        ),
+                    )
+                else:
+                    msg_box.information(
+                        self,
+                        dlcv_tr("删除完成"),
+                        dlcv_tr("已删除 {count} 张图片。").format(count=deleted_count),
+                    )
+
             open_file_action = menu.addAction(dlcv_tr("打开文件"))
             display_in_explorer_action = menu.addAction(dlcv_tr("打开所在目录"))
             menu.addSeparator()
@@ -296,6 +388,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             copy_path_action = menu.addAction(dlcv_tr("复制路径"))
             menu.addSeparator()
             copy_to_clipboard_action = menu.addAction(dlcv_tr("复制文件到剪贴板"))
+            delete_action = menu.addAction(dlcv_tr("删除图片及标注"))
 
             display_in_explorer_action.triggered.connect(open_in_explorer)
             copy_path_action.triggered.connect(
@@ -306,6 +399,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
                     item.super_text(0)))
             open_file_action.triggered.connect(open_file)
             copy_to_clipboard_action.triggered.connect(copy_to_clipboard)
+            delete_action.triggered.connect(delete_images_and_labels)
 
             menu.exec_(self.viewport().mapToGlobal(event.pos()))
 

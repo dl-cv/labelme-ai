@@ -193,6 +193,24 @@ tr_map = {
         "Copy path",
         "复制文件到剪贴板":
         "Copy file to clipboard",
+        "删除图片及标注":
+        "Delete image and annotation",
+        "确认删除":
+        "Confirm deletion",
+        "你将要删除选中的 {count} 张图片及其标注文件，是否继续？":
+        "You are about to delete {count} selected images and their annotation files. Continue?",
+        "二次确认":
+        "Second confirmation",
+        "该操作不可恢复，是否确认删除？":
+        "This action cannot be undone. Confirm deletion?",
+        "删除完成":
+        "Deletion completed",
+        "已删除 {count} 张图片。":
+        "Deleted {count} image(s).",
+        "删除部分失败":
+        "Partial deletion failed",
+        "成功删除 {success} 张，失败 {failed} 张。":
+        "Successfully deleted {success}, failed {failed}.",
         "未找到 {text} 文件路径":
         "File path not found: {text}",
         "代码不应该运行到这里":
