@@ -180,6 +180,25 @@ class MainWindow(MainWindow):
 
     # UI 主题切换逻辑已抽离到 `UiThemeManager`（见 `labelme/dlcv/ui_theme_manager.py`）
     # https://bbs.dlcv.com.cn/t/topic/590
+    def _sync_label_dialog_order_with_uniq_list(self):
+        """让候选框顺序与右侧 uniqLabelList 保持一致。"""
+        ordered_labels = []
+        existed = set()
+        for i in range(self.uniqLabelList.count()):
+            item = self.uniqLabelList.item(i)
+            label = item.data(Qt.UserRole) or item.text()
+            if label and label not in existed:
+                existed.add(label)
+                ordered_labels.append(label)
+
+        self.labelDialog.labelList.clear()
+        if ordered_labels:
+            self.labelDialog.labelList.addItems(ordered_labels)
+
+    def addLabel(self, shape):
+        super().addLabel(shape)
+        self._sync_label_dialog_order_with_uniq_list()
+
     # 编辑标签
     def _edit_label(self, value=None):
         # extra 绘制模式下, 也允许编辑标签
@@ -254,6 +273,7 @@ class MainWindow(MainWindow):
                 self.uniqLabelList.addItem(item)
                 rgb = self._get_rgb_by_label(text)
                 self.uniqLabelList.setItemLabel(item, text, rgb)
+            self._sync_label_dialog_order_with_uniq_list()
         # extra End
 
         self.canvas.storeShapes()
@@ -745,12 +765,15 @@ class MainWindow(MainWindow):
 
             loaded_count = 0
             for label in all_labels:
+                # 同步到输入框候选列表（LabelDialog 会自动去重）
+                self.labelDialog.addLabelHistory(label)
                 if self.uniqLabelList.findItemByLabel(label) is None:
                     item = self.uniqLabelList.createItemFromLabel(label)
                     self.uniqLabelList.addItem(item)
                     rgb = self._get_rgb_by_label(label)
                     self.uniqLabelList.setItemLabel(item, label, rgb)
                     loaded_count += 1
+            self._sync_label_dialog_order_with_uniq_list()
 
             if loaded_count > 0:
                 notification(
@@ -2002,7 +2025,7 @@ class MainWindow(MainWindow):
         if hasattr(self.canvas, 'sig_split_finish'):
             self.canvas.sig_split_finish.connect(self.on_split_finish_callback)
 
-    # [新增] 回调函数：处理分割后的数据同步
+    # [新增] 回调函数：处理分割后的数据同步 
     def on_split_finish_callback(self, old_shape, new_shapes):
         """
         接收 Canvas 分割好的图形，进行全量状态刷新。
