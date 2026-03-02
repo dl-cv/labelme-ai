@@ -1604,12 +1604,32 @@ class MainWindow(QtWidgets.QMainWindow):
         self.scrollBars[orientation].setValue(int(value))
         self.scroll_values[orientation][self.filename] = value
 
+    def minimumZoomValue(self):
+        if self.image is None or self.image.isNull():
+            return 1
+        pixmap = self.canvas.pixmap
+        if pixmap is None or pixmap.isNull():
+            return 1
+
+        viewport_w = max(1.0, self.centralWidget().width() - 2.0)
+        viewport_h = max(1.0, self.centralWidget().height() - 2.0)
+        image_w = max(1.0, float(pixmap.width()))
+        image_h = max(1.0, float(pixmap.height()))
+
+        # Ensure the image keeps at least 1/5 of viewport on both axes.
+        min_scale = max(
+            viewport_w / (5.0 * image_w),
+            viewport_h / (5.0 * image_h),
+        )
+        return max(1, int(math.ceil(min_scale * 100)))
+
     def setZoom(self, value):
         self.actions.fitWidth.setChecked(False)
         self.actions.fitWindow.setChecked(False)
         self.zoomMode = self.MANUAL_ZOOM
-        self.zoomWidget.setValue(value)
-        self.zoom_values[self.filename] = (self.zoomMode, value)
+        zoom_value = max(self.minimumZoomValue(), int(value))
+        self.zoomWidget.setValue(zoom_value)
+        self.zoom_values[self.filename] = (self.zoomMode, zoom_value)
 
     def addZoom(self, increment=1.1):
         zoom_value = self.zoomWidget.value() * increment
@@ -1620,27 +1640,54 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setZoom(zoom_value)
 
     def zoomRequest(self, delta, pos):
-        canvas_width_old = self.canvas.width()
+        old_scale = self.canvas.scale
+        old_center = self.canvas.offsetToCenter()
+        old_h_value = self.scrollBars[Qt.Horizontal].value()
+        old_v_value = self.scrollBars[Qt.Vertical].value()
+        canvas_offset = getattr(self.canvas, "offset", QtCore.QPointF(0, 0))
+
+        # Keep the same logical point under the same viewport pixel.
+        logical_anchor = (
+            QtCore.QPointF(pos) / old_scale - old_center - canvas_offset
+        )
+        viewport_anchor = QtCore.QPointF(
+            pos.x() - old_h_value,
+            pos.y() - old_v_value,
+        )
+
         units = 1.1
         if delta < 0:
             units = 0.9
         self.addZoom(units)
+        new_scale = self.canvas.scale
+        new_center = self.canvas.offsetToCenter()
 
-        canvas_width_new = self.canvas.width()
-        if canvas_width_old != canvas_width_new:
-            canvas_scale_factor = canvas_width_new / canvas_width_old
+        anchor_widget_after_zoom = (
+            logical_anchor + new_center + canvas_offset
+        ) * new_scale
+        target_h_value = anchor_widget_after_zoom.x() - viewport_anchor.x()
+        target_v_value = anchor_widget_after_zoom.y() - viewport_anchor.y()
 
-            x_shift = round(pos.x() * canvas_scale_factor) - pos.x()
-            y_shift = round(pos.y() * canvas_scale_factor) - pos.y()
+        self.setScroll(Qt.Horizontal, target_h_value)
+        self.setScroll(Qt.Vertical, target_v_value)
 
-            self.setScroll(
-                Qt.Horizontal,
-                self.scrollBars[Qt.Horizontal].value() + x_shift,
+        # If scrollbars are clamped (e.g. image smaller than viewport),
+        # solve canvas offset by back-substitution to preserve anchor exactly.
+        if hasattr(self.canvas, "offset"):
+            actual_h_value = self.scrollBars[Qt.Horizontal].value()
+            actual_v_value = self.scrollBars[Qt.Vertical].value()
+            solved_offset_x = (
+                (viewport_anchor.x() + actual_h_value) / new_scale
+                - logical_anchor.x()
+                - new_center.x()
             )
-            self.setScroll(
-                Qt.Vertical,
-                self.scrollBars[Qt.Vertical].value() + y_shift,
+            solved_offset_y = (
+                (viewport_anchor.y() + actual_v_value) / new_scale
+                - logical_anchor.y()
+                - new_center.y()
             )
+            self.canvas.offset = QtCore.QPointF(solved_offset_x, solved_offset_y)
+            self.canvas.update()
 
     def setFitWindow(self, value=True):
         if value:
