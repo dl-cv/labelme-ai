@@ -1946,7 +1946,88 @@ class MainWindow(MainWindow):
                 self.fileSelectionChanged()
 
         self.fileListWidget.itemSelectionChanged.connect(file_selection_changed)
+        self.fileListWidget.sig_delete_requested.connect(
+            self._on_file_list_delete_requested
+        )
         self.file_dock.setWidget(self.fileListWidget)
+
+    def _confirm_file_list_delete(self, count: int) -> bool:
+        mb = QtWidgets.QMessageBox
+        yes, no = mb.Yes, mb.No
+        answer = mb.question(
+            self,
+            dlcv_tr("确认删除"),
+            dlcv_tr("你将要删除选中的 {count} 张图片及其标注文件，是否继续？").format(
+                count=count
+            ),
+            yes | no,
+            no,
+        )
+        return answer == yes
+
+    def _clear_current_file_after_delete(self):
+        self.resetState()
+        self.canvas.loadPixmap(QtGui.QPixmap())
+        self.filename = None
+        self.fileListWidget.clearSelection()
+
+    def _refresh_file_list_after_delete(self):
+        root_dir = self.fileListWidget.get_root_dir()
+        if root_dir and os.path.exists(root_dir):
+            self.fileListWidget.set_root_dir(root_dir)
+        search_text = self.fileListWidget.search_box.text().strip()
+        if search_text:
+            self.fileListWidget.search(search_text)
+
+    def _show_file_list_delete_result(self, deleted_count: int, failed: list[tuple[str, str]]):
+        mb = QtWidgets.QMessageBox
+        if failed:
+            mb.warning(
+                self,
+                dlcv_tr("删除部分失败"),
+                dlcv_tr("成功删除 {success} 张，失败 {failed} 张。").format(
+                    success=deleted_count, failed=len(failed)
+                ),
+            )
+        else:
+            mb.information(
+                self,
+                dlcv_tr("删除完成"),
+                dlcv_tr("已删除 {count} 张图片。").format(count=deleted_count),
+            )
+
+    def _on_file_list_delete_requested(self, file_paths: list[str]):
+        if not file_paths:
+            return
+        file_paths = [str(Path(p).absolute().as_posix()) for p in file_paths if p]
+        if not file_paths:
+            return
+
+        if not self._confirm_file_list_delete(len(file_paths)):
+            return
+
+        current_file_abs = str(Path(self.filename).absolute().as_posix()) if self.filename else None
+        deleted_current = False
+        deleted_count = 0
+        failed = []
+
+        for img_path_abs in file_paths:
+            if current_file_abs and img_path_abs == current_file_abs:
+                deleted_current = True
+            try:
+                json_path = self.proj_manager.get_json_path(img_path_abs)
+                if os.path.exists(img_path_abs):
+                    os.remove(img_path_abs)
+                    deleted_count += 1
+                if json_path and os.path.exists(json_path):
+                    os.remove(json_path)
+            except Exception as e:
+                failed.append((img_path_abs, str(e)))
+
+        if deleted_current:
+            self._clear_current_file_after_delete()
+        self._refresh_file_list_after_delete()
+        self._show_file_list_delete_result(deleted_count, failed)
 
     def _init_ui(self):
         self._init_label_count_dock()
