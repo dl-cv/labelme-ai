@@ -122,6 +122,8 @@ class MainWindow(MainWindow):
         # 2.5D管理器
         STORE.register_main_window(self)
         super().__init__(config, filename, output, output_file, output_dir)
+        if not hasattr(self, "canvas_offsets"):
+            self.canvas_offsets = {}
 
         Toast.setPositionRelativeToWidget(self)  # 通知控件
         self.dev_setting = QtCore.QSettings("baiduyun_dev", "ai")
@@ -1511,6 +1513,29 @@ class MainWindow(MainWindow):
     def get_horizontal_scrollbar(self):
         return self.scrollBars[Qt.Horizontal]
 
+    def _saveCurrentViewState(self):
+        if not getattr(self, "filename", None):
+            return
+        self.scroll_values[Qt.Horizontal][self.filename] = self.scrollBars[
+            Qt.Horizontal
+        ].value()
+        self.scroll_values[Qt.Vertical][self.filename] = self.scrollBars[
+            Qt.Vertical
+        ].value()
+        if hasattr(self.canvas, "offset"):
+            self.canvas_offsets[self.filename] = QtCore.QPointF(self.canvas.offset)
+
+    def _restoreCurrentFileViewState(self):
+        if not getattr(self, "filename", None):
+            return
+        for orientation in self.scroll_values:
+            if self.filename in self.scroll_values[orientation]:
+                self.setScroll(orientation, self.scroll_values[orientation][self.filename])
+        if hasattr(self.canvas, "offset"):
+            offset = self.canvas_offsets.get(self.filename, QtCore.QPointF(0, 0))
+            self.canvas.offset = QtCore.QPointF(offset)
+            self.canvas.update()
+
     def loadFile(self, filename=None):
         """Load the specified file, or the last opened file if None."""
         # changing fileListWidget loads file
@@ -1535,6 +1560,8 @@ class MainWindow(MainWindow):
         y_percent = vbar.value() / vbar.maximum() if vbar.maximum() > 0 else 0.0
         last_scroll_percent = (round(x_percent, 3), round(y_percent, 3))
 
+        # 保存当前文件的视图状态（滚动条 + 画布偏移）
+        self._saveCurrentViewState()
         self.resetState()
         self.canvas.setEnabled(False)
         if filename is None:
@@ -1628,7 +1655,7 @@ class MainWindow(MainWindow):
         if self._config["keep_prev"]:
             prev_shapes = self.canvas.shapes
 
-        # 2025年8月7日 切换图片后，重置绘制的x,y位置
+        # 默认重置偏移；若需要恢复当前文件历史视图，会在后续逻辑中覆盖
         self.canvas.offset = QtCore.QPointF(0, 0)
         self.canvas.loadPixmap(QtGui.QPixmap.fromImage(image))
 
@@ -1703,13 +1730,19 @@ class MainWindow(MainWindow):
             self.adjustScale(initial=True)
         # extra End
 
-        # set scroll values
-        if not self.keep_scale:  # 不知道这段代码有什么用
+        # set scroll/canvas offset values
+        if not self.keep_scale and self._config["keep_prev_scale"]:
+            # 切回同一图片时，恢复到上次视图位置（滚动条 + 画布偏移）
+            self._restoreCurrentFileViewState()
+        elif not self.keep_scale:  # 兼容旧逻辑
             for orientation in self.scroll_values:
                 if self.filename in self.scroll_values[orientation]:
                     self.setScroll(
                         orientation, self.scroll_values[orientation][self.filename]
                     )
+            if hasattr(self.canvas, "offset"):
+                self.canvas.offset = QtCore.QPointF(0, 0)
+                self.canvas.update()
         # set brightness contrast values
         # dialog = BrightnessContrastDialog(
         #     utils.img_data_to_pil(self.imageData),
