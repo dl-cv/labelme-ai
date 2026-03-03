@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "1.0",
+  "toolId": "dlcv.labelme.ai",
+  "name": "Labelme AI",
+  "description": "DLCV Labelme AI - 强大的图像标注工具，支持AI辅助标注功能",
+  "category": "tools",
+  "tags": [
+    "annotation",
+    "labeling",
+    "ai",
+    "image",
+    "segmentation"
+  ],
+  "icon": "fas fa-tags",
+  "colorClass": "bg-gradient-to-br from-green-500 to-teal-600",
+  "entry": {
+    "kind": "exe",
+    "path": "payload/Labelme AI.exe",
+    "workingDir": "payload",
+    "argsSchema": []
+  }
+}

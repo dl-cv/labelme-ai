@@ -1,7 +1,11 @@
+dist_hub/
+_hub_build/
+
 *.log
 private
 build_script
 dlcv_labelme_ai
+.pypirc
 tests/*.tiff
 tests/*.json
 *.bat
