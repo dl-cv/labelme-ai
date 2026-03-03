@@ -38,6 +38,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
     """
 
     sig_file_selected = QtCore.Signal(str)  # 文件选中信号
+    sig_delete_requested = QtCore.Signal(object)  # 删除请求信号，参数为 list[str]
 
     def __init__(self, parent=None):
         """初始化文件树控件
@@ -240,6 +241,28 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             checked = os.path.exists(json_path)
             file_item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
 
+    def delete_item(self, items: list[FileTreeItem]):
+        deleted_paths = set()
+        for item in items:
+            if item is None:
+                continue
+            file_path = item.get_path()
+            if not file_path:
+                continue
+            deleted_paths.add(file_path)
+
+            self._file_items.pop(file_path, None)
+            parent_item = item.parent()
+            if parent_item is not None:
+                parent_item.removeChild(item)
+            else:
+                self.invisibleRootItem().removeChild(item)
+
+        if deleted_paths:
+            self.image_list = OrderedSet(
+                [p for p in self.image_list if p not in deleted_paths]
+            )
+
     def contextMenuEvent(self, event):
 
         def context_folder_menu(item, event):
@@ -289,13 +312,24 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
                 current_path = str(Path(current_path).absolute())
                 os.system(f'start "" "{current_path}"')
 
+            def delete_images_and_labels():
+                file_paths = []
+                for file_item in items:
+                    if file_item and file_item.childCount() == 0:
+                        file_path = file_item.get_path()
+                        if file_path:
+                            file_paths.append(str(Path(file_path).absolute().as_posix()))
+                if file_paths:
+                    self.sig_delete_requested.emit(file_paths)
+
             open_file_action = menu.addAction(dlcv_tr("打开文件"))
             display_in_explorer_action = menu.addAction(dlcv_tr("打开所在目录"))
             menu.addSeparator()
             copy_file_name_action = menu.addAction(dlcv_tr("复制文件名"))
             copy_path_action = menu.addAction(dlcv_tr("复制路径"))
-            menu.addSeparator()
             copy_to_clipboard_action = menu.addAction(dlcv_tr("复制文件到剪贴板"))
+            menu.addSeparator()
+            delete_action = menu.addAction(dlcv_tr("删除图片及标注"))
 
             display_in_explorer_action.triggered.connect(open_in_explorer)
             copy_path_action.triggered.connect(
@@ -306,6 +340,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
                     item.super_text(0)))
             open_file_action.triggered.connect(open_file)
             copy_to_clipboard_action.triggered.connect(copy_to_clipboard)
+            delete_action.triggered.connect(delete_images_and_labels)
 
             menu.exec_(self.viewport().mapToGlobal(event.pos()))
 
@@ -413,10 +448,56 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             return []
 
 
+def _confirm_delete_dialog(parent: QtWidgets.QWidget, count: int) -> bool:
+    msg_box = QtWidgets.QMessageBox
+    yes, no = msg_box.Yes, msg_box.No
+    confirm = msg_box.question(
+        parent,
+        dlcv_tr("确认删除"),
+        dlcv_tr("你将要删除选中的 {count} 张图片及其标注文件，是否继续？").format(
+            count=count
+        ),
+        yes | no,
+        no,
+    )
+    return confirm == yes
+
+
+def _clear_current_file_state(tree_widget: _FileTreeWidget):
+    main_window = STORE.main_window
+    if main_window is None:
+        return
+    main_window.resetState()
+    main_window.canvas.loadPixmap(QtGui.QPixmap())
+    main_window.filename = None
+    tree_widget.clearSelection()
+
+
+def _show_delete_result_dialog(
+    parent: QtWidgets.QWidget, deleted_count: int, failed: list[tuple[str, str]]
+):
+    msg_box = QtWidgets.QMessageBox
+    if failed:
+        msg_box.warning(
+            parent,
+            dlcv_tr("删除部分失败"),
+            dlcv_tr("成功删除 {success} 张，失败 {failed} 张。").format(
+                success=deleted_count, failed=len(failed)
+            ),
+        )
+    else:
+        msg_box.information(
+            parent,
+            dlcv_tr("删除完成"),
+            dlcv_tr("已删除 {count} 张图片。").format(count=deleted_count),
+        )
+
+
 class FileTreeWidget(QtWidgets.QWidget):
     """文件树类，包含过滤搜索框和树形控件"""
 
     sig_file_selected = QtCore.Signal(str)
+    sig_delete_requested = QtCore.Signal(object)  # 参数为 list[str]
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -444,6 +525,55 @@ class FileTreeWidget(QtWidgets.QWidget):
         self.search_box.returnPressed.connect(self._on_search)
         # 监听文本变化，当清空时自动显示所有文件
         self.search_box.textChanged.connect(self._on_text_changed)
+        # 删除请求在当前组件内处理
+        self.tree_widget.sig_delete_requested.connect(self._on_delete_requested)
+
+    def _on_delete_requested(self, file_paths: list[str]):
+        if not file_paths:
+            return
+
+        file_paths = [str(Path(p).absolute().as_posix()) for p in file_paths if p]
+        if not file_paths:
+            return
+
+        if not _confirm_delete_dialog(self, len(file_paths)):
+            return
+
+        main_window = STORE.main_window
+        if main_window is None:
+            return
+
+        current_file = getattr(main_window, "filename", None)
+        current_file_abs = (
+            str(Path(current_file).absolute().as_posix()) if current_file else None
+        )
+
+        deleted_current = False
+        deleted_count = 0
+        failed = []
+        for img_path_abs in file_paths:
+            if current_file_abs and img_path_abs == current_file_abs:
+                deleted_current = True
+            try:
+                json_path = main_window.proj_manager.get_json_path(img_path_abs)
+                if os.path.exists(img_path_abs):
+                    os.remove(img_path_abs)
+                    deleted_count += 1
+                if json_path and os.path.exists(json_path):
+                    os.remove(json_path)
+            except Exception as e:
+                failed.append((img_path_abs, str(e)))
+
+        items_to_remove = [
+            self.tree_widget._file_items.get(path)
+            for path in file_paths
+            if path in self.tree_widget._file_items
+        ]
+        self.tree_widget.delete_item(items_to_remove)
+
+        if deleted_current:
+            _clear_current_file_state(self.tree_widget)
+        _show_delete_result_dialog(self, deleted_count, failed)
 
     def _on_search(self):
         """处理搜索事件"""
