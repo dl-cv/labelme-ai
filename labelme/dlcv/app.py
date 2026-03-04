@@ -192,10 +192,20 @@ class MainWindow(MainWindow):
             if label and label not in existed:
                 existed.add(label)
                 ordered_labels.append(label)
+        label_list = self.labelDialog.labelList
+        current_item = label_list.currentItem()
+        current_label = current_item.text() if current_item is not None else None
 
-        self.labelDialog.labelList.clear()
-        if ordered_labels:
-            self.labelDialog.labelList.addItems(ordered_labels)
+        blocker = QtCore.QSignalBlocker(label_list)
+        try:
+            label_list.clear()
+            if ordered_labels:
+                label_list.addItems(ordered_labels)
+        finally:
+            del blocker
+
+        if current_label and current_label in ordered_labels:
+            label_list.setCurrentRow(ordered_labels.index(current_label))
 
     def addLabel(self, shape):
         super().addLabel(shape)
