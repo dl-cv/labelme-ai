@@ -46,6 +46,17 @@ def test_LabelDialog_addLabelHistory(qtbot):
 
 
 @pytest.mark.gui
+def test_LabelDialog_labelSelected_none_item(qtbot):
+    labels = ["cat", "dog"]
+    widget = LabelDialog(labels=labels, sort_labels=True)
+    qtbot.addWidget(widget)
+
+    # 清空列表触发 currentItemChanged 时，current 可能是 None
+    widget.labelSelected(None)
+    assert widget.edit.text() == ""
+
+
+@pytest.mark.gui
 def test_LabelDialog_popUp(qtbot):
     labels = ["cat", "dog", "person"]
     widget = LabelDialog(labels=labels, sort_labels=True)

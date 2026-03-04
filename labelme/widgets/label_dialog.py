@@ -135,6 +135,9 @@ class LabelDialog(QtWidgets.QDialog):
             self.labelList.sortItems()
 
     def labelSelected(self, item):
+        # currentItemChanged 在清空列表时会传入 None，需要忽略
+        if item is None:
+            return
         self.edit.setText(item.text())
 
     def validate(self):
