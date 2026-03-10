@@ -47,6 +47,7 @@ from labelme.dlcv.widget.viewAttribute import (
     viewAttribute,
 )
 from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
+from labelme.dlcv.controller.pos_controller import ensure_window_in_screen
 import os
 from labelme.dlcv.widget.label_count import LabelCountDock
 from labelme.dlcv.ui_theme_manager import UiThemeManager
@@ -179,6 +180,9 @@ class MainWindow(MainWindow):
         # 确保标签txt目录存在
         if not os.path.exists(self.LABEL_TXT_DIR):
             os.makedirs(self.LABEL_TXT_DIR, exist_ok=True)
+
+        # 确保窗口位置没有超出屏幕
+        ensure_window_in_screen(self)
 
     # UI 主题切换逻辑已抽离到 `UiThemeManager`（见 `labelme/dlcv/ui_theme_manager.py`）
     # https://bbs.dlcv.com.cn/t/topic/590
