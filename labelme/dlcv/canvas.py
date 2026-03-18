@@ -286,21 +286,7 @@ class CustomCanvas(Canvas):
 
         # 准备切割线
         line_geo = LineString(self.current.get_points_pos())
-        line_coords = list(line_geo.coords)
-        if len(line_coords) < 2: return
-
-        # 延长切割线
-        dx = line_coords[-1][0] - line_coords[0][0]
-        dy = line_coords[-1][1] - line_coords[0][1]
-        length = (dx**2 + dy**2)**0.5
-        if length < 1e-6: return
-
-        extend_length = max(self.pixmap.width(), self.pixmap.height()) * 2
-        unit_dx, unit_dy = dx / length, dy / length
-        extended_line = LineString([
-            (line_coords[0][0] - unit_dx * extend_length, line_coords[0][1] - unit_dy * extend_length),
-            (line_coords[-1][0] + unit_dx * extend_length, line_coords[-1][1] + unit_dy * extend_length)
-        ])
+        if len(line_geo.coords) < 2: return
 
         # 计算任务列表
         tasks = [] # 格式: (old_shape, [new_shape1, new_shape2])
@@ -309,18 +295,20 @@ class CustomCanvas(Canvas):
             if shape.shape_type not in ['polygon', 'rectangle']:
                 continue
             
-            # 几何转换
+            # 几何转换（使用副本，避免原地修改污染 undo 快照）
+            work_shape = shape
             if shape.shape_type == 'rectangle':
-                shape.convert_to_polygon()
+                work_shape = shape.copy()
+                work_shape.convert_to_polygon()
             
-            points_pos = shape.get_points_pos()
+            points_pos = work_shape.get_points_pos()
             shape_poly = Polygon(points_pos)
 
-            if not shape_poly.is_valid or not shape_poly.intersects(extended_line):
+            if not shape_poly.is_valid or not shape_poly.intersects(line_geo):
                 continue
 
             try:
-                result = split(shape_poly, extended_line)
+                result = split(shape_poly, line_geo)
                 if len(result.geoms) < 2: continue
 
                 parts = sorted(result.geoms, key=lambda g: g.area, reverse=True)
