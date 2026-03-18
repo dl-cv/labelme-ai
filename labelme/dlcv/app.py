@@ -1045,6 +1045,54 @@ class MainWindow(MainWindow):
         # 偏移后直接检查边界并自动调整
         self.check_and_adjust_shape_bounds(shape)
 
+    # 将形状移动到指定位置（以形状中心为基准）
+    def move_shape_to_position(self, shape, target_pos):
+        """将形状移动到指定位置，保持形状内部点之间的相对位置
+
+        Args:
+            shape: Shape对象
+            target_pos: QPointF目标位置（形状中心将移动到这里）
+        """
+        if not shape.points:
+            return
+
+        # 计算形状当前中心点
+        center_x = sum(p.x() for p in shape.points) / len(shape.points)
+        center_y = sum(p.y() for p in shape.points) / len(shape.points)
+
+        # 计算需要移动的距离
+        offset_x = target_pos.x() - center_x
+        offset_y = target_pos.y() - center_y
+
+        max_x = self.image.width() - 0.001
+        max_y = self.image.height() - 0.001
+
+        # 计算移动后的边界
+        new_min_x = min(p.x() + offset_x for p in shape.points)
+        new_max_x = max(p.x() + offset_x for p in shape.points)
+        new_min_y = min(p.y() + offset_y for p in shape.points)
+        new_max_y = max(p.y() + offset_y for p in shape.points)
+
+        # 如果移动后超出边界，调整偏移量
+        if new_max_x > max_x:
+            offset_x -= (new_max_x - max_x)
+        if new_max_y > max_y:
+            offset_y -= (new_max_y - max_y)
+        if new_min_x < 0:
+            offset_x -= new_min_x
+        if new_min_y < 0:
+            offset_y -= new_min_y
+
+        # 应用偏移
+        for point in shape.points:
+            new_x = point.x() + offset_x
+            new_y = point.y() + offset_y
+            # 确保不超出边界
+            new_x = max(0, min(new_x, max_x))
+            new_y = max(0, min(new_y, max_y))
+            point.setX(new_x)
+            point.setY(new_y)
+
     # 检查形状是否超出当前图像边界，如果超出则调整
     def check_and_adjust_shape_bounds(self, shape):
         """检查形状是否超出当前图像边界，如果超出则调整"""
@@ -1082,7 +1130,7 @@ class MainWindow(MainWindow):
                 point.setY(new_y)
 
     def pasteSelectedShape(self):
-        """从剪贴板粘贴形状或图像"""
+        """从剪贴板粘贴形状或图像，粘贴位置跟随鼠标"""
         try:
             # 首先尝试从剪贴板读取形状数据
             from labelme.dlcv.widget.clipboard import paste_shapes_from_clipboard
@@ -1092,16 +1140,26 @@ class MainWindow(MainWindow):
             if shapes_data is not None:
                 logger.info(f"=== DEBUG: 当前图像路径: {self.filename} ===")
 
-                # 将形状数据转换为Shape对象并添加偏移
+                # 获取当前鼠标位置作为粘贴目标位置
+                target_pos = None
+                if self.canvas.prevMovePoint:
+                    target_pos = self.canvas.prevMovePoint
+                    logger.info(f"=== DEBUG: 粘贴目标位置（鼠标位置）: ({target_pos.x():.1f}, {target_pos.y():.1f}) ===")
+
+                # 将形状数据转换为Shape对象并移动到鼠标位置
                 shapes = []
                 for i, shape_data in enumerate(shapes_data):
                     shape = self.create_shape_from_data(shape_data)
 
-                    # 检查是否需要应用偏移（只在同一张图片上粘贴时应用偏移）
+                    # 检查是否需要应用偏移（只在同一张图片上粘贴且没有鼠标位置时应用偏移）
                     source_image_path = shape_data.get("source_image_path")
                     current_image_path = self.filename
 
-                    if source_image_path == current_image_path:
+                    if target_pos:
+                        # 如果有鼠标位置，将形状移动到鼠标位置
+                        logger.info(f"=== DEBUG: 将形状移动到鼠标位置 ===")
+                        self.move_shape_to_position(shape, target_pos)
+                    elif source_image_path == current_image_path:
                         logger.info(f"=== DEBUG: 在同一张图片上粘贴，应用偏移 ===")
                         # 添加偏移以避免与原形状重合
                         self.add_offset_to_shape(shape)
