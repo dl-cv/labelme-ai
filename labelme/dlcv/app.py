@@ -1485,7 +1485,16 @@ class MainWindow(MainWindow):
 
             # extra AI自动标注，有可能出现不合法的多边形
             if self.canvas.createMode == "ai_polygon":
+                raw_shape = shape
                 shape = self.fix_shape(shape)
+                if shape is None:
+                    if self.canvas.shapes and self.canvas.shapes[-1] is raw_shape:
+                        self.canvas.shapes.pop()
+                        self.canvas.storeShapes()
+                        self.canvas.update()
+                    self.refresh_invalid_polygon_state()
+                    logger.warning("AI多边形生成了无法修复的非法多边形, 已丢弃")
+                    return
             self.addLabel(shape)
             self.actions.editMode.setEnabled(True)
             self.actions.undoLastPoint.setEnabled(False)
@@ -1530,6 +1539,7 @@ class MainWindow(MainWindow):
         # extra 修复 points 少于 3 个点, 加载标签失败, 导致程序崩溃
         fix_shapes = []
         for shape in shapes:
+            shape_label = shape.label
             points_num = len(shape.points)
             if points_num < 3 and shape.shape_type == ShapeType.POLYGON:
                 logger.warning(f"多边形: {shape.label} 小于 3 个点, 已删除")
@@ -1542,6 +1552,9 @@ class MainWindow(MainWindow):
                 shape.direction = 0.0
 
             shape = self.fix_shape(shape)
+            if shape is None:
+                logger.warning(f"多边形: {shape_label} 无法修复为合法多边形, 已删除")
+                continue
             fix_shapes.append(shape)
 
         super().loadShapes(fix_shapes, replace)
@@ -3048,7 +3061,67 @@ class MainWindow(MainWindow):
 
     # ----------- OCR 标注 end -----------
 
-    def fix_shape(self, shape: Shape) -> Shape:
+    def _select_valid_polygon(self, geometry):
+        if geometry is None or geometry.is_empty:
+            return None
+
+        geometry_type = getattr(geometry, "geom_type", "")
+        if geometry_type == "Polygon":
+            candidate_polygons = [geometry]
+        elif geometry_type == "MultiPolygon":
+            candidate_polygons = list(geometry.geoms)
+        else:
+            candidate_polygons = []
+            for child in getattr(geometry, "geoms", []):
+                polygon = self._select_valid_polygon(child)
+                if polygon is not None:
+                    candidate_polygons.append(polygon)
+
+        valid_polygons = []
+        for polygon in candidate_polygons:
+            if polygon.is_empty:
+                continue
+            if not polygon.is_valid:
+                continue
+            if polygon.area <= 0:
+                continue
+            if len(polygon.exterior.coords) < 4:
+                continue
+            valid_polygons.append(polygon)
+
+        if not valid_polygons:
+            return None
+        return max(valid_polygons, key=lambda item: item.area)
+
+    def _repair_polygon_points_from_mask(self, points_pos):
+        image = getattr(self, "image", None)
+        image_width = int(image.width()) if image is not None else 0
+        image_height = int(image.height()) if image is not None else 0
+        if image_width <= 0 or image_height <= 0:
+            return None
+
+        polygon_points = np.rint(np.asarray(points_pos, dtype=np.float32)).astype(
+            np.int32
+        )
+        polygon_points[:, 0] = np.clip(polygon_points[:, 0], 0, image_width - 1)
+        polygon_points[:, 1] = np.clip(polygon_points[:, 1], 0, image_height - 1)
+
+        if len(np.unique(polygon_points, axis=0)) < 3:
+            return None
+
+        mask = np.zeros((image_height, image_width), dtype=np.uint8)
+        cv2.fillPoly(mask, [polygon_points.reshape(-1, 1, 2)], 1)
+        if int(mask.sum()) == 0:
+            return None
+
+        from labelme.ai._utils import compute_polygon_from_mask
+
+        repaired_points = compute_polygon_from_mask(mask=mask.astype(bool))
+        if len(repaired_points) < 3:
+            return None
+        return repaired_points.tolist()
+
+    def fix_shape(self, shape: Shape) -> Shape | None:
         # 修复 shape 超出图片范围的问题
         max_x, max_y = self.max_x_width, self.max_y_height
         for point in shape.points:
@@ -3062,25 +3135,38 @@ class MainWindow(MainWindow):
             elif point.y() < 0:
                 point.setY(0)
 
+        if shape.shape_type != ShapeType.POLYGON:
+            return shape
+
         # 修复不合法多边形
         points_pos = shape.get_points_pos()
-        if shape.shape_type == ShapeType.POLYGON:
-            polygon = Polygon(points_pos)
-            if not polygon.is_valid:
-                from shapely.validation import make_valid
+        if len(points_pos) < 3:
+            return None
 
-                repaired_polygon = make_valid(polygon)
-                # 若结果为MultiPolygon，需提取面积最大的子多边形（视业务需求而定）
-                if repaired_polygon.geom_type == "MultiPolygon":
-                    max_polygon = max(repaired_polygon.geoms, key=lambda g: g.area)
-                elif repaired_polygon.geom_type == "Polygon":
-                    max_polygon = repaired_polygon
-                else:
+        polygon = Polygon(points_pos)
+        if not polygon.is_valid:
+            repaired_points = self._repair_polygon_points_from_mask(points_pos)
+            if repaired_points is not None:
+                repaired_polygon = Polygon(repaired_points)
+                if repaired_polygon.is_valid and repaired_polygon.area > 0:
+                    shape.clear_points()
+                    for point in repaired_points:
+                        shape.addPoint(QtCore.QPointF(point[0], point[1]))
                     return shape
 
-                shape.clear_points()
-                for i, point in enumerate(max_polygon.exterior.coords):
-                    shape.addPoint(QtCore.QPointF(point[0], point[1]))
+            from shapely.validation import make_valid
+
+            repaired_polygon = make_valid(polygon)
+            max_polygon = self._select_valid_polygon(repaired_polygon)
+            if max_polygon is None:
+                return None
+
+            shape.clear_points()
+            for point in max_polygon.exterior.coords:
+                shape.addPoint(QtCore.QPointF(point[0], point[1]))
+
+        if not self.is_shape_valid(shape):
+            return None
         return shape
 
     def simplifyShapePoints(self, shape):
