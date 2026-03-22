@@ -1889,17 +1889,26 @@ class MainWindow(QtWidgets.QMainWindow):
         e = 2.0  # So that no scrollbars are generated.
         w1 = self.centralWidget().width() - e
         h1 = self.centralWidget().height() - e
+        if w1 <= 0 or h1 <= 0:
+            return 1.0
         a1 = w1 / h1
         # Calculate a new scale value based on the pixmap's aspect ratio.
         w2 = self.canvas.pixmap.width() - 0.0
         h2 = self.canvas.pixmap.height() - 0.0
+        if w2 <= 0 or h2 <= 0:
+            return 1.0
         a2 = w2 / h2
         return w1 / w2 if a2 >= a1 else h1 / h2
 
     def scaleFitWidth(self):
         # The epsilon does not seem to work too well here.
         w = self.centralWidget().width() - 2.0
-        return w / self.canvas.pixmap.width()
+        if w <= 0:
+            return 1.0
+        pixmap_width = self.canvas.pixmap.width()
+        if pixmap_width <= 0:
+            return 1.0
+        return w / pixmap_width
 
     def enableSaveImageWithData(self, enabled):
         self._config["store_data"] = enabled
