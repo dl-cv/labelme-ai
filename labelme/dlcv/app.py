@@ -38,6 +38,7 @@ from labelme.dlcv import dlcv_tr
 from labelme.utils.qt import removeAction, newIcon
 from shapely.geometry import Polygon, LineString
 from shapely.ops import split
+from shapely.validation import explain_validity
 from labelme.dlcv.shape import ShapeType
 from labelme.utils import print_time  # noqa
 from labelme.dlcv.shape import Shape
@@ -113,6 +114,14 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 class MainWindow(MainWindow):
     canvas: labelme.dlcv.canvas.Canvas
     sig_auto_label_all_update = QtCore.Signal(object)
+    _INVALID_POLYGON_COLOR_ATTRS = (
+        "line_color",
+        "vertex_fill_color",
+        "hvertex_fill_color",
+        "fill_color",
+        "select_line_color",
+        "select_fill_color",
+    )
 
     def __init__(
         self, config=None, filename=None, output=None, output_file=None, output_dir=None
@@ -128,6 +137,7 @@ class MainWindow(MainWindow):
 
         Toast.setPositionRelativeToWidget(self)  # 通知控件
         self.dev_setting = QtCore.QSettings("baiduyun_dev", "ai")
+        self.canvas.shapeMoved.connect(self._on_canvas_shape_moved)
         
         # 移除 [ImageData] 功能, 默认自动保存
         removeAction(self.menus.file, self.actions.saveWithImageData)
@@ -1221,7 +1231,7 @@ class MainWindow(MainWindow):
             notification(dlcv_tr("粘贴失败"), str(e), ToastPreset.ERROR)
 
     def fileSelectionChanged(self):
-        if not self.is_all_shapes_valid():
+        if not self.is_all_shapes_valid(log_invalid=True):
             # 弹窗询问是否切换图片
             reply = QtWidgets.QMessageBox.question(
                 self,
@@ -1401,6 +1411,7 @@ class MainWindow(MainWindow):
         else:
             self.remLabels(self.canvas.deleteSelected())
             self.setDirty()
+            self.refresh_invalid_polygon_state()
             if self.noShapes():
                 for action in self.actions.onShapesPresent:
                     action.setEnabled(False)
@@ -1474,12 +1485,22 @@ class MainWindow(MainWindow):
 
             # extra AI自动标注，有可能出现不合法的多边形
             if self.canvas.createMode == "ai_polygon":
+                raw_shape = shape
                 shape = self.fix_shape(shape)
+                if shape is None:
+                    if self.canvas.shapes and self.canvas.shapes[-1] is raw_shape:
+                        self.canvas.shapes.pop()
+                        self.canvas.storeShapes()
+                        self.canvas.update()
+                    self.refresh_invalid_polygon_state()
+                    logger.warning("AI多边形生成了无法修复的非法多边形, 已丢弃")
+                    return
             self.addLabel(shape)
             self.actions.editMode.setEnabled(True)
             self.actions.undoLastPoint.setEnabled(False)
             self.actions.undo.setEnabled(True)
             self.setDirty()
+            self.refresh_invalid_polygon_state()
 
             # https://bbs2.dlcv.com.cn/t/topic/1048/3
             # 保存 label.txt
@@ -1518,6 +1539,7 @@ class MainWindow(MainWindow):
         # extra 修复 points 少于 3 个点, 加载标签失败, 导致程序崩溃
         fix_shapes = []
         for shape in shapes:
+            shape_label = shape.label
             points_num = len(shape.points)
             if points_num < 3 and shape.shape_type == ShapeType.POLYGON:
                 logger.warning(f"多边形: {shape.label} 小于 3 个点, 已删除")
@@ -1530,15 +1552,20 @@ class MainWindow(MainWindow):
                 shape.direction = 0.0
 
             shape = self.fix_shape(shape)
+            if shape is None:
+                logger.warning(f"多边形: {shape_label} 无法修复为合法多边形, 已删除")
+                continue
             fix_shapes.append(shape)
 
         super().loadShapes(fix_shapes, replace)
         if len(fix_shapes) != len(shapes):
             self.setDirty()
+        self.refresh_invalid_polygon_state()
 
     def undoShapeEdit(self):
         super().undoShapeEdit()
         self.setDirty()
+        self.refresh_invalid_polygon_state()
 
     # https://github.com/wkentaro/labelme/pull/1470
     def setClean(self):
@@ -3034,7 +3061,67 @@ class MainWindow(MainWindow):
 
     # ----------- OCR 标注 end -----------
 
-    def fix_shape(self, shape: Shape) -> Shape:
+    def _select_valid_polygon(self, geometry):
+        if geometry is None or geometry.is_empty:
+            return None
+
+        geometry_type = getattr(geometry, "geom_type", "")
+        if geometry_type == "Polygon":
+            candidate_polygons = [geometry]
+        elif geometry_type == "MultiPolygon":
+            candidate_polygons = list(geometry.geoms)
+        else:
+            candidate_polygons = []
+            for child in getattr(geometry, "geoms", []):
+                polygon = self._select_valid_polygon(child)
+                if polygon is not None:
+                    candidate_polygons.append(polygon)
+
+        valid_polygons = []
+        for polygon in candidate_polygons:
+            if polygon.is_empty:
+                continue
+            if not polygon.is_valid:
+                continue
+            if polygon.area <= 0:
+                continue
+            if len(polygon.exterior.coords) < 4:
+                continue
+            valid_polygons.append(polygon)
+
+        if not valid_polygons:
+            return None
+        return max(valid_polygons, key=lambda item: item.area)
+
+    def _repair_polygon_points_from_mask(self, points_pos):
+        image = getattr(self, "image", None)
+        image_width = int(image.width()) if image is not None else 0
+        image_height = int(image.height()) if image is not None else 0
+        if image_width <= 0 or image_height <= 0:
+            return None
+
+        polygon_points = np.rint(np.asarray(points_pos, dtype=np.float32)).astype(
+            np.int32
+        )
+        polygon_points[:, 0] = np.clip(polygon_points[:, 0], 0, image_width - 1)
+        polygon_points[:, 1] = np.clip(polygon_points[:, 1], 0, image_height - 1)
+
+        if len(np.unique(polygon_points, axis=0)) < 3:
+            return None
+
+        mask = np.zeros((image_height, image_width), dtype=np.uint8)
+        cv2.fillPoly(mask, [polygon_points.reshape(-1, 1, 2)], 1)
+        if int(mask.sum()) == 0:
+            return None
+
+        from labelme.ai._utils import compute_polygon_from_mask
+
+        repaired_points = compute_polygon_from_mask(mask=mask.astype(bool))
+        if len(repaired_points) < 3:
+            return None
+        return repaired_points.tolist()
+
+    def fix_shape(self, shape: Shape) -> Shape | None:
         # 修复 shape 超出图片范围的问题
         max_x, max_y = self.max_x_width, self.max_y_height
         for point in shape.points:
@@ -3048,25 +3135,38 @@ class MainWindow(MainWindow):
             elif point.y() < 0:
                 point.setY(0)
 
+        if shape.shape_type != ShapeType.POLYGON:
+            return shape
+
         # 修复不合法多边形
         points_pos = shape.get_points_pos()
-        if shape.shape_type == ShapeType.POLYGON:
-            polygon = Polygon(points_pos)
-            if not polygon.is_valid:
-                from shapely.validation import make_valid
+        if len(points_pos) < 3:
+            return None
 
-                repaired_polygon = make_valid(polygon)
-                # 若结果为MultiPolygon，需提取面积最大的子多边形（视业务需求而定）
-                if repaired_polygon.geom_type == "MultiPolygon":
-                    max_polygon = max(repaired_polygon.geoms, key=lambda g: g.area)
-                elif repaired_polygon.geom_type == "Polygon":
-                    max_polygon = repaired_polygon
-                else:
+        polygon = Polygon(points_pos)
+        if not polygon.is_valid:
+            repaired_points = self._repair_polygon_points_from_mask(points_pos)
+            if repaired_points is not None:
+                repaired_polygon = Polygon(repaired_points)
+                if repaired_polygon.is_valid and repaired_polygon.area > 0:
+                    shape.clear_points()
+                    for point in repaired_points:
+                        shape.addPoint(QtCore.QPointF(point[0], point[1]))
                     return shape
 
-                shape.clear_points()
-                for i, point in enumerate(max_polygon.exterior.coords):
-                    shape.addPoint(QtCore.QPointF(point[0], point[1]))
+            from shapely.validation import make_valid
+
+            repaired_polygon = make_valid(polygon)
+            max_polygon = self._select_valid_polygon(repaired_polygon)
+            if max_polygon is None:
+                return None
+
+            shape.clear_points()
+            for point in max_polygon.exterior.coords:
+                shape.addPoint(QtCore.QPointF(point[0], point[1]))
+
+        if not self.is_shape_valid(shape):
+            return None
         return shape
 
     def simplifyShapePoints(self, shape):
@@ -3119,18 +3219,125 @@ class MainWindow(MainWindow):
         points_pos = shape.get_points_pos()
         try:
             if shape.shape_type == ShapeType.POLYGON:
+                if len(points_pos) < 3:
+                    return False
                 polygon = Polygon(points_pos)
                 return polygon.is_valid
             return True
         except:
             return False
 
-    def is_all_shapes_valid(self) -> bool:
-        # extra 检查所有多边形是否合法
+    def _shape_to_invalid_polygon_json(self, shape: Shape, index: int, reason: str) -> dict:
+        return {
+            "index": index,
+            "label": shape.label,
+            "group_id": shape.group_id,
+            "description": shape.description,
+            "shape_type": shape.shape_type,
+            "flags": shape.flags,
+            "points": shape.get_points_pos(),
+            "reason": reason,
+        }
+
+    def _collect_invalid_polygons(self):
+        invalid_shapes = []
+        invalid_json = []
+        for index, shape in enumerate(self.canvas.shapes):
+            if shape.shape_type != ShapeType.POLYGON:
+                continue
+            points_pos = shape.get_points_pos()
+            try:
+                if len(points_pos) < 3:
+                    reason = f"polygon points < 3 ({len(points_pos)})"
+                    invalid_shapes.append(shape)
+                    invalid_json.append(
+                        self._shape_to_invalid_polygon_json(shape, index, reason)
+                    )
+                    continue
+
+                polygon = Polygon(points_pos)
+                if not polygon.is_valid:
+                    reason = explain_validity(polygon)
+                    invalid_shapes.append(shape)
+                    invalid_json.append(
+                        self._shape_to_invalid_polygon_json(shape, index, reason)
+                    )
+            except Exception as e:
+                invalid_shapes.append(shape)
+                invalid_json.append(
+                    self._shape_to_invalid_polygon_json(shape, index, str(e))
+                )
+        return invalid_shapes, invalid_json
+
+    def _set_shape_invalid_polygon_color(self, shape: Shape):
+        if getattr(shape, "_dlcv_invalid_polygon_marked", False):
+            return
+
+        backup = {}
+        for attr in self._INVALID_POLYGON_COLOR_ATTRS:
+            has_instance_attr = attr in shape.__dict__
+            backup[f"{attr}_has_instance"] = has_instance_attr
+            if has_instance_attr:
+                backup[attr] = shape.__dict__.get(attr)
+
+        shape.line_color = QtGui.QColor(255, 0, 0, 255)
+        shape.vertex_fill_color = QtGui.QColor(255, 0, 0, 255)
+        shape.hvertex_fill_color = QtGui.QColor(255, 0, 0, 255)
+        shape.fill_color = QtGui.QColor(255, 0, 0, 80)
+        shape.select_line_color = QtGui.QColor(255, 0, 0, 255)
+        shape.select_fill_color = QtGui.QColor(255, 0, 0, 80)
+
+        shape._dlcv_invalid_polygon_color_backup = backup
+        shape._dlcv_invalid_polygon_marked = True
+
+    def _restore_shape_invalid_polygon_color(self, shape: Shape):
+        backup = getattr(shape, "_dlcv_invalid_polygon_color_backup", None)
+        if backup is None:
+            shape.__dict__.pop("_dlcv_invalid_polygon_marked", None)
+            return
+
+        for attr in self._INVALID_POLYGON_COLOR_ATTRS:
+            if backup.get(f"{attr}_has_instance"):
+                setattr(shape, attr, backup.get(attr))
+            else:
+                shape.__dict__.pop(attr, None)
+
+        shape.__dict__.pop("_dlcv_invalid_polygon_color_backup", None)
+        shape.__dict__.pop("_dlcv_invalid_polygon_marked", None)
+
+    def refresh_invalid_polygon_state(self, log_invalid=False):
+        invalid_shapes, invalid_json = self._collect_invalid_polygons()
+        invalid_shape_ids = {id(shape) for shape in invalid_shapes}
+
         for shape in self.canvas.shapes:
-            if not self.is_shape_valid(shape):
-                self.canvas.selectShapes([shape])
-                return False
+            if shape.shape_type != ShapeType.POLYGON:
+                self._restore_shape_invalid_polygon_color(shape)
+                continue
+            if id(shape) in invalid_shape_ids:
+                self._set_shape_invalid_polygon_color(shape)
+            else:
+                self._restore_shape_invalid_polygon_color(shape)
+
+        if log_invalid and invalid_json:
+            image_name = osp.basename(self.filename) if self.filename else ""
+            logger.warning(
+                "检测到不合法多边形: image=%s, invalid_polygons_json=%s",
+                image_name,
+                json.dumps(invalid_json, ensure_ascii=False, default=str),
+            )
+
+        self.canvas.update()
+        return invalid_shapes, invalid_json
+
+    def _on_canvas_shape_moved(self):
+        self.refresh_invalid_polygon_state()
+
+    def is_all_shapes_valid(self, log_invalid=False) -> bool:
+        # extra 检查所有多边形是否合法
+        invalid_shapes, _ = self.refresh_invalid_polygon_state(log_invalid=log_invalid)
+        if invalid_shapes:
+            self.canvas.selectShapes([invalid_shapes[0]])
+            return False
         return True
 
     def toggleDrawMode(self, edit=True, createMode="polygon"):
