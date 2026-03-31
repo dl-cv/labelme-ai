@@ -1273,7 +1273,7 @@ class Canvas(CustomCanvas):
                             contour = contours[0]
 
                             # 简化轮廓点
-                            epsilon = 0.002 * cv2.arcLength(contour, True)
+                            epsilon = STORE.ai_polygon_simplify_epsilon * cv2.arcLength(contour, True)
                             approx = cv2.approxPolyDP(contour, epsilon, True)
 
                             # 创建多边形点列表

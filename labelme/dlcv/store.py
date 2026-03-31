@@ -25,9 +25,14 @@ class Store:
     # main window
     __main_window: 'MainWindow' = None
     q_translator: QtCore.QTranslator = None
-    
+
     # WebSocket 连接（全局共享）
     backend_ws = None
+
+    @property
+    def ai_polygon_simplify_epsilon(self):
+        return self.main_window.parameter.child(
+            "label_setting", "ai_polygon_simplify_epsilon").value()  # 默认值
 
     def set_edit_label_name(self, edit_label: callable):
         assert callable(edit_label)
