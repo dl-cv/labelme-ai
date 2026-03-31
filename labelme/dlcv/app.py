@@ -170,6 +170,7 @@ class MainWindow(MainWindow):
         self.actions.copy.setText(dlcv_tr("复制图片"))
 
         self._init_edit_mode_action()  # 初始化编辑模式切换动作
+        self._init_paste_at_original_position_action()  # 初始化原位置粘贴动作 (Ctrl+Shift+V)
         STORE.set_edit_label_name(self._edit_label)
 
         # 新增设置菜单
@@ -919,7 +920,7 @@ class MainWindow(MainWindow):
 
             # 记录源图像路径
             source_image_path = self.filename
-            logger.info(f"=== DEBUG: 记录源图像路径: {source_image_path} ===")
+            logger.debug(f"=== DEBUG: 记录源图像路径: {source_image_path} ===")
 
             # 复制到剪贴板
             from labelme.dlcv.widget.clipboard import copy_shapes_to_clipboard
@@ -1009,11 +1010,15 @@ class MainWindow(MainWindow):
             raise
 
     # 为形状添加偏移，避免与原形状重合
-    def add_offset_to_shape(self, shape):
-        """为形状添加偏移，避免与原形状重合"""
+    def add_offset_to_shape(self, shape, offset=10):
+        """为形状添加偏移，避免与原形状重合
 
+        Args:
+            shape: Shape对象
+            offset: 偏移量（像素），默认10
+        """
         # 偏移量
-        offset_x, offset_y = 20, 20
+        offset_x, offset_y = offset, offset
 
         # 计算形状的边界
         min_x = min(p.x() for p in shape.points)
@@ -1026,19 +1031,20 @@ class MainWindow(MainWindow):
 
         # 检查偏移后是否会出界
         if max_shape_x + offset_x > max_x:
-            offset_x = max(0, max_x - max_shape_x - 10)
+            offset_x = max(0, max_x - max_shape_x - max(offset // 2, 5))
         if max_shape_y + offset_y > max_y:
-            offset_y = max(0, max_y - max_shape_y - 10)
+            offset_y = max(0, max_y - max_shape_y - max(offset // 2, 5))
 
         # 如果偏移太小，尝试向左上偏移
-        if offset_x < 10:
-            if min_x - 20 >= 0:
-                offset_x = -20
+        min_offset_threshold = max(offset // 2, 5)
+        if offset_x < min_offset_threshold:
+            if min_x - offset >= 0:
+                offset_x = -offset
             else:
                 offset_x = 0
-        if offset_y < 10:
-            if min_y - 20 >= 0:
-                offset_y = -20
+        if offset_y < min_offset_threshold:
+            if min_y - offset >= 0:
+                offset_y = -offset
             else:
                 offset_y = 0
 
@@ -1140,7 +1146,9 @@ class MainWindow(MainWindow):
                 point.setY(new_y)
 
     def pasteSelectedShape(self):
-        """从剪贴板粘贴形状或图像，粘贴位置跟随鼠标"""
+        """从剪贴板粘贴形状或图像，粘贴位置跟随鼠标
+        按住 Shift 键粘贴时，不跟随光标，保持原位置
+        """
         try:
             # 首先尝试从剪贴板读取形状数据
             from labelme.dlcv.widget.clipboard import paste_shapes_from_clipboard
@@ -1148,13 +1156,19 @@ class MainWindow(MainWindow):
             shapes_data = paste_shapes_from_clipboard()
 
             if shapes_data is not None:
-                logger.info(f"=== DEBUG: 当前图像路径: {self.filename} ===")
+                logger.debug(f"=== DEBUG: 当前图像路径: {self.filename} ===")
 
                 # 获取当前鼠标位置作为粘贴目标位置
                 target_pos = None
                 if self.canvas.prevMovePoint:
                     target_pos = self.canvas.prevMovePoint
-                    logger.info(f"=== DEBUG: 粘贴目标位置（鼠标位置）: ({target_pos.x():.1f}, {target_pos.y():.1f}) ===")
+                    logger.debug(f"=== DEBUG: 粘贴目标位置（鼠标位置）: ({target_pos.x():.1f}, {target_pos.y():.1f}) ===")
+
+                # 检查是否按住 Shift 键 - 按住时不跟随光标，保持原位置
+                is_shift_pressed = QtWidgets.QApplication.keyboardModifiers() & QtCore.Qt.ShiftModifier
+                if is_shift_pressed:
+                    logger.debug(f"=== DEBUG: Ctrl+Shift+V 粘贴 - 不跟随光标，保持原位置 ===")
+                    target_pos = None  # 清空目标位置，保持原位置（同一张图片会应用偏移）
 
                 # 首先将所有形状数据转换为Shape对象
                 shapes = []
@@ -1177,7 +1191,7 @@ class MainWindow(MainWindow):
 
                 if target_pos and reference_point:
                     # 如果有鼠标位置，将第一个形状的中心移动到鼠标位置，其他形状保持相对位置
-                    logger.info(f"=== DEBUG: 以第一个形状中心为参考点，移动到鼠标位置 ===")
+                    logger.debug(f"=== DEBUG: 以第一个形状中心为参考点，移动到鼠标位置 ===")
 
                     # 计算整体需要移动的偏移量
                     overall_offset_x = target_pos.x() - reference_point[0]
@@ -1226,13 +1240,12 @@ class MainWindow(MainWindow):
                                 point.setY(new_y)
 
                 elif source_image_path == current_image_path:
-                    # 在同一张图片上粘贴，对每个形状应用偏移
-                    logger.info(f"=== DEBUG: 在同一张图片上粘贴，应用偏移 ===")
+                    logger.debug(f"=== DEBUG: 在同一张图片上粘贴，应用偏移 5 ===")
                     for shape in shapes:
-                        self.add_offset_to_shape(shape)
+                        self.add_offset_to_shape(shape, offset=5)
                 else:
                     # 在不同图片上粘贴，检查边界
-                    logger.info(f"=== DEBUG: 在不同图片上粘贴，检查边界 ===")
+                    logger.debug(f"=== DEBUG: 在不同图片上粘贴，检查边界 ===")
                     for shape in shapes:
                         self.check_and_adjust_shape_bounds(shape)
 
@@ -3564,6 +3577,17 @@ class MainWindow(MainWindow):
         self.edit_mode_action.setShortcut(STORE.get_config()["shortcuts"]["edit_mode"])
         self.addAction(self.edit_mode_action)
         self.edit_mode_action.triggered.connect(self.toggle_edit_mode)
+
+    def _init_paste_at_original_position_action(self):
+        """初始化在原位置粘贴的动作 (Ctrl+Shift+V)"""
+        self.paste_at_original_position_action = QtWidgets.QAction(
+            dlcv_tr("在原位置粘贴"), self
+        )
+        self.paste_at_original_position_action.setShortcut("Ctrl+Shift+V")
+        self.addAction(self.paste_at_original_position_action)
+        self.paste_at_original_position_action.triggered.connect(
+            self.pasteSelectedShape
+        )
 
     # 添加一个新的动作用于编辑和绘制状态切换
     def toggle_edit_mode(self):
