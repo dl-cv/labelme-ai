@@ -1156,31 +1156,85 @@ class MainWindow(MainWindow):
                     target_pos = self.canvas.prevMovePoint
                     logger.info(f"=== DEBUG: 粘贴目标位置（鼠标位置）: ({target_pos.x():.1f}, {target_pos.y():.1f}) ===")
 
-                # 将形状数据转换为Shape对象并移动到鼠标位置
+                # 首先将所有形状数据转换为Shape对象
                 shapes = []
-                for i, shape_data in enumerate(shapes_data):
+                for shape_data in shapes_data:
                     shape = self.create_shape_from_data(shape_data)
-
-                    # 检查是否需要应用偏移（只在同一张图片上粘贴且没有鼠标位置时应用偏移）
-                    source_image_path = shape_data.get("source_image_path")
-                    current_image_path = self.filename
-
-                    if target_pos:
-                        # 如果有鼠标位置，将形状移动到鼠标位置
-                        logger.info(f"=== DEBUG: 将形状移动到鼠标位置 ===")
-                        self.move_shape_to_position(shape, target_pos)
-                    elif source_image_path == current_image_path:
-                        logger.info(f"=== DEBUG: 在同一张图片上粘贴，应用偏移 ===")
-                        # 添加偏移以避免与原形状重合
-                        self.add_offset_to_shape(shape)
-                    else:
-                        logger.info(
-                            f"=== DEBUG: 在不同图片上粘贴，不应用偏移，保持原始坐标 ==="
-                        )
-                        # 检查形状是否超出当前图像边界，如果超出则调整
-                        self.check_and_adjust_shape_bounds(shape)
-
                     shapes.append(shape)
+
+                # 计算第一个形状的参考点（使用第一个形状的中心作为整体参考点）
+                # 这样粘贴时，第一个形状的中心会出现在鼠标位置
+                reference_point = None
+                if shapes and shapes[0].points:
+                    first_shape = shapes[0]
+                    ref_x = sum(p.x() for p in first_shape.points) / len(first_shape.points)
+                    ref_y = sum(p.y() for p in first_shape.points) / len(first_shape.points)
+                    reference_point = (ref_x, ref_y)
+
+                # 检查是否需要应用偏移（只在同一张图片上粘贴且没有鼠标位置时应用偏移）
+                source_image_path = shapes_data[0].get("source_image_path") if shapes_data else None
+                current_image_path = self.filename
+
+                if target_pos and reference_point:
+                    # 如果有鼠标位置，将第一个形状的中心移动到鼠标位置，其他形状保持相对位置
+                    logger.info(f"=== DEBUG: 以第一个形状中心为参考点，移动到鼠标位置 ===")
+
+                    # 计算整体需要移动的偏移量
+                    overall_offset_x = target_pos.x() - reference_point[0]
+                    overall_offset_y = target_pos.y() - reference_point[1]
+
+                    # 计算所有形状的联合边界（移动后）
+                    all_new_min_x = float('inf')
+                    all_new_max_x = float('-inf')
+                    all_new_min_y = float('inf')
+                    all_new_max_y = float('-inf')
+
+                    for shape in shapes:
+                        if shape.points:
+                            shape_min_x = min(p.x() + overall_offset_x for p in shape.points)
+                            shape_max_x = max(p.x() + overall_offset_x for p in shape.points)
+                            shape_min_y = min(p.y() + overall_offset_y for p in shape.points)
+                            shape_max_y = max(p.y() + overall_offset_y for p in shape.points)
+                            all_new_min_x = min(all_new_min_x, shape_min_x)
+                            all_new_max_x = max(all_new_max_x, shape_max_x)
+                            all_new_min_y = min(all_new_min_y, shape_min_y)
+                            all_new_max_y = max(all_new_max_y, shape_max_y)
+
+                    # 检查边界并调整偏移量
+                    max_x = self.image.width() - 0.001
+                    max_y = self.image.height() - 0.001
+
+                    if all_new_max_x > max_x:
+                        overall_offset_x -= (all_new_max_x - max_x)
+                    if all_new_max_y > max_y:
+                        overall_offset_y -= (all_new_max_y - max_y)
+                    if all_new_min_x < 0:
+                        overall_offset_x -= all_new_min_x
+                    if all_new_min_y < 0:
+                        overall_offset_y -= all_new_min_y
+
+                    # 应用偏移到所有形状
+                    for shape in shapes:
+                        if shape.points:
+                            for point in shape.points:
+                                new_x = point.x() + overall_offset_x
+                                new_y = point.y() + overall_offset_y
+                                # 确保不超出边界
+                                new_x = max(0, min(new_x, max_x))
+                                new_y = max(0, min(new_y, max_y))
+                                point.setX(new_x)
+                                point.setY(new_y)
+
+                elif source_image_path == current_image_path:
+                    # 在同一张图片上粘贴，对每个形状应用偏移
+                    logger.info(f"=== DEBUG: 在同一张图片上粘贴，应用偏移 ===")
+                    for shape in shapes:
+                        self.add_offset_to_shape(shape)
+                else:
+                    # 在不同图片上粘贴，检查边界
+                    logger.info(f"=== DEBUG: 在不同图片上粘贴，检查边界 ===")
+                    for shape in shapes:
+                        self.check_and_adjust_shape_bounds(shape)
 
                 # 加载形状到画布
                 self.loadShapes(shapes, replace=False)
