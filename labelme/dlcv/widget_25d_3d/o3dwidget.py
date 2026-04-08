@@ -76,6 +76,7 @@ class O3DWidget(QtWidgets.QDockWidget):
 
     def display_with_array(self, gray_img, depth_img):
         from labelme.dlcv.widget_25d_3d.utils import img2pcd
+        self.__lazy_init()
 
         # 清除之前的几何体
         self.vis.clear_geometries()
