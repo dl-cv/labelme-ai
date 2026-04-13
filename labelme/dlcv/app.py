@@ -47,6 +47,9 @@ from labelme.dlcv.widget.viewAttribute import (
     get_window_position,
     viewAttribute,
 )
+from labelme.dlcv.widget.unique_label_qlist_widget import (
+    init_uniq_label_list_text_flag_wgt,
+)
 from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
 from labelme.dlcv.controller.pos_controller import ensure_window_in_screen
 import os
@@ -225,6 +228,29 @@ class MainWindow(MainWindow):
     def addLabel(self, shape):
         super().addLabel(shape)
         self._sync_label_dialog_order_with_uniq_list()
+
+    def _get_rgb_by_label(self, label):
+        if self._config["shape_color"] == "auto":
+            item = self.uniqLabelList.findItemByLabel(label)
+            if item is None:
+                item = self.uniqLabelList.createItemFromLabel(label)
+                self.uniqLabelList.addItem(item)
+            label_id = self.uniqLabelList.indexFromItem(item).row() + 1
+            label_id += self._config["shift_auto_shape_color"]
+            rgb = LABEL_COLORMAP[label_id % len(LABEL_COLORMAP)]
+            color_role = self.uniqLabelList.ITEM_COLOR_ROLE
+            if item.data(color_role) is None:
+                self.uniqLabelList.setItemLabel(item, label, rgb)
+            return item.data(color_role)
+        elif (
+            self._config["shape_color"] == "manual"
+            and self._config["label_colors"]
+            and label in self._config["label_colors"]
+        ):
+            return self._config["label_colors"][label]
+        elif self._config["default_shape_color"]:
+            return self._config["default_shape_color"]
+        return (0, 255, 0)
 
     # 编辑标签
     def _edit_label(self, value=None):
@@ -850,13 +876,6 @@ class MainWindow(MainWindow):
                 f.write(label + "\n")
         logger.info(f"保存标签到 {file_path}")
         return file_path
-
-    # 初始化修改颜色action并添加到右键菜单
-    def _init_shape_color_action(self):
-        """初始化修改颜色功能"""
-        from labelme.dlcv.utils.change_shape_color import init_change_color_action
-
-        init_change_color_action(self)
 
     # ------------ Ctrl + C 触发函数 复制图片 ------------
     def copySelectedShape(self):
@@ -2218,8 +2237,6 @@ class MainWindow(MainWindow):
 
         self.uniqLabelList.itemClicked.connect(select_shapes)
 
-        self._init_shape_color_action()
-
         # [新增] 连接 Canvas 的分割结束信号
         if hasattr(self.canvas, 'sig_split_finish'):
             self.canvas.sig_split_finish.connect(self.on_split_finish_callback)
@@ -3061,56 +3078,7 @@ class MainWindow(MainWindow):
         self.flag_widget.setContextMenuPolicy(Qt.CustomContextMenu)
         self.flag_widget.customContextMenuRequested.connect(show_flag_menu)
 
-        def uniqLabelList_item_double_clicked_callback(item: QtWidgets.QListWidgetItem):
-            """双击 uniqLabelList 时, 设置 text_flag"""
-            if self.get_text_flag():
-                self.set_text_flag(item.data(Qt.UserRole))
-                self.canvas.shapeMoved.emit()
-            else:
-                add_text_flag()
-
-        # uniqLabelList 双击后设置 text_flag
-        self.uniqLabelList.itemDoubleClicked.connect(
-            uniqLabelList_item_double_clicked_callback
-        )
-
-        # 为 uniqLabelList 添加右键菜单删除功能
-        def show_uniq_label_menu(pos: QtCore.QPoint):
-            menu = QtWidgets.QMenu()
-            delete_action = QtWidgets.QAction(dlcv_tr("删除标签"), self)
-            delete_action.setIcon(newIcon("delete"))
-            menu.addAction(delete_action)
-
-            def delete_uniq_label():
-                selected_items = self.uniqLabelList.selectedItems()
-                if not selected_items:
-                    return
-
-                # 删除前询问确认
-                reply = QtWidgets.QMessageBox.question(
-                    self,
-                    dlcv_tr("确认删除"),
-                    dlcv_tr(
-                        "是否确定要删除选中的 {count} 个标签？\n注意：这只会从标签列表中删除，不会影响已经标注的形状。"
-                    ).format(count=len(selected_items)),
-                    QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
-                    QtWidgets.QMessageBox.No,
-                )
-
-                if reply == QtWidgets.QMessageBox.Yes:
-                    for item in selected_items:
-                        row = self.uniqLabelList.row(item)
-                        self.uniqLabelList.takeItem(row)
-
-                    # 触发更新
-                    self.canvas.shapeMoved.emit()
-
-            delete_action.triggered.connect(delete_uniq_label)
-            menu.exec_(self.uniqLabelList.mapToGlobal(pos))
-
-        # 为 uniqLabelList 设置右键菜单
-        self.uniqLabelList.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.uniqLabelList.customContextMenuRequested.connect(show_uniq_label_menu)
+        self._init_uniq_label_list_text_flag_wgt(add_text_flag)
 
         # 添加创建文本标记到右键菜单
         if hasattr(self.actions, "menu"):
@@ -3124,7 +3092,8 @@ class MainWindow(MainWindow):
                 self.canvas.menus[0].clear()
                 utils.addActions(self.canvas.menus[0], self.actions.menu)
 
-
+    def _init_uniq_label_list_text_flag_wgt(self, add_text_flag):
+        init_uniq_label_list_text_flag_wgt(self, add_text_flag)
 
     # ----------- OCR 标注 end -----------
 

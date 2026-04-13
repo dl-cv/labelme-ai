@@ -9,6 +9,8 @@ from .escapable_qlist_widget import EscapableQListWidget
 
 
 class UniqueLabelQListWidget(EscapableQListWidget):
+    ITEM_COLOR_ROLE = Qt.UserRole + 2
+
     def mousePressEvent(self, event):
         super(UniqueLabelQListWidget, self).mousePressEvent(event)
         if not self.indexAt(event.pos()).isValid():
@@ -30,6 +32,10 @@ class UniqueLabelQListWidget(EscapableQListWidget):
 
     def setItemLabel(self, item, label, color=None):
         qlabel = QtWidgets.QLabel()
+
+        if color is not None:
+            item.setData(self.ITEM_COLOR_ROLE, color)
+
         if color is None:
             qlabel.setText("{}".format(label))
         else:
