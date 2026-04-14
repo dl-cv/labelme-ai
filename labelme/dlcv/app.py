@@ -2916,6 +2916,7 @@ class MainWindow(MainWindow):
                             continue
 
                         shape = Shape(**shape_data)
+                        shape = self.fix_shape(shape)
                         self.loadShapes([shape], replace=False)
 
                 elif hasattr(labelme_data, "flags") and labelme_data.flags:
