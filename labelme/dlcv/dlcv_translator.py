@@ -85,6 +85,10 @@ tr_map = {
         'Create Rotated Box',
         '开始绘制旋转框 (R)':
         'Start Drawing Rotated Box (R)',
+        '创建画笔':
+        'Create Brush',
+        '开始使用画笔绘制':
+        'Start Drawing with Brush',
         '查看属性':
         'View Attributes',
         '系统设置':

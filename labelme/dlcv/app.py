@@ -52,6 +52,7 @@ from labelme.dlcv.widget.unique_label_qlist_widget import (
 )
 from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
 from labelme.dlcv.controller.pos_controller import ensure_window_in_screen
+from labelme.dlcv.actions import install_create_brush_mode_action
 import os
 from labelme.dlcv.widget.label_count import LabelCountDock
 from labelme.dlcv.ui_theme_manager import UiThemeManager
@@ -551,6 +552,8 @@ class MainWindow(MainWindow):
             self.actions.menu = list(self.actions.menu)
             self.actions.menu.insert(2, self.actions.createRotationMode)
 
+        install_create_brush_mode_action(self, create_action)
+
         # 亮度对比度禁用
         # https://bbs.dlcv.ai/t/topic/328
         self.actions.brightnessContrast.setVisible(False)
@@ -561,7 +564,8 @@ class MainWindow(MainWindow):
         # # https://bbs.dlcv.ai/t/topic/167
         # 移除 [创建 AI 蒙版] 功能
         self.actions.menu = list(self.actions.menu)
-        self.actions.menu = self.actions.menu[0:7] + self.actions.menu[8:]
+        if self.actions.createAiMaskMode in self.actions.menu:
+            self.actions.menu.remove(self.actions.createAiMaskMode)
 
         # https://bbs.dlcv.ai/t/topic/167
         self.actions.tool = _cleanup_toolbar_separators(list(self.actions.tool))
@@ -571,6 +575,7 @@ class MainWindow(MainWindow):
             self.actions.createMode,
             self.actions.createRectangleMode,
             self.actions.createRotationMode,
+            self.actions.createBrushMode,
             self.actions.createCircleMode,
             self.actions.createLineMode,
             self.actions.createPointMode,
@@ -777,7 +782,6 @@ class MainWindow(MainWindow):
             "convert_img_to_gray": STORE.convert_img_to_gray,
             "canvas_display_rotation_arrow": STORE.canvas_display_rotation_arrow,
             "canvas_brush_fill_region": STORE.canvas_brush_fill_region,
-            "canvas_brush_enabled": STORE.canvas_brush_enabled,  # 新增：保存画笔标注设置
             "canvas_brush_size": STORE.canvas_brush_size,  # 新增：保存画笔大小
             "canvas_points_to_crosshair": STORE.canvas_points_to_crosshair,  # 新增：保存点转十字设置
             "scale_option": self.parameter.child(
@@ -1606,7 +1610,7 @@ class MainWindow(MainWindow):
             pass
 
         # 强制清除所有绘制状态
-        if STORE.canvas_brush_enabled:
+        if STORE.canvas_brush_enabled or self.canvas.brush_enabled:
             self.canvas.cancelBrushDrawing()
 
             # 重置画布状态
@@ -1615,8 +1619,8 @@ class MainWindow(MainWindow):
             self.canvas.line.point_labels = []
             self.canvas.drawingPolygon.emit(False)
 
-            # 切换到编辑模式 - 使用toggleDrawMode确保完全切换UI状态
-            self.toggleDrawMode(edit=True)
+            # 保持在画笔模式，方便继续绘制
+            self.toggleDrawMode(False, createMode="brush")
 
             # 强制刷新界面
             self.canvas.update()
@@ -1659,6 +1663,8 @@ class MainWindow(MainWindow):
         self.actions.save.setEnabled(False)
         self.actions.createMode.setEnabled(True)
         self.actions.createRectangleMode.setEnabled(True)
+        self.actions.createRotationMode.setEnabled(True)
+        self.actions.createBrushMode.setEnabled(True)
         self.actions.createCircleMode.setEnabled(True)
         self.actions.createLineMode.setEnabled(True)
         self.actions.createPointMode.setEnabled(True)
@@ -2496,17 +2502,6 @@ class MainWindow(MainWindow):
                         "default": 30,
                     },
                     {
-                        "name": "brush_enabled",
-                        "title": dlcv_tr("brush enabled"),
-                        "type": "bool",
-                        "value": STORE.canvas_brush_enabled,
-                        "default": STORE.canvas_brush_enabled,
-                        "shortcut": "B",
-                        "tip": dlcv_tr(
-                            "画笔标注功能仅适用于多边形标注模式，启用画笔标注将禁用滑动标注功能，两者互斥"
-                        ),
-                    },
-                    {
                         "name": "fill_closed_region",
                         "title": dlcv_tr("fill closed region"),
                         "type": "bool",
@@ -2730,10 +2725,6 @@ class MainWindow(MainWindow):
                 self.parameter.child("label_setting", "fill_closed_region").setValue(
                     setting_store.get("canvas_brush_fill_region", True)
                 )
-                # 新增：恢复画笔标注设置
-                self.parameter.child("label_setting", "brush_enabled").setValue(
-                    setting_store.get("canvas_brush_enabled", False)
-                )
                 # 新增：恢复缩放选项设置
                 self.parameter.child("other_setting", "scale_option").setValue(
                     setting_store.get("scale_option", dlcv_tr(ScaleEnum.AUTO_SCALE))
@@ -2784,64 +2775,17 @@ class MainWindow(MainWindow):
                     if new_value and self.canvas.brush_enabled:
                         self.canvas.brush_enabled = False
                         STORE.set_canvas_brush_enabled(False)
-                        # 更新参数面板
-                        try:
-                            brush_param = self.parameter.child(
-                                "label_setting", "brush_enabled"
-                            )
-                            if brush_param:
-                                brush_param.setValue(False)
-                                notification(
-                                    dlcv_tr("功能互斥"),
-                                    dlcv_tr("已禁用画笔标注功能"),
-                                    ToastPreset.INFORMATION,
-                                )
-                        except Exception:
-                            pass
+                        notification(
+                            dlcv_tr("功能互斥"),
+                            dlcv_tr("已禁用画笔标注功能"),
+                            ToastPreset.INFORMATION,
+                        )
                 elif param_name == "slide_distance":
                     self.canvas.two_points_distance = new_value
                 elif param_name == "highlight_start_point":
                     STORE.set_canvas_highlight_start_point(new_value)
                 elif param_name == "display_rotation_arrow":
                     STORE.set_canvas_display_rotation_arrow(new_value)
-                elif param_name == "brush_enabled":
-                    # 检查当前模式是否为多边形标注模式
-                    if (
-                        not self.canvas.editing()
-                        and self.canvas.createMode != "polygon"
-                        and new_value
-                    ):
-                        # 如果不是多边形标注模式，不立即启用画笔，但保留勾选状态
-                        STORE.set_canvas_brush_enabled(new_value)  # 保存用户的选择
-                        self.canvas.brush_enabled = False  # 但当前不启用画笔功能
-                        notification(
-                            dlcv_tr("画笔功能提示"),
-                            dlcv_tr(
-                                "画笔标注功能仅在多边形标注模式下可用，将在下次进入多边形模式时自动启用"
-                            ),
-                            ToastPreset.INFORMATION,
-                        )
-                        return
-
-                    self.canvas.brush_enabled = new_value
-                    STORE.set_canvas_brush_enabled(new_value)
-                    # 画笔标注和滑动标注互斥
-                    if new_value and self.canvas.draw_polygon_with_mousemove:
-                        self.canvas.draw_polygon_with_mousemove = False
-                        # 更新参数面板
-                        try:
-                            slide_param = self.parameter.child(
-                                "label_setting", "slide_label"
-                            )
-                            if slide_param:
-                                slide_param.setValue(False)
-                                notification(
-                                    dlcv_tr("功能互斥"),
-                                    dlcv_tr("已禁用滑动标注功能"),
-                                    ToastPreset.INFORMATION,
-                                )
-                        except Exception:
-                            pass
                 elif param_name == "brush_size":
                     self.canvas.brush_size = new_value
                 elif param_name == "fill_closed_region":
@@ -3388,26 +3332,28 @@ class MainWindow(MainWindow):
             "ai_polygon": self.actions.createAiPolygonMode,
             "ai_mask": self.actions.createAiMaskMode,
             "rotation": self.actions.createRotationMode,
+            "brush": self.actions.createBrushMode,
         }
 
         self.canvas.setEditing(edit)
-        self.canvas.createMode = createMode
 
-        # 如果当前模式不是polygon，仅临时禁用画笔功能，但不取消勾选
-        if not edit and createMode != "polygon" and self.canvas.brush_enabled:
-            self.canvas.brush_enabled = False
-            # 不修改STORE中的设置，这样下次进入多边形模式时可以恢复
-            # 不更新参数面板的选中状态，保留用户的勾选
-            notification(
-                dlcv_tr("画笔功能提示"),
-                dlcv_tr(
-                    "画笔标注功能仅在多边形标注模式下可用，将在下次进入多边形模式时自动启用"
-                ),
-                ToastPreset.INFORMATION,
-            )
-        # 如果进入多边形模式，且STORE中画笔功能是启用的，则自动启用画笔
-        elif not edit and createMode == "polygon" and STORE.canvas_brush_enabled:
+        if createMode == "brush":
+            # 画笔模式：内部使用 polygon + brush_enabled
+            self.canvas.createMode = "polygon"
             self.canvas.brush_enabled = True
+            STORE.set_canvas_brush_enabled(False)
+            if self.canvas.draw_polygon_with_mousemove:
+                self.canvas.draw_polygon_with_mousemove = False
+                self.draw_polygon_with_mousemove = False
+                slide_param = self.parameter.child("label_setting", "slide_label")
+                if slide_param:
+                    slide_param.setValue(False)
+        else:
+            self.canvas.createMode = createMode
+            # 离开画笔模式时禁用画笔
+            if self.canvas.brush_enabled:
+                self.canvas.brush_enabled = False
+            STORE.set_canvas_brush_enabled(False)
 
         if edit:
             for draw_action in draw_actions.values():

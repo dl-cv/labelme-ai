@@ -119,6 +119,7 @@ def get_config(*args, **kwargs):
             "create_point": ["K"],
             "create_linestrip": None,
             "create_ai_polygon": ["S"],
+            "create_brush": ["B"],
             "edit_polygon": ["ESC", "\\"],
             "delete_polygon": "Delete",
             "duplicate_polygon": "Ctrl+D",
