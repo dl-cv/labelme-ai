@@ -365,20 +365,62 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             self.setSelectionMode(QtWidgets.QAbstractItemView.MultiSelection)
         super().mousePressEvent(event)
 
+    def _should_show_item(self, img_path: str, search_text: str,
+                          show_annotated: bool,
+                          show_unannotated: bool) -> bool:
+        """判断指定文件是否应显示
+
+        Args:
+            img_path: 图片文件路径
+            search_text: 搜索关键词
+            show_annotated: 是否显示已标注文件
+            show_unannotated: 是否显示未标注文件
+
+        Returns:
+            bool: 是否应显示
+        """
+        if search_text and search_text not in img_path:
+            return False
+
+        json_path = STORE.main_window.proj_manager.get_json_path(img_path)
+        is_annotated = os.path.exists(json_path)
+
+        # 两个都没勾 = 不筛选标注状态，全部显示
+        if not show_annotated and not show_unannotated:
+            return True
+        # 只勾了已标注
+        if show_annotated and not show_unannotated:
+            return is_annotated
+        # 只勾了未标注
+        if not show_annotated and show_unannotated:
+            return not is_annotated
+        # 两个都勾了 = 全部显示
+        return True
+
+    def apply_filters(self, search_text: str = "",
+                      show_annotated: bool = False,
+                      show_unannotated: bool = False):
+        """应用过滤条件
+
+        同时根据搜索文本和标注状态过滤文件项。
+
+        Args:
+            search_text: 搜索关键词
+            show_annotated: 是否显示已标注文件
+            show_unannotated: 是否显示未标注文件
+        """
+        for img_path, file_item in self._file_items.items():
+            show = self._should_show_item(
+                img_path, search_text, show_annotated, show_unannotated)
+            file_item.setHidden(not show)
+
     def search(self, text: str):
         """ 根据字符串隐藏 items
 
         Args:
             text (str): 用于过滤的字符串，只有路径中包含该字符串的文件会显示，其余隐藏
         """
-        # 先全部显示
-        for img_path, file_item in self._file_items.items():
-            file_item.setHidden(False)
-        # 隐藏不包含关键字的项
-        for img_path in self.image_list:
-            if text not in img_path:
-                item = self._file_items[img_path]
-                item.setHidden(True)
+        self.apply_filters(search_text=text)
 
     # ----------- fileListWidget 额外函数 -------------
 
@@ -516,6 +558,26 @@ class FileTreeWidget(QtWidgets.QWidget):
         self.search_box.setToolTip(dlcv_tr("Enter键搜索"))
         self.layout.addWidget(self.search_box)
 
+        # 创建过滤选项栏
+        filter_layout = QtWidgets.QHBoxLayout()
+        filter_layout.setContentsMargins(0, 0, 0, 0)
+        filter_layout.setSpacing(8)
+
+        self.show_annotated_checkbox = QtWidgets.QCheckBox()
+        self.show_annotated_checkbox.setText(dlcv_tr("已标注"))
+        self.show_annotated_checkbox.setToolTip(
+            dlcv_tr("显示已有标注文件(JSON)的图片"))
+        filter_layout.addWidget(self.show_annotated_checkbox)
+
+        self.show_unannotated_checkbox = QtWidgets.QCheckBox()
+        self.show_unannotated_checkbox.setText(dlcv_tr("未标注"))
+        self.show_unannotated_checkbox.setToolTip(
+            dlcv_tr("显示没有标注文件的图片"))
+        filter_layout.addWidget(self.show_unannotated_checkbox)
+        filter_layout.addStretch()
+
+        self.layout.addLayout(filter_layout)
+
         # 创建树控件
         self.tree_widget = _FileTreeWidget(self)
         self.tree_widget.setObjectName("fileTree")
@@ -527,6 +589,11 @@ class FileTreeWidget(QtWidgets.QWidget):
         self.search_box.textChanged.connect(self._on_text_changed)
         # 删除请求在当前组件内处理
         self.tree_widget.sig_delete_requested.connect(self._on_delete_requested)
+        # 监听标注状态复选框变化
+        self.show_annotated_checkbox.stateChanged.connect(
+            self._on_filter_changed)
+        self.show_unannotated_checkbox.stateChanged.connect(
+            self._on_filter_changed)
 
     def _on_delete_requested(self, file_paths: list[str]):
         if not file_paths:
@@ -579,14 +646,28 @@ class FileTreeWidget(QtWidgets.QWidget):
         """处理搜索事件"""
         search_text = self.search_box.text().strip()
         print(f"搜索关键词: '{search_text}'")
-        self.tree_widget.search(search_text)
+        self._apply_filters()
 
     def _on_text_changed(self, text):
         """处理文本变化事件"""
         # 当搜索框被清空时，自动显示所有文件
         if not text.strip():
             print("搜索框已清空，显示所有文件")
-            self.tree_widget.search("")
+            self._apply_filters()
+
+    def _on_filter_changed(self, state):
+        """处理标注状态复选框变化"""
+        self._apply_filters()
+
+    def _apply_filters(self):
+        """应用当前所有过滤条件"""
+        search_text = self.search_box.text().strip()
+        show_annotated = self.show_annotated_checkbox.isChecked()
+        show_unannotated = self.show_unannotated_checkbox.isChecked()
+        self.tree_widget.apply_filters(
+            search_text=search_text,
+            show_annotated=show_annotated,
+            show_unannotated=show_unannotated)
 
     def __getattr__(self, name):
         """
