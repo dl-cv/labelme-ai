@@ -53,6 +53,7 @@ from labelme.dlcv.widget.unique_label_qlist_widget import (
 from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
 from labelme.dlcv.controller.pos_controller import ensure_window_in_screen
 from labelme.dlcv.actions import install_create_brush_mode_action
+from labelme.dlcv.canvas import CURSOR_DRAW
 import os
 from labelme.dlcv.widget.label_count import LabelCountDock
 from labelme.dlcv.ui_theme_manager import UiThemeManager
@@ -3367,6 +3368,9 @@ class MainWindow(MainWindow):
             self.canvas.current.shape_type = self.canvas.createMode
         
         self.canvas.restoreCursor()
+        if not edit:
+            self.canvas.overrideCursor(CURSOR_DRAW)
+        self.canvas.update()
 
     # ------------ zx触发事件动作 ------------
     def _init_trigger_action(self):
@@ -3518,7 +3522,11 @@ class MainWindow(MainWindow):
                 # 刷新
                 self.canvas.update()
             # 记录当前的绘制模式
-            self._prev_create_mode = self.canvas.createMode
+            # 画笔模式下 createMode 被存为 'polygon'，需要特殊判断
+            if self.canvas.brush_enabled:
+                self._prev_create_mode = "brush"
+            else:
+                self._prev_create_mode = self.canvas.createMode
             self.toggleDrawMode(True)
         # 如果在编辑状态,切换回之前的绘制模式
         else:
