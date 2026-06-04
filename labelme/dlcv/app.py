@@ -53,6 +53,12 @@ from labelme.dlcv.widget.unique_label_qlist_widget import (
 from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
 from labelme.dlcv.controller.pos_controller import ensure_window_in_screen
 from labelme.dlcv.actions import install_create_brush_mode_action
+from labelme.dlcv.widget.setting_dock import (
+    SettingDock,
+    ProjEnum,
+    ScaleEnum,
+    LabelPositionEnum,
+)
 from labelme.dlcv.canvas import CURSOR_DRAW
 import os
 from labelme.dlcv.widget.label_count import LabelCountDock
@@ -776,23 +782,18 @@ class MainWindow(MainWindow):
 
         # extra 保存设置
         # 保存store里面的设置
-        setting_store = {
+        setting_store = self.setting_dock.save_settings()
+        setting_store.update({
             "display_shape_label": STORE.canvas_display_shape_label,
-            "shape_label_font_size": STORE.canvas_shape_label_font_size,  # 新增：保存标签字体大小
-            "shape_label_position": STORE.canvas_shape_label_position,  # 新增：保存标签显示位置
+            "shape_label_font_size": STORE.canvas_shape_label_font_size,
+            "shape_label_position": STORE.canvas_shape_label_position,
             "highlight_start_point": STORE.canvas_highlight_start_point,
             "convert_img_to_gray": STORE.convert_img_to_gray,
             "canvas_display_rotation_arrow": STORE.canvas_display_rotation_arrow,
             "canvas_brush_fill_region": STORE.canvas_brush_fill_region,
-            "canvas_brush_size": STORE.canvas_brush_size,  # 新增：保存画笔大小
-            "canvas_points_to_crosshair": STORE.canvas_points_to_crosshair,  # 新增：保存点转十字设置
-            "scale_option": self.parameter.child(
-                "other_setting", "scale_option"
-            ).value(),
-            "ai_polygon_simplify_epsilon": self.parameter.child(
-                "label_setting", "ai_polygon_simplify_epsilon"
-            ).value(),
-        }
+            "canvas_brush_size": STORE.canvas_brush_size,
+            "canvas_points_to_crosshair": STORE.canvas_points_to_crosshair,
+        })
         self.settings.setValue("setting_store", setting_store)
         self.__store_splitter_sizes()
         # extra End
@@ -2400,286 +2401,11 @@ class MainWindow(MainWindow):
 
     # region 设置面板
     def _init_setting_dock(self):
-        setting_kwargs = [
-            # {
-            #     'name': 'help_text',
-            #     'title': tr('help text'),
-            #     'type': 'text',
-            #     'value': tr('help text'),
-            #     'readonly': True,
-            # },
-            {
-                "name": "proj_setting",
-                "title": dlcv_tr("project setting"),
-                "type": "group",
-                "children": [
-                    {
-                        "name": "proj_type",
-                        "title": dlcv_tr("project type"),
-                        "type": "list",
-                        "limits": [ProjEnum.NORMAL, ProjEnum.O2_5D, ProjEnum.O3D],
-                        "default": ProjEnum.NORMAL,
-                    },
-                ],
-            },
-            {
-                "name": "other_setting",
-                "title": dlcv_tr("other setting"),
-                "type": "group",
-                "children": [
-                    {
-                        "name": "display_shape_label",
-                        "title": dlcv_tr("display shape label"),
-                        "type": "bool",
-                        "value": True,
-                        "default": True,
-                        "shortcut": self._config["shortcuts"]["display_shape_label"],
-                    },
-                    {
-                        "name": "shape_label_font_size",
-                        "title": dlcv_tr("shape label font size"),
-                        "type": "int",
-                        "value": 8,
-                        "default": 8,
-                        "min": 1,
-                        "max": 20,
-                        "step": 1,
-                    },
-                    {
-                        "name": "shape_label_position",
-                        "title": dlcv_tr("shape label position"),
-                        "type": "list",
-                        "value": dlcv_tr(LabelPositionEnum.CENTER),
-                        "limits": [
-                            dlcv_tr(LabelPositionEnum.CENTER),
-                            dlcv_tr(LabelPositionEnum.TOP_LEFT),
-                            dlcv_tr(LabelPositionEnum.BOTTOM_RIGHT),
-                        ],
-                        "default": dlcv_tr(LabelPositionEnum.CENTER),
-                    },
-                    {
-                        "name": "scale_option",
-                        "title": dlcv_tr("keep prev scale"),
-                        "type": "list",
-                        "value": dlcv_tr(ScaleEnum.AUTO_SCALE),
-                        "limits": [
-                            dlcv_tr(ScaleEnum.KEEP_PREV_SCALE),
-                            dlcv_tr(ScaleEnum.AUTO_SCALE),
-                            dlcv_tr(ScaleEnum.KEEP_SCALE),
-                        ],
-                        "default": dlcv_tr(ScaleEnum.AUTO_SCALE),
-                    },
-                    {
-                        "name": "convert_img_to_gray",
-                        "title": dlcv_tr("convert img to gray"),
-                        "type": "bool",
-                        "value": STORE.convert_img_to_gray,
-                        "default": STORE.convert_img_to_gray,
-                    },
-                    {
-                        "name": "points_to_crosshair",
-                        "title": dlcv_tr("points to crosshair"),
-                        "type": "bool",
-                        "value": STORE.canvas_points_to_crosshair,
-                        "default": STORE.canvas_points_to_crosshair,
-                        "tip": dlcv_tr("启用后，将点转换为十字线"),
-                    },
-                ],
-            },
-            {
-                "name": "label_setting",
-                "title": dlcv_tr("label setting"),
-                "type": "group",
-                "children": [
-                    {
-                        "name": "blue_line_color",
-                        "title": dlcv_tr("蓝色线段标注"),
-                        "type": "bool",
-                        "value": False,
-                        "default": False,
-                        "tip": dlcv_tr("启用后，将高亮标注线段为蓝色"),
-                    },
-                    {
-                        "name": "slide_label",
-                        "title": dlcv_tr("slide label"),
-                        "type": "bool",
-                        "value": False,
-                        "default": False,
-                        "shortcut": self._config["shortcuts"]["canvas_auto_left_click"],
-                        "tip": dlcv_tr("启用滑动标注将禁用画笔标注功能，两者互斥"),
-                    },
-                    {
-                        "name": "slide_distance",
-                        "title": dlcv_tr("slide distance"),
-                        "type": "int",
-                        "value": 30,
-                        "default": 30,
-                    },
-                    {
-                        "name": "fill_closed_region",
-                        "title": dlcv_tr("fill closed region"),
-                        "type": "bool",
-                        "value": STORE.canvas_brush_fill_region,
-                        "default": STORE.canvas_brush_fill_region,
-                        "tip": dlcv_tr("启用后，闭合区域内部将被填充，否则仅保留轮廓"),
-                    },
-                    {
-                        "name": "brush_size",
-                        "title": dlcv_tr("brush size"),
-                        "type": "int",
-                        "value": STORE.canvas_brush_size,
-                        "default": STORE.canvas_brush_size,
-                        "min": 2,
-                    },
-                    {
-                        "name": "highlight_start_point",
-                        "title": dlcv_tr("highlight start point"),
-                        "type": "bool",
-                        "value": False,
-                        "default": False,
-                    },
-                    {
-                        "name": "display_rotation_arrow",
-                        "title": dlcv_tr("显示旋转框箭头与角度"),
-                        "type": "bool",
-                        "value": STORE.canvas_display_rotation_arrow,
-                        "default": STORE.canvas_display_rotation_arrow,
-                    },
-                    {
-                        "name": "ai_polygon_simplify_epsilon",
-                        "title": dlcv_tr("AI多边形点数简化设置"),
-                        "type": "float",
-                        "value": 0.005,
-                        "default": 0.005,
-                        "min": 0.001,
-                        "max": 0.1,
-                        "step": 0.005,
-                        "tip": dlcv_tr(
-                            "简化程度说明：\n0.001: 轻微简化\n0.005: 默认简化\n0.01: 较多简化\n0.05: 大量简化\n0.1: 极度简化"
-                        ),
-                    },
-                ],
-            },
-            {
-                "name": "auto_setting",
-                "title": dlcv_tr("auto setting"),
-                "type": "group",
-                "children": [
-                    {
-                        "name": "use_bbox",
-                        "title": dlcv_tr("使用Bbox进行自动标注"),
-                        "type": "bool",
-                        "value": False,
-                        "default": False,
-                    },
-                    {
-                        "name": "category_filter_list",
-                        "title": dlcv_tr("请输入需要自动标注的类别"),
-                        "type": "text",
-                        "placeholder": dlcv_tr(
-                            "请输入需要自动标注的类别，多个类别用,或，隔开"
-                        ),
-                        "value": "",
-                        "tip": dlcv_tr("请输入需要自动标注的类别，多个类别用,或，隔开"),
-                    },
-                ],
-            },
-        ]
-
-        # 快捷键提示文本
-        for setting_kwarg in setting_kwargs:
-            p_type = setting_kwarg.get("type")
-            if p_type == "group":
-                children = setting_kwarg.get("children")
-                for child in children:
-                    shortcut = child.get("shortcut")
-                    if shortcut:
-                        child["title"] = child["title"] + f"({shortcut})"
-
-        self.parameter = Parameter.create(
-            name="params", type="group", children=setting_kwargs
-        )
-        self.parameter_tree = ParameterTree(showHeader=False)
-        self.parameter_tree.setObjectName("settingParameterTree")
-        self.parameter_tree.setParameters(self.parameter, showTop=False)
+        self.setting_dock = SettingDock(self, self._config, self.canvas)
+        self.parameter = self.setting_dock.parameter
+        self._selectAiModelComboBox = self.setting_dock.selectAiModelComboBox
         self.parameter.sigTreeStateChanged.connect(self.on_setting_dock_changed)
-
-        # 快捷键
-        for parent_kwarg in setting_kwargs:
-            children = parent_kwarg.get("children")
-            for child in children:
-                shortcut = child.get("shortcut")
-                child_type = child.get("type")
-                if shortcut:
-                    action = QtWidgets.QAction(self)
-                    action.setShortcut(shortcut)
-                    parameter = self.parameter.child(
-                        parent_kwarg["name"], child["name"]
-                    )
-                    if child_type == "bool":
-                        action.triggered.connect(
-                            lambda _, p=parameter: p.setValue(not p.value())
-                        )
-                    elif child_type == "action":
-                        action.triggered.connect(lambda _, p=parameter: p.trigger())
-                    else:
-                        raise ValueError(f"不支持的类型: {child_type}")
-                    self.addAction(action)
-
-        self.setting_dock = QtWidgets.QDockWidget(dlcv_tr("setting dock"), self)
-        self.setting_dock.setObjectName("setting_dock")
-
-        # https://bbs2.dlcv.com.cn/t/topic/1690
-        # 将「AI Mask Model」从顶栏移到右下角设置面板
-        ai_model_widget = QtWidgets.QWidget(self)
-        ai_model_layout = QtWidgets.QHBoxLayout(ai_model_widget)
-        ai_model_layout.setContentsMargins(6, 6, 6, 6)
-        ai_model_layout.setSpacing(6)
-        ai_model_label = QtWidgets.QLabel(self.tr("AI Mask Model"), ai_model_widget)
-        ai_model_layout.addWidget(ai_model_label)
-
-        # 重新创建一个 combo，避免依赖工具条上的 QWidgetAction
-        self._selectAiModelComboBox = QtWidgets.QComboBox(ai_model_widget)
-        self._selectAiModelComboBox.setSizePolicy(
-            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed
-        )
-        model_names = [model.name for model in MODELS]
-        self._selectAiModelComboBox.addItems(model_names)
-        if self._config["ai"]["default"] in model_names:
-            model_index = model_names.index(self._config["ai"]["default"])
-        else:
-            logger.warning(
-                "Default AI model is not found: %r",
-                self._config["ai"]["default"],
-            )
-            model_index = 0
-        self._selectAiModelComboBox.setCurrentIndex(model_index)
-        self._selectAiModelComboBox.currentIndexChanged.connect(
-            lambda: self.canvas.initializeAiModel(
-                name=self._selectAiModelComboBox.currentText()
-            )
-            if self.canvas.createMode in ["ai_polygon", "ai_mask"]
-            else None
-        )
-        ai_model_layout.addWidget(self._selectAiModelComboBox, 1)
-
-        setting_container = QtWidgets.QWidget(self)
-        setting_container.setObjectName("settingPanel")
-        setting_layout = QtWidgets.QVBoxLayout(setting_container)
-        # 贴近截图：整体留白 + 分组更清晰
-        setting_layout.setContentsMargins(8, 8, 8, 8)
-        setting_layout.setSpacing(6)
-        setting_layout.addWidget(ai_model_widget)
-        line = QtWidgets.QFrame(setting_container)
-        line.setFrameShape(QtWidgets.QFrame.HLine)
-        line.setFrameShadow(QtWidgets.QFrame.Sunken)
-        setting_layout.addWidget(line)
-        setting_layout.addWidget(self.parameter_tree)
-
-        self.setting_dock.setWidget(setting_container)
         self.addDockWidget(Qt.RightDockWidgetArea, self.setting_dock)
-
-        # 添加到菜单栏->视图->设置面板
         self.menus.view.insertAction(
             self.menus.view.actions()[4], self.setting_dock.toggleViewAction()
         )
@@ -2692,8 +2418,6 @@ class MainWindow(MainWindow):
         state = self.settings.value("window/state", QtCore.QByteArray())
         self.resize(size)
         self.move(position)
-        # or simply:
-        # self.restoreGeometry(settings['window/geometry']
         self.restoreState(state)
 
         # 应用 UI 字体大小（如果已保存）
@@ -2708,66 +2432,7 @@ class MainWindow(MainWindow):
                 font.setPointSize(int(ui_font_size))
                 app.setFont(font)
 
-        def restore_setting():
-            setting_store = self.settings.value("setting_store", None)
-            if setting_store:
-                self.parameter.child("other_setting", "display_shape_label").setValue(
-                    setting_store.get("display_shape_label", True)
-                )
-                self.parameter.child("other_setting", "convert_img_to_gray").setValue(
-                    setting_store.get("convert_img_to_gray", False)
-                )
-                # 新增：从store中读取标签字体大小
-                self.parameter.child("other_setting", "shape_label_font_size").setValue(
-                    setting_store.get(
-                        "shape_label_font_size", STORE.canvas_shape_label_font_size
-                    )
-                )
-                # 新增：从store中读取标签显示位置
-                saved_pos = setting_store.get("shape_label_position", LabelPositionEnum.CENTER)
-                # 兼容旧数据：可能是中文翻译值或英文值
-                if saved_pos in (LabelPositionEnum.CENTER, dlcv_tr(LabelPositionEnum.CENTER)):
-                    display_pos = dlcv_tr(LabelPositionEnum.CENTER)
-                elif saved_pos in (LabelPositionEnum.TOP_LEFT, dlcv_tr(LabelPositionEnum.TOP_LEFT)):
-                    display_pos = dlcv_tr(LabelPositionEnum.TOP_LEFT)
-                elif saved_pos in (LabelPositionEnum.BOTTOM_RIGHT, dlcv_tr(LabelPositionEnum.BOTTOM_RIGHT)):
-                    display_pos = dlcv_tr(LabelPositionEnum.BOTTOM_RIGHT)
-                else:
-                    display_pos = dlcv_tr(LabelPositionEnum.CENTER)
-                self.parameter.child("other_setting", "shape_label_position").setValue(display_pos)
-                # 同步到 STORE
-                if display_pos == dlcv_tr(LabelPositionEnum.CENTER):
-                    STORE.set_canvas_shape_label_position(LabelPositionEnum.CENTER)
-                elif display_pos == dlcv_tr(LabelPositionEnum.TOP_LEFT):
-                    STORE.set_canvas_shape_label_position(LabelPositionEnum.TOP_LEFT)
-                elif display_pos == dlcv_tr(LabelPositionEnum.BOTTOM_RIGHT):
-                    STORE.set_canvas_shape_label_position(LabelPositionEnum.BOTTOM_RIGHT)
-                # 新增：从store中读取点转十字设置
-                self.parameter.child("other_setting", "points_to_crosshair").setValue(
-                    setting_store.get("canvas_points_to_crosshair", True)
-                )
-
-                self.parameter.child("label_setting", "highlight_start_point").setValue(
-                    setting_store.get("highlight_start_point", False)
-                )
-                # 新增：恢复旋转框箭头与角度显示
-                self.parameter.child(
-                    "label_setting", "display_rotation_arrow"
-                ).setValue(setting_store.get("canvas_display_rotation_arrow", True))
-                # 新增：恢复是否填充闭合区域设置
-                self.parameter.child("label_setting", "fill_closed_region").setValue(
-                    setting_store.get("canvas_brush_fill_region", True)
-                )
-                # 新增：恢复缩放选项设置
-                self.parameter.child("other_setting", "scale_option").setValue(
-                    setting_store.get("scale_option", dlcv_tr(ScaleEnum.AUTO_SCALE))
-                )
-                # 新增：恢复AI多边形简化参数设置
-                self.parameter.child(
-                    "label_setting", "ai_polygon_simplify_epsilon"
-                ).setValue(setting_store.get("ai_polygon_simplify_epsilon", 0.005))
-
-        restore_setting()
+        self.setting_dock.restore_settings(self.settings)
 
     def on_setting_dock_changed(
         self, root_parm: Parameter, change_parms: [[Parameter, str, bool]]
@@ -3701,20 +3366,4 @@ def init_backend_ws():
     thread = threading.Thread(target=ws_thread, daemon=True)
     thread.start()
 
-class ProjEnum:
-    NORMAL = "2D"
-    O2_5D = "2.5D"
-    O3D = "3D"
     # ------------ 3D 视图 end ------------
-
-
-class ScaleEnum:
-    KEEP_PREV_SCALE = "保持上次缩放比例"
-    AUTO_SCALE = "自动缩放"
-    KEEP_SCALE = "保持缩放比例"
-
-
-class LabelPositionEnum:
-    CENTER = "center"
-    TOP_LEFT = "top_left"
-    BOTTOM_RIGHT = "bottom_right"
