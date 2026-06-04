@@ -2404,7 +2404,6 @@ class MainWindow(MainWindow):
         self.setting_dock = SettingDock(self, self._config, self.canvas)
         self.parameter = self.setting_dock.parameter
         self._selectAiModelComboBox = self.setting_dock.selectAiModelComboBox
-        self.parameter.sigTreeStateChanged.connect(self.on_setting_dock_changed)
         self.addDockWidget(Qt.RightDockWidgetArea, self.setting_dock)
         self.menus.view.insertAction(
             self.menus.view.actions()[4], self.setting_dock.toggleViewAction()
@@ -2434,12 +2433,6 @@ class MainWindow(MainWindow):
 
         self.setting_dock.restore_settings(self.settings)
 
-    def on_setting_dock_changed(
-        self, root_parm: Parameter, change_parms: [[Parameter, str, bool]]
-    ):
-        # 使用新的参数处理方法
-        self._on_param_changed(root_parm, change_parms)
-
     @property
     def keep_scale(self):
         return (
@@ -2447,76 +2440,6 @@ class MainWindow(MainWindow):
             == dlcv_tr(ScaleEnum.KEEP_SCALE)
         )
 
-    def _on_param_changed(self, param, changes):
-        # 使用新的参数处理方法
-        for param, _, new_value in changes:
-            path = self.parameter.childPath(param)
-            parent_path = path[:-1]
-            param_name = path[-1]
-
-            # update settings
-            if len(parent_path) == 1 and parent_path[0] == "label_setting":
-                if param_name == "blue_line_color":
-                    # 'line_color': [0, 127, 255,255],
-                    # 'vertex_fill_color': [0, 127, 255,255]
-                    if new_value:
-                        Shape.line_color = QtGui.QColor(0, 127, 255, 255)
-                        Shape.vertex_fill_color = QtGui.QColor(0, 127, 255, 255)
-                    else:
-                        Shape.line_color = QtGui.QColor(0, 255, 0, 128)
-                        Shape.vertex_fill_color = QtGui.QColor(0, 255, 0, 255)
-
-                if param_name == "slide_label":
-                    self.draw_polygon_with_mousemove = new_value
-                    self.canvas.draw_polygon_with_mousemove = new_value
-                    # 滑动标注和画笔标注互斥
-                    if new_value and self.canvas.brush_enabled:
-                        self.canvas.brush_enabled = False
-                        STORE.set_canvas_brush_enabled(False)
-                        notification(
-                            dlcv_tr("功能互斥"),
-                            dlcv_tr("已禁用画笔标注功能"),
-                            ToastPreset.INFORMATION,
-                        )
-                elif param_name == "slide_distance":
-                    self.canvas.two_points_distance = new_value
-                elif param_name == "highlight_start_point":
-                    STORE.set_canvas_highlight_start_point(new_value)
-                elif param_name == "display_rotation_arrow":
-                    STORE.set_canvas_display_rotation_arrow(new_value)
-                elif param_name == "brush_size":
-                    self.canvas.brush_size = new_value
-                elif param_name == "fill_closed_region":
-                    STORE.set_canvas_brush_fill_region(new_value)
-            elif len(parent_path) == 1 and parent_path[0] == "other_setting":
-                if param_name == "display_shape_label":
-                    STORE.set_canvas_display_shape_label(new_value)
-                    self.canvas.update()
-                # 调整标签字体大小， 更新到store中
-                elif param_name == "shape_label_font_size":
-                    STORE.set_canvas_shape_label_font_size(new_value)
-                    self.canvas.update()
-                elif param_name == "shape_label_position":
-                    if new_value == dlcv_tr(LabelPositionEnum.CENTER):
-                        STORE.set_canvas_shape_label_position(LabelPositionEnum.CENTER)
-                    elif new_value == dlcv_tr(LabelPositionEnum.TOP_LEFT):
-                        STORE.set_canvas_shape_label_position(LabelPositionEnum.TOP_LEFT)
-                    elif new_value == dlcv_tr(LabelPositionEnum.BOTTOM_RIGHT):
-                        STORE.set_canvas_shape_label_position(LabelPositionEnum.BOTTOM_RIGHT)
-                    self.canvas.update()
-                elif param_name == "convert_img_to_gray":
-                    STORE.set_convert_img_to_gray(new_value)
-                # 点转十字： 当参数发生变化时，更新store中的值
-                elif param_name == "points_to_crosshair":
-                    STORE.set_canvas_points_to_crosshair(new_value)
-                    self.canvas.update()
-                elif param_name == "scale_option":
-                    if new_value == dlcv_tr(ScaleEnum.KEEP_PREV_SCALE):
-                        self.enableKeepPrevScale(True)
-                    elif new_value == dlcv_tr(ScaleEnum.AUTO_SCALE):
-                        self.enableKeepPrevScale(False)
-                    elif new_value == dlcv_tr(ScaleEnum.KEEP_SCALE):
-                        self.enableKeepPrevScale(False)
     # endregion
 
     @property

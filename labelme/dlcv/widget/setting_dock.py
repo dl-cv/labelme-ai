@@ -1,11 +1,14 @@
 import logging
 
-from qtpy import QtCore, QtWidgets
+from qtpy import QtCore, QtWidgets, QtGui
 from pyqtgraph.parametertree import Parameter, ParameterTree
+from pyqttoast import ToastPreset
 
 from labelme.dlcv import dlcv_tr
-from labelme.dlcv.store import STORE
 from labelme.dlcv.ai import MODELS
+from labelme.dlcv.store import STORE
+from labelme.dlcv.utils_func import notification
+from labelme.dlcv.shape import Shape
 
 logger = logging.getLogger(__name__)
 
@@ -124,15 +127,15 @@ class SettingDock(QtWidgets.QDockWidget):
                         "name": "convert_img_to_gray",
                         "title": dlcv_tr("convert img to gray"),
                         "type": "bool",
-                        "value": STORE.convert_img_to_gray,
-                        "default": STORE.convert_img_to_gray,
+                        "value": False,
+                        "default": False,
                     },
                     {
                         "name": "points_to_crosshair",
                         "title": dlcv_tr("points to crosshair"),
                         "type": "bool",
-                        "value": STORE.canvas_points_to_crosshair,
-                        "default": STORE.canvas_points_to_crosshair,
+                        "value": True,
+                        "default": True,
                         "tip": dlcv_tr("启用后，将点转换为十字线"),
                     },
                 ],
@@ -170,16 +173,16 @@ class SettingDock(QtWidgets.QDockWidget):
                         "name": "fill_closed_region",
                         "title": dlcv_tr("fill closed region"),
                         "type": "bool",
-                        "value": STORE.canvas_brush_fill_region,
-                        "default": STORE.canvas_brush_fill_region,
+                        "value": True,
+                        "default": True,
                         "tip": dlcv_tr("启用后，闭合区域内部将被填充，否则仅保留轮廓"),
                     },
                     {
                         "name": "brush_size",
                         "title": dlcv_tr("brush size"),
                         "type": "int",
-                        "value": STORE.canvas_brush_size,
-                        "default": STORE.canvas_brush_size,
+                        "value": 3,
+                        "default": 3,
                         "min": 2,
                     },
                     {
@@ -193,8 +196,8 @@ class SettingDock(QtWidgets.QDockWidget):
                         "name": "display_rotation_arrow",
                         "title": dlcv_tr("显示旋转框箭头与角度"),
                         "type": "bool",
-                        "value": STORE.canvas_display_rotation_arrow,
-                        "default": STORE.canvas_display_rotation_arrow,
+                        "value": False,
+                        "default": False,
                     },
                     {
                         "name": "ai_polygon_simplify_epsilon",
@@ -255,6 +258,7 @@ class SettingDock(QtWidgets.QDockWidget):
         self.parameter_tree = ParameterTree(showHeader=False)
         self.parameter_tree.setObjectName("settingParameterTree")
         self.parameter_tree.setParameters(self._parameter, showTop=False)
+        self._parameter.sigTreeStateChanged.connect(self._on_param_changed)
 
         # 绑定快捷键 action
         for parent_kwarg in param_kwargs:
@@ -332,6 +336,56 @@ class SettingDock(QtWidgets.QDockWidget):
         self.setWidget(setting_container)
         self.setObjectName("setting_dock")
 
+    def _on_param_changed(self, param, changes):
+        """参数变更回调：处理所有设置变更逻辑。"""
+        mw = STORE.main_window
+        for param, _, new_value in changes:
+            path = self._parameter.childPath(param)
+            parent_path = path[:-1]
+            param_name = path[-1]
+
+            if len(parent_path) == 1 and parent_path[0] == "label_setting":
+                if param_name == "blue_line_color":
+                    if new_value:
+                        Shape.line_color = QtGui.QColor(0, 127, 255, 255)
+                        Shape.vertex_fill_color = QtGui.QColor(0, 127, 255, 255)
+                    else:
+                        Shape.line_color = QtGui.QColor(0, 255, 0, 128)
+                        Shape.vertex_fill_color = QtGui.QColor(0, 255, 0, 255)
+
+                elif param_name == "slide_label":
+                    mw.draw_polygon_with_mousemove = new_value
+                    self._canvas.draw_polygon_with_mousemove = new_value
+                    if new_value and self._canvas.brush_enabled:
+                        self._canvas.brush_enabled = False
+                        STORE.set_canvas_brush_enabled(False)
+                        notification(
+                            dlcv_tr("功能互斥"),
+                            dlcv_tr("已禁用画笔标注功能"),
+                            ToastPreset.INFORMATION,
+                        )
+
+                elif param_name == "slide_distance":
+                    self._canvas.two_points_distance = new_value
+                elif param_name == "brush_size":
+                    self._canvas.brush_size = new_value
+
+            elif len(parent_path) == 1 and parent_path[0] == "other_setting":
+                if param_name in (
+                    "display_shape_label",
+                    "shape_label_font_size",
+                    "shape_label_position",
+                    "points_to_crosshair",
+                ):
+                    self._canvas.update()
+                elif param_name == "scale_option":
+                    if new_value == dlcv_tr(ScaleEnum.KEEP_PREV_SCALE):
+                        mw.enableKeepPrevScale(True)
+                    elif new_value == dlcv_tr(ScaleEnum.AUTO_SCALE):
+                        mw.enableKeepPrevScale(False)
+                    elif new_value == dlcv_tr(ScaleEnum.KEEP_SCALE):
+                        mw.enableKeepPrevScale(False)
+
     # endregion
 
     # region 恢复 / 保存
@@ -348,9 +402,7 @@ class SettingDock(QtWidgets.QDockWidget):
             setting_store.get("convert_img_to_gray", False)
         )
         self._parameter.child("other_setting", "shape_label_font_size").setValue(
-            setting_store.get(
-                "shape_label_font_size", STORE.canvas_shape_label_font_size
-            )
+            setting_store.get("shape_label_font_size", 8)
         )
 
         # 标签显示位置（兼容旧数据：可能是中文翻译值或英文值）
@@ -364,12 +416,6 @@ class SettingDock(QtWidgets.QDockWidget):
         else:
             display_pos = dlcv_tr(LabelPositionEnum.CENTER)
         self._parameter.child("other_setting", "shape_label_position").setValue(display_pos)
-        if display_pos == dlcv_tr(LabelPositionEnum.CENTER):
-            STORE.set_canvas_shape_label_position(LabelPositionEnum.CENTER)
-        elif display_pos == dlcv_tr(LabelPositionEnum.TOP_LEFT):
-            STORE.set_canvas_shape_label_position(LabelPositionEnum.TOP_LEFT)
-        elif display_pos == dlcv_tr(LabelPositionEnum.BOTTOM_RIGHT):
-            STORE.set_canvas_shape_label_position(LabelPositionEnum.BOTTOM_RIGHT)
 
         self._parameter.child("other_setting", "points_to_crosshair").setValue(
             setting_store.get("canvas_points_to_crosshair", True)
