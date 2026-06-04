@@ -2674,7 +2674,7 @@ class MainWindow(MainWindow):
         # XXX: Could be completely declarative.
         # Restore application settings.
         self.settings = QtCore.QSettings("labelme", "labelme")
-        size = self.settings.value("window/size", QtCore.QSize(600, 500))
+        size = self.settings.value("window/size", QtCore.QSize(1200, 800))
         position = self.settings.value("window/position", QtCore.QPoint(0, 0))
         state = self.settings.value("window/state", QtCore.QByteArray())
         self.resize(size)
