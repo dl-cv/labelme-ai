@@ -779,6 +779,7 @@ class MainWindow(MainWindow):
         setting_store = {
             "display_shape_label": STORE.canvas_display_shape_label,
             "shape_label_font_size": STORE.canvas_shape_label_font_size,  # 新增：保存标签字体大小
+            "shape_label_position": STORE.canvas_shape_label_position,  # 新增：保存标签显示位置
             "highlight_start_point": STORE.canvas_highlight_start_point,
             "convert_img_to_gray": STORE.convert_img_to_gray,
             "canvas_display_rotation_arrow": STORE.canvas_display_rotation_arrow,
@@ -2445,6 +2446,18 @@ class MainWindow(MainWindow):
                         "step": 1,
                     },
                     {
+                        "name": "shape_label_position",
+                        "title": dlcv_tr("shape label position"),
+                        "type": "list",
+                        "value": dlcv_tr(LabelPositionEnum.CENTER),
+                        "limits": [
+                            dlcv_tr(LabelPositionEnum.CENTER),
+                            dlcv_tr(LabelPositionEnum.TOP_LEFT),
+                            dlcv_tr(LabelPositionEnum.BOTTOM_RIGHT),
+                        ],
+                        "default": dlcv_tr(LabelPositionEnum.CENTER),
+                    },
+                    {
                         "name": "scale_option",
                         "title": dlcv_tr("keep prev scale"),
                         "type": "list",
@@ -2710,6 +2723,25 @@ class MainWindow(MainWindow):
                         "shape_label_font_size", STORE.canvas_shape_label_font_size
                     )
                 )
+                # 新增：从store中读取标签显示位置
+                saved_pos = setting_store.get("shape_label_position", LabelPositionEnum.CENTER)
+                # 兼容旧数据：可能是中文翻译值或英文值
+                if saved_pos in (LabelPositionEnum.CENTER, dlcv_tr(LabelPositionEnum.CENTER)):
+                    display_pos = dlcv_tr(LabelPositionEnum.CENTER)
+                elif saved_pos in (LabelPositionEnum.TOP_LEFT, dlcv_tr(LabelPositionEnum.TOP_LEFT)):
+                    display_pos = dlcv_tr(LabelPositionEnum.TOP_LEFT)
+                elif saved_pos in (LabelPositionEnum.BOTTOM_RIGHT, dlcv_tr(LabelPositionEnum.BOTTOM_RIGHT)):
+                    display_pos = dlcv_tr(LabelPositionEnum.BOTTOM_RIGHT)
+                else:
+                    display_pos = dlcv_tr(LabelPositionEnum.CENTER)
+                self.parameter.child("other_setting", "shape_label_position").setValue(display_pos)
+                # 同步到 STORE
+                if display_pos == dlcv_tr(LabelPositionEnum.CENTER):
+                    STORE.set_canvas_shape_label_position(LabelPositionEnum.CENTER)
+                elif display_pos == dlcv_tr(LabelPositionEnum.TOP_LEFT):
+                    STORE.set_canvas_shape_label_position(LabelPositionEnum.TOP_LEFT)
+                elif display_pos == dlcv_tr(LabelPositionEnum.BOTTOM_RIGHT):
+                    STORE.set_canvas_shape_label_position(LabelPositionEnum.BOTTOM_RIGHT)
                 # 新增：从store中读取点转十字设置
                 self.parameter.child("other_setting", "points_to_crosshair").setValue(
                     setting_store.get("canvas_points_to_crosshair", True)
@@ -2798,6 +2830,14 @@ class MainWindow(MainWindow):
                 # 调整标签字体大小， 更新到store中
                 elif param_name == "shape_label_font_size":
                     STORE.set_canvas_shape_label_font_size(new_value)
+                    self.canvas.update()
+                elif param_name == "shape_label_position":
+                    if new_value == dlcv_tr(LabelPositionEnum.CENTER):
+                        STORE.set_canvas_shape_label_position(LabelPositionEnum.CENTER)
+                    elif new_value == dlcv_tr(LabelPositionEnum.TOP_LEFT):
+                        STORE.set_canvas_shape_label_position(LabelPositionEnum.TOP_LEFT)
+                    elif new_value == dlcv_tr(LabelPositionEnum.BOTTOM_RIGHT):
+                        STORE.set_canvas_shape_label_position(LabelPositionEnum.BOTTOM_RIGHT)
                     self.canvas.update()
                 elif param_name == "convert_img_to_gray":
                     STORE.set_convert_img_to_gray(new_value)
@@ -3672,3 +3712,9 @@ class ScaleEnum:
     KEEP_PREV_SCALE = "保持上次缩放比例"
     AUTO_SCALE = "自动缩放"
     KEEP_SCALE = "保持缩放比例"
+
+
+class LabelPositionEnum:
+    CENTER = "center"
+    TOP_LEFT = "top_left"
+    BOTTOM_RIGHT = "bottom_right"

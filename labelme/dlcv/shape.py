@@ -275,11 +275,17 @@ class Shape(Shape):
                         bg_rect = QtCore.QRectF(scaled_center, scaled_center)
                         bg_rect.setWidth(text_width + padding * 2)
                         bg_rect.setHeight(text_height + padding * 2)
-                        bg_rect.moveCenter(scaled_center)
-            
+                        label_position = getattr(STORE, 'canvas_shape_label_position', 'center')
+                        if label_position == 'top_left':
+                            bg_rect.moveTopLeft(scaled_center)
+                        elif label_position == 'bottom_right':
+                            bg_rect.moveBottomRight(scaled_center)
+                        else:
+                            bg_rect.moveCenter(scaled_center)
+
                         # 绘制背景 - 增加透明度
                         painter.fillRect(bg_rect, QtGui.QColor(30, 31, 34, int(255 * 0.8)))
-            
+
                         # 设置字体颜色
                         font_color = QtGui.QColor(105, 170, 88)
                         painter.setPen(font_color)
@@ -408,7 +414,13 @@ class Shape(Shape):
                     bg_rect = QtCore.QRectF(scaled_center, scaled_center)
                     bg_rect.setWidth(text_width + padding * 2)
                     bg_rect.setHeight(text_height + padding * 2)
-                    bg_rect.moveCenter(scaled_center)
+                    label_position = getattr(STORE, 'canvas_shape_label_position', 'center')
+                    if label_position == 'top_left':
+                        bg_rect.moveTopLeft(scaled_center)
+                    elif label_position == 'bottom_right':
+                        bg_rect.moveBottomRight(scaled_center)
+                    else:
+                        bg_rect.moveCenter(scaled_center)
 
                     painter.fillRect(bg_rect, QtGui.QColor(30, 31, 34, int(255 * 0.7)))
 
@@ -479,13 +491,28 @@ class Shape(Shape):
 
     # 获取标签绘制点， 用于绘制标签
     def get_label_paint_point(self) -> QtCore.QPointF:
+        position = getattr(STORE, 'canvas_shape_label_position', 'center')
+
+        # 计算形状的边界框
+        if self.points:
+            xs = [p.x() for p in self.points]
+            ys = [p.y() for p in self.points]
+            x_min, x_max = min(xs), max(xs)
+            y_min, y_max = min(ys), max(ys)
+        else:
+            return self.get_center_point()
+
+        if position == 'top_left':
+            return QtCore.QPointF(x_min, y_min)
+        elif position == 'bottom_right':
+            return QtCore.QPointF(x_max, y_max)
+
+        # center 默认逻辑
         import shapely
         from shapely.geometry import Polygon
 
-        # 获取中心点
         center_point = self.get_center_point()
 
-        # 如果是多边形， 则需要计算离中心点最近的点
         if self.shape_type == ShapeType.POLYGON:
             geo_polygon = Polygon([(point.x(), point.y()) for point in self.points])
 
@@ -495,7 +522,6 @@ class Shape(Shape):
                 return center_point
             else:
                 geo_point = shapely.geometry.Point(center_point.x(), center_point.y())
-                # 找离中心点最近的边, 并计算垂直距离
                 min_distance = float("inf")
                 nearest_point = None
                 for i in range(len(self.points)):
@@ -512,7 +538,6 @@ class Shape(Shape):
                         )
                 return QtCore.QPointF(nearest_point.x, nearest_point.y)
         elif self.shape_type == ShapeType.ROTATION:
-            # 对于旋转框，直接返回中心点
             return center_point
         else:
             return center_point

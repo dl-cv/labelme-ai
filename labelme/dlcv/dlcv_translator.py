@@ -326,6 +326,18 @@ tr_map = {
         'Display shape label',
         '标签字体大小':
         'Shape label font size',
+        '标签显示位置':
+        'Label position',
+        '中心':
+        'Center',
+        '左上角':
+        'Top left',
+        '右下角':
+        'Bottom right',
+        'top_left':
+        'Top left',
+        'bottom_right':
+        'Bottom right',
         '将标注图片转换为灰度图':
         'Convert annotated image to grayscale',
         '图片缩放':
@@ -441,6 +453,10 @@ tr_map = {
         # 其他设置
         'display shape label': '显示标签名称',
         'shape label font size': '标签字体大小',
+        'shape label position': '标签显示位置',
+        'center': '中心',
+        'top_left': '左上角',
+        'bottom_right': '右下角',
         'convert img to gray': '将标注图片转换为灰度图',
         'keep prev scale': '图片缩放',
         'points to crosshair': '将点转换为十字线',
