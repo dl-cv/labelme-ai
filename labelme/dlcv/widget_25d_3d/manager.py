@@ -232,16 +232,4 @@ class ProjManager:
         """清空映射"""
         self.o2_5d_manager.clear()
 
-    @property
-    def file_to_json(self) -> dict:
-        """获取文件到JSON的映射"""
-        if self.is_2_5d:
-            return self.o2_5d_manager.file_to_json
-        return {}
-
-    @property
-    def _file_to_json(self) -> dict:
-        """内部属性访问"""
-        return self.o2_5d_manager._file_to_json
-
     # endregion
