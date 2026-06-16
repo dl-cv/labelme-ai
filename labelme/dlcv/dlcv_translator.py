@@ -442,7 +442,9 @@ tr_map = {
         'Category name cannot be a Python keyword: {}',
         '以下类别名称是 Python 关键字，无法保存：{}':
         'The following category names are Python keywords and cannot be saved: {}',
-    
+        '请检查图片文件是否存在，是否是 ': 'Check if the Image exist, make sure it is the type of ',
+        ' 类型，标注文件是否正确': ', make sure the raw json data is correct',
+
         # ======其他处理======
     },
     'zh_CN': {

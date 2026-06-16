@@ -1696,7 +1696,9 @@ class MainWindow(MainWindow):
         except:
             notification(
                 title=dlcv_tr("获取标签文件失败"),
-                text=dlcv_tr("代码不应该运行到这里"),
+                text=dlcv_tr(f'请检查图片文件是否存在，是否是 ')
+                +STORE.main_window.parameter.child("proj_setting", "proj_type").value()
+                +dlcv_tr(' 类型，标注文件是否正确'),
                 preset=ToastPreset.ERROR,
             )
             raise Exception(dlcv_tr("获取标签文件失败"))
@@ -3217,14 +3219,12 @@ class MainWindow(MainWindow):
             self.o3d_widget.hide()
 
         # 2.5D模式切换处理
-        was_2_5d = bool(self.proj_manager._file_to_json)  # 检查之前是否是2.5D模式
+        was_2_5d = bool(self.proj_manager.is_2_5d)  # 检查之前是否是2.5D模式
         if new_value == ProjEnum.O2_5D:
-            print('切入2.5D模式')
             if self.lastOpenDir:
                 self.proj_manager.assign_json_files(self.lastOpenDir)
                 self.fileListWidget.update_state()
         else:
-            print('切出2.5D模式')
             # 切换到非2.5D模式时，清空2.5D映射
             self.proj_manager.clear()
             # 如果之前是2.5D模式，切出时需要更新状态

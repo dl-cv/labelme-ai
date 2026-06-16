@@ -485,7 +485,10 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             from labelme.dlcv.utils_func import notification, ToastPreset
             notification(
                 title=dlcv_tr("未找到 {text} 文件路径").format(text=text),
-                text=dlcv_tr("代码不应该运行到这里"),
+                text=dlcv_tr(f'请检查图片文件是否存在，是否是 ')
+                +STORE.main_window.parameter.child("proj_setting", "proj_type").value()
+                +dlcv_tr(' 类型，标注文件是否正确')
+                ,
                 preset=ToastPreset.ERROR)
             return []
 
