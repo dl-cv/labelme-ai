@@ -1758,6 +1758,13 @@ class MainWindow(MainWindow):
 
         # 保存当前文件的视图状态（滚动条 + 画布偏移）
         self._saveCurrentViewState()
+
+        # 保存当前绘制模式，加载完成后恢复，避免 toggleActions 破坏互斥状态
+        prev_canvas_editing = self.canvas.editing()
+        prev_create_mode = self.canvas.createMode
+        if self.canvas.using_brush:
+            prev_create_mode = "brush"
+
         self.resetState()
         self.canvas.setEnabled(False)
         if filename is None:
@@ -1967,6 +1974,13 @@ class MainWindow(MainWindow):
         self.paintCanvas()
         self.addRecentFile(self.filename)
         self.toggleActions(True)
+
+        # 恢复切图前的绘制/编辑模式，保持工具栏按钮互斥状态
+        if prev_canvas_editing:
+            self.setEditMode()
+        else:
+            self.toggleDrawMode(False, createMode=prev_create_mode)
+
         self.canvas.setFocus()
         self.status(str(self.tr("Loaded %s")) % osp.basename(str(filename)))
 
