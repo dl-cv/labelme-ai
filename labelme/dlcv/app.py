@@ -1613,7 +1613,7 @@ class MainWindow(MainWindow):
             pass
 
         # 强制清除所有绘制状态
-        if STORE.canvas_brush_enabled or self.canvas.brush_enabled:
+        if self.canvas.using_brush:
             self.canvas.cancelBrushDrawing()
 
             # 重置画布状态
