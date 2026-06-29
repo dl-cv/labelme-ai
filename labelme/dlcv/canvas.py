@@ -15,13 +15,17 @@ class CustomCanvas(Canvas):
         self.drawing_with_right_btn = False
         self.draw_polygon_with_mousemove = False  # 鼠标移动时绘制多边形
         self.two_points_distance = 30  # 连续绘制点时,两点的距离
+
         # 画笔功能
-        self.brush_enabled = False  # 是否启用画笔
         self.brush_size = 10  # 画笔大小
         self.min_brush_size = 2  # 最小画笔大小
         self.brush_drawing = False  # 是否正在使用画笔绘制
         self.brush_erase_mode = False  # 是否为消除模式（右键）
         self.brush_points = []  # 画笔绘制的点集
+
+    @property
+    def using_brush(self):
+        return not STORE.canvas_brush_enabled
 
     """额外函数"""
 
@@ -534,7 +538,7 @@ class Canvas(CustomCanvas):
             (ev.button() == QtCore.Qt.LeftButton
              and ev.modifiers() & QtCore.Qt.AltModifier)) and self.drawing():
             # 如果启用了画笔功能，右键或Alt+左键进入消除模式
-            if self.brush_enabled:
+            if self.using_brush:
                 if not self.outOfPixmap(pos):
                     self.brush_drawing = True
                     self.brush_erase_mode = True  # 标记为消除模式
@@ -565,7 +569,7 @@ class Canvas(CustomCanvas):
                 return
 
             # 如果启用了画笔功能且在绘图模式，开始画笔绘制
-            if self.brush_enabled and self.drawing():
+            if self.using_brush and self.drawing():
                 if not self.outOfPixmap(pos):
                     self.brush_drawing = True
                     self.brush_erase_mode = False  # 标记为增加模式（左键）
@@ -833,7 +837,7 @@ class Canvas(CustomCanvas):
             return
 
         # 画笔绘制处理
-        if self.brush_enabled and self.brush_drawing and self.drawing():
+        if self.using_brush and self.brush_drawing and self.drawing():
             # 支持左键和右键画笔模式
             is_drawing = (QtCore.Qt.LeftButton & ev.buttons()) or (
                 QtCore.Qt.RightButton & ev.buttons())
@@ -916,7 +920,7 @@ class Canvas(CustomCanvas):
             return
 
         # 如果画笔功能启用，即使不在绘制过程中也更新预览圆
-        elif self.brush_enabled and self.drawing():
+        elif self.using_brush and self.drawing():
             self.update()  # 强制更新以显示预览圆
 
         # extra 右键修改标注 | 左键连续标注 | 右键分割标注
@@ -1171,9 +1175,9 @@ class Canvas(CustomCanvas):
                 self.selectedShapesCopy = []
                 self.repaint()
         elif ev.button() == QtCore.Qt.LeftButton or (
-                ev.button() == QtCore.Qt.RightButton and self.brush_enabled):
+                ev.button() == QtCore.Qt.RightButton and self.using_brush):
             # 如果是画笔绘制结束
-            if self.brush_drawing and self.brush_enabled and self.brush_points:
+            if self.brush_drawing and self.using_brush and self.brush_points:
                 self.brush_drawing = False
                 is_erase_mode = self.brush_erase_mode
                 self.brush_erase_mode = False
@@ -1503,7 +1507,7 @@ class Canvas(CustomCanvas):
 
         # extra 右键修改标注结束
         elif ev.button() == QtCore.Qt.RightButton and self.drawing(
-        ) and not self.brush_enabled:
+        ) and not self.using_brush:
             self.drawing_with_right_btn = False
             self.right_btn_modify_shape()
             self.clear_current_shape()
@@ -1699,7 +1703,7 @@ class Canvas(CustomCanvas):
             )
 
         # 绘制画笔预览圆
-        if self.brush_enabled and self.drawing(
+        if self.using_brush and self.drawing(
         ) and self.prevMovePoint and not self.outOfPixmap(self.prevMovePoint):
             # 绘制半透明的圆形指示画笔大小
             p.setRenderHint(QtGui.QPainter.Antialiasing)  # 启用抗锯齿
@@ -1868,7 +1872,7 @@ class Canvas(CustomCanvas):
             return
 
         # 画笔大小调整（使用+和-键替代上下箭头键）
-        if self.brush_enabled and self.drawing():
+        if self.using_brush and self.drawing():
             if key == QtCore.Qt.Key_Plus or key == QtCore.Qt.Key_Equal:  # + 键增大画笔
                 # 按1.1倍比例调整画笔大小
                 old_size = self.brush_size

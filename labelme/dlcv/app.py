@@ -2971,7 +2971,6 @@ class MainWindow(MainWindow):
         if createMode == "brush":
             # 画笔模式：内部使用 polygon + brush_enabled
             self.canvas.createMode = "polygon"
-            self.canvas.brush_enabled = True
             STORE.set_canvas_brush_enabled(False)
             if self.canvas.draw_polygon_with_mousemove:
                 self.canvas.draw_polygon_with_mousemove = False
@@ -2982,9 +2981,7 @@ class MainWindow(MainWindow):
         else:
             self.canvas.createMode = createMode
             # 离开画笔模式时禁用画笔
-            if self.canvas.brush_enabled:
-                self.canvas.brush_enabled = False
-            STORE.set_canvas_brush_enabled(False)
+            STORE.set_canvas_brush_enabled(True)
 
         if edit:
             for draw_action in draw_actions.values():
@@ -3153,7 +3150,7 @@ class MainWindow(MainWindow):
                 self.canvas.update()
             # 记录当前的绘制模式
             # 画笔模式下 createMode 被存为 'polygon'，需要特殊判断
-            if self.canvas.brush_enabled:
+            if self.canvas.using_brush:
                 self._prev_create_mode = "brush"
             else:
                 self._prev_create_mode = self.canvas.createMode

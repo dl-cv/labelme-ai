@@ -356,8 +356,7 @@ class SettingDock(QtWidgets.QDockWidget):
                 elif param_name == "slide_label":
                     mw.draw_polygon_with_mousemove = new_value
                     self._canvas.draw_polygon_with_mousemove = new_value
-                    if new_value and self._canvas.brush_enabled:
-                        self._canvas.brush_enabled = False
+                    if new_value and self._canvas.using_brush:
                         STORE.set_canvas_brush_enabled(False)
                         notification(
                             dlcv_tr("功能互斥"),
