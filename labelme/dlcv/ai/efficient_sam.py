@@ -5,6 +5,9 @@ from labelme.dlcv.dlcv_translator import DlcvTrObject
 from labelme.dlcv.utils_func import notification
 import pynvml
 
+# 通知防抖间隔 (ms): 连续触发时只在停止后弹一次通知
+_NOTIFY_DEBOUNCE_MS = 200
+
 
 # 注意这里的继承顺序, DlcvTrObject 在前, QtCore.QObject 在后,这样使用的 self.tr 为 DlcvTrObject 的 tr
 class EfficientSam(EfficientSam, DlcvTrObject, QtCore.QObject):
@@ -49,8 +52,18 @@ class EfficientSam(EfficientSam, DlcvTrObject, QtCore.QObject):
 
         super(QtCore.QObject, self).__init__(parent)
 
+        self._notify_lock = threading.Lock()
+        self._in_notify_burst = False
+        self._done_timer = None
+
         self.sig_start.connect(self.start)
         self.sig_done.connect(self.done)
+
+    def _debounced_done(self):
+        with self._notify_lock:
+            self._in_notify_burst = False
+            self._done_timer = None
+        self.sig_done.emit()
 
     def start(self):
         notification(self.tr("ai processing..."))
@@ -58,11 +71,22 @@ class EfficientSam(EfficientSam, DlcvTrObject, QtCore.QObject):
     def done(self):
         notification(self.tr("ai process done"))
 
-    def _compute_and_cache_image_embedding(self):
-        # 通知
-        self.sig_start.emit()
+    def set_image(self, image: np.ndarray):
+        """ 加载图片到sam模型内 """
+        with self._notify_lock:
+            should_emit_start = not self._in_notify_burst
+            self._in_notify_burst = True
+            if self._done_timer is not None:
+                self._done_timer.cancel()
+                self._done_timer = None
 
-        super()._compute_and_cache_image_embedding()
+        if should_emit_start:
+            self.sig_start.emit()
 
-        # 结束通知
-        self.sig_done.emit()
+        super().set_image(image)
+
+        with self._notify_lock:
+            self._done_timer = threading.Timer(
+                _NOTIFY_DEBOUNCE_MS / 1000.0, self._debounced_done
+            )
+            self._done_timer.start()

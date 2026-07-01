@@ -25,14 +25,13 @@ labelme.ai = labelme.dlcv.ai
 
 import cv2
 from pyqtgraph.parametertree import Parameter, ParameterTree
-from pyqttoast import Toast, ToastPreset
 from PIL import ImageFile, Image
 import yaml
 import json
 
 from labelme import __appname__
 from labelme.app import *
-from labelme.dlcv.utils_func import notification, normalize_16b_gray_to_uint8
+from labelme.dlcv.utils_func import notification, normalize_16b_gray_to_uint8, Toast, ToastPreset
 from labelme.dlcv.store import STORE
 from labelme.dlcv import dlcv_tr
 from labelme.utils.qt import removeAction, newIcon
