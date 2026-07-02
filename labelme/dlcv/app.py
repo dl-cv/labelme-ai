@@ -2195,6 +2195,34 @@ class MainWindow(MainWindow):
         self._init_label_count_dock()
         self._init_setting_dock()  # 必须在所有的 docker widget 都初始化后才执行，否则 docker widget 不会 restore 成上一次退出时的状态
 
+        # 移除视图菜单中 dock 的显隐开关，禁止关闭 dock
+        for action in list(self.menus.view.actions()):
+            if action in (
+                self.flag_dock.toggleViewAction(),
+                self.label_dock.toggleViewAction(),
+                self.shape_dock.toggleViewAction(),
+                self.file_dock.toggleViewAction(),
+                self.label_count_dock.toggleViewAction(),
+                self.setting_dock.toggleViewAction(),
+            ):
+                self.menus.view.removeAction(action)
+
+        # 禁止所有 dock 关闭，并确保全部显示
+        no_close_features = (
+            QtWidgets.QDockWidget.DockWidgetMovable
+            | QtWidgets.QDockWidget.DockWidgetFloatable
+        )
+        for dock in (
+            self.flag_dock,
+            self.label_dock,
+            self.shape_dock,
+            self.file_dock,
+            self.label_count_dock,
+            self.setting_dock,
+        ):
+            dock.setFeatures(no_close_features)
+            dock.setVisible(True)
+
         def reset_all_view():
             # 重置 docker 位置
             self.file_dock.setFloating(False)
@@ -2408,10 +2436,6 @@ class MainWindow(MainWindow):
     def _init_label_count_dock(self):
         self.label_count_dock = LabelCountDock(self)
         self.addDockWidget(Qt.RightDockWidgetArea, self.label_count_dock)
-        # 添加到菜单栏->视图->标签数量统计
-        self.menus.view.insertAction(
-            self.menus.view.actions()[3], self.label_count_dock.toggleViewAction()
-        )
 
     # endregion
 
@@ -2421,9 +2445,6 @@ class MainWindow(MainWindow):
         self.parameter = self.setting_dock.parameter
         self._selectAiModelComboBox = self.setting_dock.selectAiModelComboBox
         self.addDockWidget(Qt.RightDockWidgetArea, self.setting_dock)
-        self.menus.view.insertAction(
-            self.menus.view.actions()[4], self.setting_dock.toggleViewAction()
-        )
 
         # XXX: Could be completely declarative.
         # Restore application settings.
