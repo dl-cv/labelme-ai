@@ -562,7 +562,8 @@ class MainWindow(MainWindow):
 
         # 亮度对比度禁用
         # https://bbs.dlcv.ai/t/topic/328
-        self.actions.brightnessContrast.setVisible(False)
+        # bright_index = self.actions.tool.index(self.actions.brightnessContrast)
+        self.actions.tool.remove(self.actions.brightnessContrast)
 
         # dlcv_ai_action
         self._init_dlcv_ai_widget()
