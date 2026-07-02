@@ -314,6 +314,7 @@ class SettingDock(QtWidgets.QDockWidget):
             else None
         )
         ai_model_layout.addWidget(self._selectAiModelComboBox, 1)
+        ai_model_widget.setVisible(False)
         return ai_model_widget
 
     def _assemble_ui(self):
@@ -326,11 +327,6 @@ class SettingDock(QtWidgets.QDockWidget):
         setting_layout.setContentsMargins(8, 8, 8, 8)
         setting_layout.setSpacing(6)
         setting_layout.addWidget(ai_model_widget)
-
-        line = QtWidgets.QFrame(setting_container)
-        line.setFrameShape(QtWidgets.QFrame.HLine)
-        line.setFrameShadow(QtWidgets.QFrame.Sunken)
-        setting_layout.addWidget(line)
         setting_layout.addWidget(self.parameter_tree)
 
         self.setWidget(setting_container)
