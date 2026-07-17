@@ -138,6 +138,24 @@ class SettingDock(QtWidgets.QDockWidget):
                         "default": True,
                         "tip": dlcv_tr("启用后，将点转换为十字线"),
                     },
+                    {
+                        "name": "display_shape_center_cross",
+                        "title": dlcv_tr("display shape center cross"),
+                        "type": "bool",
+                        "value": False,
+                        "default": False,
+                        "tip": dlcv_tr("启用后，在标注中心显示十字点"),
+                    },
+                    {
+                        "name": "shape_center_cross_length",
+                        "title": dlcv_tr("shape center cross length"),
+                        "type": "int",
+                        "value": 10,
+                        "default": 10,
+                        "min": 2,
+                        "max": 100,
+                        "step": 1,
+                    },
                 ],
             },
             {
@@ -371,6 +389,8 @@ class SettingDock(QtWidgets.QDockWidget):
                     "shape_label_font_size",
                     "shape_label_position",
                     "points_to_crosshair",
+                    "display_shape_center_cross",
+                    "shape_center_cross_length",
                 ):
                     self._canvas.update()
                 elif param_name == "scale_option":
@@ -414,6 +434,12 @@ class SettingDock(QtWidgets.QDockWidget):
 
         self._parameter.child("other_setting", "points_to_crosshair").setValue(
             setting_store.get("canvas_points_to_crosshair", True)
+        )
+        self._parameter.child("other_setting", "display_shape_center_cross").setValue(
+            setting_store.get("canvas_display_shape_center_cross", False)
+        )
+        self._parameter.child("other_setting", "shape_center_cross_length").setValue(
+            setting_store.get("canvas_shape_center_cross_length", 10)
         )
         self._parameter.child("label_setting", "highlight_start_point").setValue(
             setting_store.get("highlight_start_point", False)

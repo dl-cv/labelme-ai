@@ -344,6 +344,10 @@ tr_map = {
         'Image scaling',
         '将点转换为十字线':
         'Convert points to crosshair',
+        '显示标注中心十字':
+        'Display shape center cross',
+        '中心十字长度':
+        'Shape center cross length',
         '更改颜色':
         'Change color',
         '更改选中形状的标注颜色':
@@ -380,6 +384,8 @@ tr_map = {
         "Enabled, the points will be converted to crosshair",
         "启用后，将点转换为十字线":
         "Enabled, the points will be converted to crosshair",
+        "启用后，在标注中心显示十字点":
+        "Enabled, draw a cross at the center of each shape",
         'AI多边形点数简化设置':
         'AI polygon simplify epsilon setting',
         '简化程度说明':
@@ -462,6 +468,8 @@ tr_map = {
         'convert img to gray': '将标注图片转换为灰度图',
         'keep prev scale': '图片缩放',
         'points to crosshair': '将点转换为十字线',
+        'display shape center cross': '显示标注中心十字',
+        'shape center cross length': '中心十字长度',
         'change color': '更改颜色',
         'change the color of the selected polygon': '更改选中形状的标注颜色',
         'label setting': '标注设置',

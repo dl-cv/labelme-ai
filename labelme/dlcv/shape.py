@@ -162,6 +162,7 @@ class Shape(Shape):
             line_path = QtGui.QPainterPath()
             vrtx_path = QtGui.QPainterPath()
             negative_vrtx_path = QtGui.QPainterPath()
+            center_cross_path = QtGui.QPainterPath()
 
             if self.shape_type in ["rectangle", "mask"]:
                 assert len(self.points) in [1, 2]
@@ -347,6 +348,16 @@ class Shape(Shape):
                     line_path.lineTo(self._scale_point(self.points[0]))
 
             painter.drawPath(line_path)
+
+            if STORE.canvas_display_shape_center_cross:
+                center = self.get_center_point()
+                scaled_center = self._scale_point(center)
+                half = STORE.canvas_shape_center_cross_length / 2.0
+                center_cross_path.moveTo(scaled_center.x() - half, scaled_center.y())
+                center_cross_path.lineTo(scaled_center.x() + half, scaled_center.y())
+                center_cross_path.moveTo(scaled_center.x(), scaled_center.y() - half)
+                center_cross_path.lineTo(scaled_center.x(), scaled_center.y() + half)
+                painter.drawPath(center_cross_path)
 
             # extra 显示顶点
             if STORE.canvas_highlight_start_point:

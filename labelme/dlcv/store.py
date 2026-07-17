@@ -80,6 +80,14 @@ class Store:
         return self._param("other_setting", "points_to_crosshair").value()
 
     @property
+    def canvas_display_shape_center_cross(self) -> bool:
+        return self._param("other_setting", "display_shape_center_cross").value()
+
+    @property
+    def canvas_shape_center_cross_length(self) -> int:
+        return self._param("other_setting", "shape_center_cross_length").value()
+
+    @property
     def ai_polygon_simplify_epsilon(self):
         return self._param("label_setting", "ai_polygon_simplify_epsilon").value()
 

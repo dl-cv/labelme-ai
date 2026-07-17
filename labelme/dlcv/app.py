@@ -793,6 +793,8 @@ class MainWindow(MainWindow):
             "canvas_brush_fill_region": STORE.canvas_brush_fill_region,
             "canvas_brush_size": STORE.canvas_brush_size,
             "canvas_points_to_crosshair": STORE.canvas_points_to_crosshair,
+            "canvas_display_shape_center_cross": STORE.canvas_display_shape_center_cross,
+            "canvas_shape_center_cross_length": STORE.canvas_shape_center_cross_length,
         })
         self.settings.setValue("setting_store", setting_store)
         self.__store_splitter_sizes()
