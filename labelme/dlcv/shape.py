@@ -351,13 +351,14 @@ class Shape(Shape):
 
             if STORE.canvas_display_shape_center_cross:
                 center = self.get_center_point()
-                scaled_center = self._scale_point(center)
-                half = STORE.canvas_shape_center_cross_length / 2.0
-                center_cross_path.moveTo(scaled_center.x() - half, scaled_center.y())
-                center_cross_path.lineTo(scaled_center.x() + half, scaled_center.y())
-                center_cross_path.moveTo(scaled_center.x(), scaled_center.y() - half)
-                center_cross_path.lineTo(scaled_center.x(), scaled_center.y() + half)
-                painter.drawPath(center_cross_path)
+                if center is not None:
+                    scaled_center = self._scale_point(center)
+                    half = STORE.canvas_shape_center_cross_length / 2.0
+                    center_cross_path.moveTo(scaled_center.x() - half, scaled_center.y())
+                    center_cross_path.lineTo(scaled_center.x() + half, scaled_center.y())
+                    center_cross_path.moveTo(scaled_center.x(), scaled_center.y() - half)
+                    center_cross_path.lineTo(scaled_center.x(), scaled_center.y() + half)
+                    painter.drawPath(center_cross_path)
 
             # extra 显示顶点
             if STORE.canvas_highlight_start_point:
@@ -456,9 +457,13 @@ class Shape(Shape):
         while self.points:
             self.points.pop()
 
-    # 获取中心点， 用于绘制标签
-    def get_center_point(self) -> QtCore.QPointF:
+    # 获取中心点， 用于绘制标签；点数不足时返回 None
+    def get_center_point(self) -> QtCore.QPointF | None:
+        if not self.points:
+            return None
         if self.shape_type == ShapeType.RECTANGLE:
+            if len(self.points) < 2:
+                return None
             center_x = (self.points[0].x() + self.points[1].x()) / 2
             center_y = (self.points[0].y() + self.points[1].y()) / 2
             return QtCore.QPointF(center_x, center_y)
@@ -471,12 +476,8 @@ class Shape(Shape):
                 center_x = sum(p.x() for p in self.points) / len(self.points)
                 center_y = sum(p.y() for p in self.points) / len(self.points)
                 return QtCore.QPointF(center_x, center_y)
-            elif len(self.points) > 0:
-                # 如果点数不足但至少有一个点，返回第一个点
-                return self.points[0]
-            else:
-                # 如果没有点，返回原点
-                return QtCore.QPointF(0, 0)
+            # 点数不足时不画中心
+            return None
         elif self.shape_type == ShapeType.POLYGON:
             # 计算多边形的中心点
             points = self.points
@@ -494,6 +495,8 @@ class Shape(Shape):
         elif self.shape_type == ShapeType.LINESTRIP:
             return self.points[len(self.points) // 2]
         elif self.shape_type == ShapeType.LINE:
+            if len(self.points) < 2:
+                return None
             x1, y1 = self.points[0].x(), self.points[0].y()
             x2, y2 = self.points[1].x(), self.points[1].y()
             return QtCore.QPointF((x1 + x2) / 2, (y1 + y2) / 2)
