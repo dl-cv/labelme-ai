@@ -62,6 +62,9 @@ from labelme.dlcv.canvas import CURSOR_DRAW
 import os
 from labelme.dlcv.widget.label_count import LabelCountDock
 from labelme.dlcv.ui_theme_manager import UiThemeManager
+from labelme.dlcv.widget.brightness_contrast_dialog import (
+    BrightnessContrastDialog as DlcvBrightnessContrastDialog,
+)
 
 Image.MAX_IMAGE_PIXELS = None  # Image 最大像素限制, 防止加载大图时报错
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
@@ -560,11 +563,6 @@ class MainWindow(MainWindow):
 
         install_create_brush_mode_action(self, create_action)
 
-        # 亮度对比度禁用
-        # https://bbs.dlcv.ai/t/topic/328
-        # bright_index = self.actions.tool.index(self.actions.brightnessContrast)
-        self.actions.tool.remove(self.actions.brightnessContrast)
-
         # dlcv_ai_action
         self._init_dlcv_ai_widget()
 
@@ -608,6 +606,23 @@ class MainWindow(MainWindow):
 
         utils.addActions(self.canvas.menus[0], self.actions.menu)
         # ------------ 查看属性 end ------------
+
+    # 亮度/对比度调节：弹窗实时预览，确认后对后续切图全局生效
+    def brightnessContrast(self, value):
+        if self.filename is None:
+            notification(
+                dlcv_tr("提示"),
+                dlcv_tr("请先打开一张图片"),
+                ToastPreset.WARNING,
+            )
+            return
+
+        dialog = DlcvBrightnessContrastDialog(
+            self._cv_rgb_img,
+            self.onNewBrightnessContrast,
+            parent=self,
+        )
+        dialog.exec_()
 
     def tr(self,*args,**kwargs):
         dlcv_tr('测试')
@@ -1837,6 +1852,18 @@ class MainWindow(MainWindow):
         if STORE.convert_img_to_gray:
             cv_rgb_img = cv2.cvtColor(cv_rgb_img, cv2.COLOR_RGB2GRAY)
             cv_rgb_img = cv2.cvtColor(cv_rgb_img, cv2.COLOR_GRAY2RGB)
+
+        # 缓存原始 RGB 图，亮度/对比度调节时基于它实时预览
+        self._cv_rgb_img = cv_rgb_img
+
+        # 对每张图应用全局亮度/对比度设置
+        brightness, contrast = STORE.brightness_contrast_values
+        if brightness != 1.0 or contrast != 1.0:
+            cv_rgb_img = cv2.convertScaleAbs(
+                cv_rgb_img,
+                alpha=contrast if contrast != 1.0 else 1.0,
+                beta=(brightness - 1.0) * 255 if brightness != 1.0 else 0,
+            )
 
         image = numpy_to_qimage(cv_rgb_img)
         # extra End

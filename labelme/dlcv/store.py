@@ -18,6 +18,7 @@ class Store:
     canvas_brush_enabled: bool = False  # 画笔是否启用（运行时状态，无持久化 UI）
     canvas_brush_modify_shapes: bool = True  # 是否允许画笔修改现有形状（无持久化 UI）
     auto_label_covered: bool = False
+    brightness_contrast_values = (1.0, 1.0)  # 全局亮度/对比度（亮度, 对比度），切图时对每张图生效
 
     # main window
     __main_window: "MainWindow" = None
