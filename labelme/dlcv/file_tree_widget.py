@@ -131,19 +131,45 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         file_items = [
         ]  # #type: list[tuple["file_name", "file_path", "checked"]]
 
-        for item_name in os.listdir(dir_path):
-            item_path = os.path.join(dir_path, item_name)
-            item_path = str(
-                Path(item_path).absolute().as_posix())  # 使用 linux 路径
+        # scandir: 一次枚举；entry.is_dir/is_file 尽量用目录缓存，少网络 stat
+        try:
+            entries = list(os.scandir(dir_path))
+        except OSError:
+            return
 
-            if os.path.isdir(item_path):
+        # 同目录内 json 是否存在：用文件名集合判断，避免每张图 os.path.exists
+        # （2D/3D/2.5D 的 get_json_path 结果都在图片同目录）
+        name_set_lower = {e.name.lower() for e in entries}
+
+        extensions = self.extensions
+        proj_manager = STORE.main_window.proj_manager
+        dir_base = str(Path(dir_path).absolute().as_posix()).rstrip("/")
+
+        for entry in entries:
+            item_name = entry.name
+            try:
+                is_dir = entry.is_dir(follow_symlinks=False)
+            except OSError:
+                continue
+
+            item_path = f"{dir_base}/{item_name}"
+
+            if is_dir:
                 dir_items.append([item_name, item_path])
-            elif os.path.isfile(item_path) and item_name.lower().endswith(
-                    self.extensions):
-                json_path = STORE.main_window.proj_manager.get_json_path(
-                    item_path)
-                checked = os.path.exists(json_path)
-                file_items.append([item_name, item_path, checked])
+                continue
+
+            try:
+                is_file = entry.is_file(follow_symlinks=False)
+            except OSError:
+                continue
+            if not is_file or not item_name.lower().endswith(extensions):
+                continue
+
+            # 仍走项目 get_json_path（2D/3D/2.5D 规则不同），仅存在性用 name_set
+            json_path = proj_manager.get_json_path(item_path)
+            json_name = os.path.basename(json_path).lower()
+            checked = json_name in name_set_lower
+            file_items.append([item_name, item_path, checked])
 
         # 对收集的项目进行自然排序
         dir_items = natsort.os_sorted(dir_items, key=lambda x: x[0])
@@ -235,10 +261,27 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
 
     def update_state(self):
         """更新所有文件项的勾选状态"""
+        # 按目录缓存一次 scandir 文件名，避免每张图 exists 打网盘
+        dir_name_cache = {}
+        proj_manager = STORE.main_window.proj_manager
+
+        def _names_lower(dir_path: str):
+            if dir_path not in dir_name_cache:
+                try:
+                    dir_name_cache[dir_path] = {
+                        e.name.lower()
+                        for e in os.scandir(dir_path)
+                    }
+                except OSError:
+                    dir_name_cache[dir_path] = set()
+            return dir_name_cache[dir_path]
+
         for img_path, file_item in self._file_items.items():
             img_path = file_item.get_path()
-            json_path = STORE.main_window.proj_manager.get_json_path(img_path)
-            checked = os.path.exists(json_path)
+            json_path = proj_manager.get_json_path(img_path)
+            json_dir = os.path.dirname(json_path)
+            json_name = os.path.basename(json_path).lower()
+            checked = json_name in _names_lower(json_dir)
             file_item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
 
     def delete_item(self, items: list[FileTreeItem]):
