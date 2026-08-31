@@ -1840,19 +1840,19 @@ class MainWindow(CopyPasteMixin, MainWindow):
         self.actions.paste.setEnabled(True)
         self.actions.copy.setText(dlcv_tr("复制"))
 
-        # Duplicate / Ctrl+D 弃用：上游 labelme 仍有该 action，这里从工具栏/菜单摘掉
+        # Duplicate / Ctrl+D 弃用：上游仍创建该 action，这里只摘 UI。
+        # 禁止再调 populateModeActions()：dlcv 实现会 tool[1:] 再切一次，会把「打开目录」切掉。
         dup = getattr(self.actions, "duplicate", None)
         if dup is not None:
-            self.actions.tool = tuple(a for a in self.actions.tool if a is not dup)
-            self.actions.menu = tuple(a for a in self.actions.menu if a is not dup)
-            self.actions.editMenu = tuple(a for a in self.actions.editMenu if a is not dup)
+            self.actions.tool = [a for a in self.actions.tool if a is not dup]
+            self.actions.menu = [a for a in self.actions.menu if a is not dup]
+            self.actions.editMenu = [a for a in self.actions.editMenu if a is not dup]
             removeAction(self.menus.edit, dup)
             removeAction(self.canvas.menus[0], dup)
             removeAction(self.tools, dup)
             dup.setVisible(False)
             dup.setEnabled(False)
             dup.setShortcut("")
-            self.populateModeActions()
 
         def canvas_move(pos: QtCore.QPoint):
             try:

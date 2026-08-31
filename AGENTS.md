@@ -11,7 +11,7 @@
 - 改已有源码用局部替换，禁止整文件重写把 **LF 写成 CRLF**。写完比 `git diff --stat` 与 `git diff -w --stat`。
 - **只改 `labelme/dlcv/`**。`labelme/app.py`、`labelme/widgets/`、`labelme/config/` 是上游旧版 labelme，不要改。产品行为用 dlcv 覆盖、隐藏、接线。
 - 新功能逻辑放 `labelme/dlcv/` 的 utils / mixin，**不要堆上游 `labelme/app.py`**。
-- QAction 的新增、改文案、隐藏、摘菜单/工具栏、shortcut、初始化：一律放 [`labelme/dlcv/app.py`](labelme/dlcv/app.py) 的 `_init_ui`（或它调用的 `_init_*`）。不要写在 `MainWindow.__init__` 里。上游仍有的废弃 action（如 Duplicate）在 `_init_ui` 里 `removeAction` + 从 `actions.tool/menu/editMenu` 剔除 + `populateModeActions()`。
+- QAction 的新增、改文案、隐藏、摘菜单/工具栏、shortcut、初始化：一律放 [`labelme/dlcv/app.py`](labelme/dlcv/app.py) 的 `_init_ui`（或它调用的 `_init_*`）。不要写在 `MainWindow.__init__` 里。上游仍有的废弃 action（如 Duplicate）在 `_init_ui` 里 `removeAction` + 从 `actions.tool/menu/editMenu` 剔除。**不要再调 `populateModeActions()`**（会把打开目录切掉）。
 - 任务按模块切：一次只动一条行为边界。规格、实现、清理、变异测试不要塞进同一轮「改完整个 app」。
 - Prompt / 本文件只放短规则。质量靠测试和工具，不靠越写越长的 `AGENTS.md`。
 

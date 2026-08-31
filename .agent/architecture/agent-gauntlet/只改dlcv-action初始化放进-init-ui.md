@@ -17,6 +17,6 @@
 1. 从 `self.actions.tool` / `menu` / `editMenu` 元组里滤掉
 2. `removeAction` 编辑菜单、画布右键、`self.tools`
 3. `setVisible(False)`、`setEnabled(False)`、`setShortcut("")`
-4. `populateModeActions()`，否则模式切换会把 action 加回来
+4. **不要再调 `populateModeActions()`**。dlcv 覆盖里会 `tool[1:]` 去掉「打开文件」；第二次调用会把已经排在第一位的「打开目录」也切掉。只 `removeAction` 当前菜单/工具栏即可。
 
 Ctrl+Shift+V 这类产品不要的快捷键：不要在 `_init_ui` 里注册；不要改上游去删槽函数。
