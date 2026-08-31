@@ -9,6 +9,11 @@ labelme/labelme_private
 
 /.cache/
 /.pytest_cache/
+/.coverage
+/htmlcov/
+/.qa-reports/
+/.mutmut-cache
+htmlcov/
 
 /build/
 /dist/

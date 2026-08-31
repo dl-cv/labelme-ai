@@ -89,6 +89,10 @@ class Store:
         return self._param("other_setting", "shape_center_cross_length").value()
 
     @property
+    def paste_follow_mouse(self) -> bool:
+        return self._param("other_setting", "paste_follow_mouse").value()
+
+    @property
     def ai_polygon_simplify_epsilon(self):
         return self._param("label_setting", "ai_polygon_simplify_epsilon").value()
 

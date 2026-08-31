@@ -156,6 +156,14 @@ class SettingDock(QtWidgets.QDockWidget):
                         "max": 100,
                         "step": 1,
                     },
+                    {
+                        "name": "paste_follow_mouse",
+                        "title": dlcv_tr("复制多边形跟随鼠标"),
+                        "type": "bool",
+                        "value": False,
+                        "default": False,
+                        "tip": dlcv_tr("启用后，粘贴时多边形左上角跟随鼠标，超出图像边界则裁切"),
+                    },
                 ],
             },
             {
@@ -440,6 +448,9 @@ class SettingDock(QtWidgets.QDockWidget):
         )
         self._parameter.child("other_setting", "shape_center_cross_length").setValue(
             setting_store.get("canvas_shape_center_cross_length", 10)
+        )
+        self._parameter.child("other_setting", "paste_follow_mouse").setValue(
+            setting_store.get("paste_follow_mouse", False)
         )
         self._parameter.child("label_setting", "highlight_start_point").setValue(
             setting_store.get("highlight_start_point", False)

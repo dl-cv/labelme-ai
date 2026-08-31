@@ -122,7 +122,7 @@ def get_config(*args, **kwargs):
             "create_brush": ["B"],
             "edit_polygon": ["ESC", "\\"],
             "delete_polygon": "Delete",
-            "duplicate_polygon": "Ctrl+D",
+            "duplicate_polygon": None,
             "copy_polygon": "Ctrl+C",
             "paste_polygon": "Ctrl+V",
             "undo": ["Ctrl+Z", "Backspace"],

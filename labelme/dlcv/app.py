@@ -49,7 +49,7 @@ from labelme.dlcv.widget.viewAttribute import (
 from labelme.dlcv.widget.unique_label_qlist_widget import (
     init_uniq_label_list_text_flag_wgt,
 )
-from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
+from labelme.dlcv.controller.copy_paste import CopyPasteMixin
 from labelme.dlcv.controller.pos_controller import ensure_window_in_screen
 from labelme.dlcv.actions import install_create_brush_mode_action
 from labelme.dlcv.widget.setting_dock import (
@@ -124,7 +124,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 # endregion
 
 
-class MainWindow(MainWindow):
+class MainWindow(CopyPasteMixin, MainWindow):
     canvas: labelme.dlcv.canvas.Canvas
     sig_auto_label_all_update = QtCore.Signal(object)
     _INVALID_POLYGON_COLOR_ATTRS = (
@@ -178,9 +178,10 @@ class MainWindow(MainWindow):
         self.ui_theme_manager = UiThemeManager(main_window=self, settings=self.settings)
         self.ui_theme_manager.apply_from_settings()
         self.actions.copy.setEnabled(True)
+        self.actions.paste.setEnabled(True)
 
         # 修改复制动作的文本
-        self.actions.copy.setText(dlcv_tr("复制图片"))
+        self.actions.copy.setText(dlcv_tr("复制"))
 
         self._init_edit_mode_action()  # 初始化编辑模式切换动作
         self._init_paste_at_original_position_action()  # 初始化原位置粘贴动作 (Ctrl+Shift+V)
@@ -810,6 +811,7 @@ class MainWindow(MainWindow):
             "canvas_points_to_crosshair": STORE.canvas_points_to_crosshair,
             "canvas_display_shape_center_cross": STORE.canvas_display_shape_center_cross,
             "canvas_shape_center_cross_length": STORE.canvas_shape_center_cross_length,
+            "paste_follow_mouse": STORE.paste_follow_mouse,
         })
         self.settings.setValue("setting_store", setting_store)
         self.__store_splitter_sizes()
@@ -901,13 +903,6 @@ class MainWindow(MainWindow):
         logger.info(f"保存标签到 {file_path}")
         return file_path
 
-    # ------------ Ctrl + C 触发函数 复制图片 ------------
-    def copySelectedShape(self):
-        """
-        复制当前图片。
-        """
-        self.copy_image_to_clipboard()
-
     # 当选中形状变化时
     def shapeSelectionChanged(self, selected_shapes):
         super().shapeSelectionChanged(selected_shapes)
@@ -916,429 +911,6 @@ class MainWindow(MainWindow):
         if hasattr(self.actions, "changeColor"):
             n_selected = len(selected_shapes)
             self.actions.changeColor.setEnabled(n_selected > 0)
-
-    # 复制图片到剪贴板
-    def copy_image_to_clipboard(self):
-        """复制当前图片到剪贴板"""
-        # 获取当前画布显示的图片路径
-        file_path = getattr(self, "imagePath", None)
-
-        if not file_path:
-            notification(
-                dlcv_tr("提示"),
-                dlcv_tr("请先选中一张图片。"),
-                ToastPreset.WARNING,
-            )
-            return
-
-        try:
-            copy_file_to_clipboard(file_path)
-            notification(
-                dlcv_tr("复制成功"),
-                dlcv_tr("图片已复制到剪贴板，可直接粘贴为文件。"),
-                ToastPreset.SUCCESS,
-            )
-        except Exception as e:
-            notification(
-                dlcv_tr("复制失败"),
-                str(e),
-                ToastPreset.ERROR,
-            )
-
-        # ------------ Ctrl + C 触发函数 end ------------
-
-    # 复制形状到剪贴板  ctrl+d/ctrl+v
-    def duplicateSelectedShape(self):
-        """重写父类方法：复制选中的形状到剪贴板"""
-        if not self.canvas.selectedShapes:
-            notification(dlcv_tr("提示"), dlcv_tr("请先选中要复制的形状"), ToastPreset.WARNING)
-            return
-
-        try:
-            # 将选中的形状转换为可序列化的字典数据
-            shapes_data = []
-            for shape in self.canvas.selectedShapes:
-                shape_data = self.format_shape_for_clipboard(shape)
-                shapes_data.append(shape_data)
-
-            # 记录源图像路径
-            source_image_path = self.filename
-            logger.debug(f"=== DEBUG: 记录源图像路径: {source_image_path} ===")
-
-            # 复制到剪贴板
-            from labelme.dlcv.widget.clipboard import copy_shapes_to_clipboard
-
-            copy_shapes_to_clipboard(shapes_data, source_image_path)
-
-            # 启用粘贴动作
-            self.actions.paste.setEnabled(True)
-
-            notification(
-                dlcv_tr("复制成功"),
-                dlcv_tr("已复制 {count} 个形状到剪贴板").format(count=len(shapes_data)),
-                ToastPreset.SUCCESS,
-            )
-
-        except Exception as e:
-            notification(dlcv_tr("复制失败"), str(e), ToastPreset.ERROR)
-
-    # 将形状对象格式化为可序列化的字典
-    def format_shape_for_clipboard(self, shape):
-        """将形状对象格式化为可序列化的字典"""
-
-        # 创建新的数据字典，不从other_data复制，避免冲突
-        data = {}
-        points_data = [(p.x(), p.y()) for p in shape.points]
-
-        data.update(
-            {
-                "label": shape.label,
-                "points": points_data,
-                "group_id": shape.group_id,
-                "description": shape.description,
-                "shape_type": shape.shape_type,
-                "flags": shape.flags,
-                "mask": None if shape.mask is None else shape.mask.tolist(),
-            }
-        )
-
-        # 如果是旋转框，添加direction属性
-        if shape.shape_type == "rotation":
-            data["direction"] = getattr(shape, "direction", 0.0)
-        return data
-
-    # 从形状数据创建Shape对象
-    def create_shape_from_data(self, shape_data):
-        """从形状数据创建Shape对象"""
-        try:
-            from labelme.dlcv.shape import Shape
-            from PyQt5 import QtCore
-
-            # 创建Shape对象
-            shape = Shape()
-
-            # 设置基本属性
-            shape.label = shape_data.get("label", "")
-            shape.shape_type = shape_data.get("shape_type", "polygon")
-            shape.group_id = shape_data.get("group_id")
-            shape.description = shape_data.get("description", "")
-            shape.flags = shape_data.get("flags", {})
-
-            # 设置点坐标
-            points = shape_data.get("points", [])
-            for point in points:
-                shape.addPoint(QtCore.QPointF(point[0], point[1]))
-
-            # 对于多边形等需要闭合的形状，手动调用close()
-            if shape.shape_type in ["polygon", "linestrip"] and len(points) > 0:
-                shape.close()
-
-            # 设置mask
-            mask_data = shape_data.get("mask")
-            if mask_data is not None:
-                import numpy as np
-
-                shape.mask = np.array(mask_data)
-
-            # 如果是旋转框，设置direction属性
-            if shape.shape_type == "rotation":
-                shape.direction = shape_data.get("direction", 0.0)
-
-            return shape
-
-        except Exception as e:
-            import traceback
-
-            traceback.print_exc()
-            raise
-
-    # 为形状添加偏移，避免与原形状重合
-    def add_offset_to_shape(self, shape, offset=10):
-        """为形状添加偏移，避免与原形状重合
-
-        Args:
-            shape: Shape对象
-            offset: 偏移量（像素），默认10
-        """
-        # 偏移量
-        offset_x, offset_y = offset, offset
-
-        # 计算形状的边界
-        min_x = min(p.x() for p in shape.points)
-        max_shape_x = max(p.x() for p in shape.points)
-        min_y = min(p.y() for p in shape.points)
-        max_shape_y = max(p.y() for p in shape.points)
-
-        max_x = self.image.width() - 0.001
-        max_y = self.image.height() - 0.001
-
-        # 检查偏移后是否会出界
-        if max_shape_x + offset_x > max_x:
-            offset_x = max(0, max_x - max_shape_x - max(offset // 2, 5))
-        if max_shape_y + offset_y > max_y:
-            offset_y = max(0, max_y - max_shape_y - max(offset // 2, 5))
-
-        # 如果偏移太小，尝试向左上偏移
-        min_offset_threshold = max(offset // 2, 5)
-        if offset_x < min_offset_threshold:
-            if min_x - offset >= 0:
-                offset_x = -offset
-            else:
-                offset_x = 0
-        if offset_y < min_offset_threshold:
-            if min_y - offset >= 0:
-                offset_y = -offset
-            else:
-                offset_y = 0
-
-        # 应用偏移
-        for point in shape.points:
-            new_x = point.x() + offset_x
-            new_y = point.y() + offset_y
-            # 确保不超出边界
-            new_x = max(0, min(new_x, max_x))
-            new_y = max(0, min(new_y, max_y))
-            point.setX(new_x)
-            point.setY(new_y)
-
-        # 偏移后直接检查边界并自动调整
-        self.check_and_adjust_shape_bounds(shape)
-
-    # 将形状移动到指定位置（以形状中心为基准）
-    def move_shape_to_position(self, shape, target_pos):
-        """将形状移动到指定位置，保持形状内部点之间的相对位置
-
-        Args:
-            shape: Shape对象
-            target_pos: QPointF目标位置（形状中心将移动到这里）
-        """
-        if not shape.points:
-            return
-
-        # 计算形状当前中心点
-        center_x = sum(p.x() for p in shape.points) / len(shape.points)
-        center_y = sum(p.y() for p in shape.points) / len(shape.points)
-
-        # 计算需要移动的距离
-        offset_x = target_pos.x() - center_x
-        offset_y = target_pos.y() - center_y
-
-        max_x = self.image.width() - 0.001
-        max_y = self.image.height() - 0.001
-
-        # 计算移动后的边界
-        new_min_x = min(p.x() + offset_x for p in shape.points)
-        new_max_x = max(p.x() + offset_x for p in shape.points)
-        new_min_y = min(p.y() + offset_y for p in shape.points)
-        new_max_y = max(p.y() + offset_y for p in shape.points)
-
-        # 如果移动后超出边界，调整偏移量
-        if new_max_x > max_x:
-            offset_x -= (new_max_x - max_x)
-        if new_max_y > max_y:
-            offset_y -= (new_max_y - max_y)
-        if new_min_x < 0:
-            offset_x -= new_min_x
-        if new_min_y < 0:
-            offset_y -= new_min_y
-
-        # 应用偏移
-        for point in shape.points:
-            new_x = point.x() + offset_x
-            new_y = point.y() + offset_y
-            # 确保不超出边界
-            new_x = max(0, min(new_x, max_x))
-            new_y = max(0, min(new_y, max_y))
-            point.setX(new_x)
-            point.setY(new_y)
-
-    # 检查形状是否超出当前图像边界，如果超出则调整
-    def check_and_adjust_shape_bounds(self, shape):
-        """检查形状是否超出当前图像边界，如果超出则调整"""
-        # 计算形状的边界
-        min_x = min(p.x() for p in shape.points)
-        max_shape_x = max(p.x() for p in shape.points)
-        min_y = min(p.y() for p in shape.points)
-        max_shape_y = max(p.y() for p in shape.points)
-
-        # 检查形状是否超出当前图像边界
-        max_x = self.image.width() - 0.001
-        max_y = self.image.height() - 0.001
-
-        if max_shape_x > max_x or max_shape_y > max_y or min_x < 0 or min_y < 0:
-            # 如果形状超出边界，给出警告并调整到边界内
-            notification(
-                dlcv_tr("警告"),
-                dlcv_tr("粘贴的形状超出当前图像边界，已自动调整"),
-                ToastPreset.WARNING,
-            )
-
-            # 计算缩放比例以适应新图像
-            scale_x = max_x / max_shape_x if max_shape_x > max_x else 1.0
-            scale_y = max_y / max_shape_y if max_shape_y > max_y else 1.0
-            scale = min(scale_x, scale_y, 1.0)  # 不放大，只缩小
-
-            # 应用缩放
-            for point in shape.points:
-                new_x = point.x() * scale
-                new_y = point.y() * scale
-                # 确保不超出边界
-                new_x = max(0, min(new_x, max_x))
-                new_y = max(0, min(new_y, max_y))
-                point.setX(new_x)
-                point.setY(new_y)
-
-    def pasteSelectedShape(self):
-        """从剪贴板粘贴形状或图像，粘贴位置跟随鼠标
-        按住 Shift 键粘贴时，不跟随光标，保持原位置
-        """
-        try:
-            # 首先尝试从剪贴板读取形状数据
-            from labelme.dlcv.widget.clipboard import paste_shapes_from_clipboard
-
-            shapes_data = paste_shapes_from_clipboard()
-
-            if shapes_data is not None:
-                logger.debug(f"=== DEBUG: 当前图像路径: {self.filename} ===")
-
-                # 获取当前鼠标位置作为粘贴目标位置
-                target_pos = None
-                if self.canvas.prevMovePoint:
-                    target_pos = self.canvas.prevMovePoint
-                    logger.debug(f"=== DEBUG: 粘贴目标位置（鼠标位置）: ({target_pos.x():.1f}, {target_pos.y():.1f}) ===")
-
-                # 检查是否按住 Shift 键 - 按住时不跟随光标，保持原位置
-                is_shift_pressed = QtWidgets.QApplication.keyboardModifiers() & QtCore.Qt.ShiftModifier
-                if is_shift_pressed:
-                    logger.debug(f"=== DEBUG: Ctrl+Shift+V 粘贴 - 不跟随光标，保持原位置 ===")
-                    target_pos = None  # 清空目标位置，保持原位置（同一张图片会应用偏移）
-
-                # 首先将所有形状数据转换为Shape对象
-                shapes = []
-                for shape_data in shapes_data:
-                    shape = self.create_shape_from_data(shape_data)
-                    shapes.append(shape)
-
-                # 计算第一个形状的参考点（使用第一个形状的中心作为整体参考点）
-                # 这样粘贴时，第一个形状的中心会出现在鼠标位置
-                reference_point = None
-                if shapes and shapes[0].points:
-                    first_shape = shapes[0]
-                    ref_x = sum(p.x() for p in first_shape.points) / len(first_shape.points)
-                    ref_y = sum(p.y() for p in first_shape.points) / len(first_shape.points)
-                    reference_point = (ref_x, ref_y)
-
-                # 检查是否需要应用偏移（只在同一张图片上粘贴且没有鼠标位置时应用偏移）
-                source_image_path = shapes_data[0].get("source_image_path") if shapes_data else None
-                current_image_path = self.filename
-
-                if target_pos and reference_point:
-                    # 如果有鼠标位置，将第一个形状的中心移动到鼠标位置，其他形状保持相对位置
-                    logger.debug(f"=== DEBUG: 以第一个形状中心为参考点，移动到鼠标位置 ===")
-
-                    # 计算整体需要移动的偏移量
-                    overall_offset_x = target_pos.x() - reference_point[0]
-                    overall_offset_y = target_pos.y() - reference_point[1]
-
-                    # 计算所有形状的联合边界（移动后）
-                    all_new_min_x = float('inf')
-                    all_new_max_x = float('-inf')
-                    all_new_min_y = float('inf')
-                    all_new_max_y = float('-inf')
-
-                    for shape in shapes:
-                        if shape.points:
-                            shape_min_x = min(p.x() + overall_offset_x for p in shape.points)
-                            shape_max_x = max(p.x() + overall_offset_x for p in shape.points)
-                            shape_min_y = min(p.y() + overall_offset_y for p in shape.points)
-                            shape_max_y = max(p.y() + overall_offset_y for p in shape.points)
-                            all_new_min_x = min(all_new_min_x, shape_min_x)
-                            all_new_max_x = max(all_new_max_x, shape_max_x)
-                            all_new_min_y = min(all_new_min_y, shape_min_y)
-                            all_new_max_y = max(all_new_max_y, shape_max_y)
-
-                    # 检查边界并调整偏移量
-                    max_x = self.image.width() - 0.001
-                    max_y = self.image.height() - 0.001
-
-                    if all_new_max_x > max_x:
-                        overall_offset_x -= (all_new_max_x - max_x)
-                    if all_new_max_y > max_y:
-                        overall_offset_y -= (all_new_max_y - max_y)
-                    if all_new_min_x < 0:
-                        overall_offset_x -= all_new_min_x
-                    if all_new_min_y < 0:
-                        overall_offset_y -= all_new_min_y
-
-                    # 应用偏移到所有形状
-                    for shape in shapes:
-                        if shape.points:
-                            for point in shape.points:
-                                new_x = point.x() + overall_offset_x
-                                new_y = point.y() + overall_offset_y
-                                # 确保不超出边界
-                                new_x = max(0, min(new_x, max_x))
-                                new_y = max(0, min(new_y, max_y))
-                                point.setX(new_x)
-                                point.setY(new_y)
-
-                elif source_image_path == current_image_path:
-                    logger.debug(f"=== DEBUG: 在同一张图片上粘贴，应用偏移 5 ===")
-                    for shape in shapes:
-                        self.add_offset_to_shape(shape, offset=5)
-                else:
-                    # 在不同图片上粘贴，检查边界
-                    logger.debug(f"=== DEBUG: 在不同图片上粘贴，检查边界 ===")
-                    for shape in shapes:
-                        self.check_and_adjust_shape_bounds(shape)
-
-                # 加载形状到画布
-                self.loadShapes(shapes, replace=False)
-                self.setDirty()
-
-                # 粘贴完成后，立即选中
-                self.canvas.selectShapes(shapes)
-
-                notification(
-                    dlcv_tr("粘贴成功"),
-                    dlcv_tr("已粘贴 {count} 个形状").format(count=len(shapes)),
-                    ToastPreset.SUCCESS,
-                )
-                return
-
-            # 如果没有形状数据，尝试粘贴图像
-            try:
-                # 调用父类的粘贴图像功能
-                super().pasteSelectedShape()
-                return
-            except Exception as e:
-                pass
-
-            # 如果图像粘贴也失败，尝试使用原有的_copied_shapes机制
-            if not self._copied_shapes:
-                notification(
-                    dlcv_tr("提示"), dlcv_tr("剪贴板中没有可粘贴的内容"), ToastPreset.WARNING
-                )
-                return
-
-            nee_copy_shape = []
-            for copy_shape in self._copied_shapes:
-                for shape in self.canvas.shapes:
-                    if copy_shape.points == shape.points:
-                        nee_copy_shape.append(shape)
-
-            if nee_copy_shape:
-                self.canvas.selectShapes(nee_copy_shape)
-                self.duplicateSelectedShape()
-            else:
-                self.loadShapes(self._copied_shapes, replace=False)
-                self.setDirty()
-
-        except Exception as e:
-            import traceback
-
-            traceback.print_exc()
-            notification(dlcv_tr("粘贴失败"), str(e), ToastPreset.ERROR)
 
     def fileSelectionChanged(self):
         if not self.is_all_shapes_valid(log_invalid=True):
@@ -3188,17 +2760,6 @@ class MainWindow(MainWindow):
         self.edit_mode_action.setShortcut(STORE.get_config()["shortcuts"]["edit_mode"])
         self.addAction(self.edit_mode_action)
         self.edit_mode_action.triggered.connect(self.toggle_edit_mode)
-
-    def _init_paste_at_original_position_action(self):
-        """初始化在原位置粘贴的动作 (Ctrl+Shift+V)"""
-        self.paste_at_original_position_action = QtWidgets.QAction(
-            dlcv_tr("在原位置粘贴"), self
-        )
-        self.paste_at_original_position_action.setShortcut("Ctrl+Shift+V")
-        self.addAction(self.paste_at_original_position_action)
-        self.paste_at_original_position_action.triggered.connect(
-            self.pasteSelectedShape
-        )
 
     # 添加一个新的动作用于编辑和绘制状态切换
     def toggle_edit_mode(self):

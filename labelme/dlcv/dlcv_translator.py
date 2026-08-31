@@ -67,6 +67,16 @@ tr_map = {
         'Documentation',
         '复制图片':
         'Copy Image',
+        '复制':
+        'Copy',
+        '复制多边形跟随鼠标':
+        'Copied polygon follows mouse',
+        '启用后，粘贴时多边形左上角跟随鼠标，超出图像边界则裁切':
+        'When enabled, pasted polygon top-left follows the mouse; shapes outside the image are clipped.',
+        '图像已复制':
+        'Image copied',
+        '多边形已复制':
+        'Polygon copied',
         '开发者模式':
         'Developer Mode',
         '开发者密码':
@@ -237,6 +247,8 @@ tr_map = {
         'Copied {count} shapes to the clipboard.',
         '粘贴的形状超出当前图像边界，已自动调整':
         'Pasted shapes exceeded the current image boundary and were adjusted automatically.',
+        '粘贴的形状超出图像边界，已全部裁切':
+        'Pasted shapes were fully outside the image and were discarded.',
         '粘贴成功':
         'Paste successful',
         '已粘贴 {count} 个形状':
@@ -470,6 +482,7 @@ tr_map = {
         'points to crosshair': '将点转换为十字线',
         'display shape center cross': '显示标注中心十字',
         'shape center cross length': '中心十字长度',
+        '复制多边形跟随鼠标': '复制多边形跟随鼠标',
         'change color': '更改颜色',
         'change the color of the selected polygon': '更改选中形状的标注颜色',
         'label setting': '标注设置',

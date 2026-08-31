@@ -1,4 +1,10 @@
+import json
+import os
+import tempfile
+
 from labelme.logger import logger
+
+
 def copy_files_to_clipboard(file_paths):
     """
     将多个文件复制到剪贴板
@@ -7,7 +13,6 @@ def copy_files_to_clipboard(file_paths):
         file_paths (list): 文件路径列表
     """
     import ctypes
-    import os
     from ctypes import wintypes
 
     if not file_paths:
@@ -105,8 +110,8 @@ def copy_bytes_to_clipboard(file_bytes, file_name):
         file_bytes (bytes): 文件的字节数据
         file_name (str): 文件名（包含扩展名）
     """
-    import tempfile
     import os
+    import tempfile
 
     # 创建临时文件，使用指定的文件名
     temp_dir = tempfile.gettempdir()
@@ -147,10 +152,6 @@ def copy_shapes_to_clipboard(shapes_data, source_image_path=None):
         shapes_data (list): 形状数据列表，每个形状是一个字典
         source_image_path (str): 源图像路径，用于判断是否在同一张图片上粘贴
     """
-    import json
-    import tempfile
-    import os
-    
     try:
         # 为每个形状添加源图像路径信息
         shapes_data_with_source = []
@@ -176,10 +177,20 @@ def copy_shapes_to_clipboard(shapes_data, source_image_path=None):
         finally:
             all_temp_files.append(temp_path)
             
-    except Exception as e:
+    except Exception:
         import traceback
         traceback.print_exc()
         raise
+
+
+def clear_copied_shapes():
+    """清除形状剪贴板临时文件，避免复制图片后 Ctrl+V 仍粘贴旧多边形。"""
+    temp_path = os.path.join(tempfile.gettempdir(), "copied_shapes.json")
+    if os.path.exists(temp_path):
+        try:
+            os.remove(temp_path)
+        except OSError:
+            pass
 
 
 def paste_shapes_from_clipboard():
@@ -189,10 +200,6 @@ def paste_shapes_from_clipboard():
     Returns:
         list: 形状数据列表，如果失败返回None
     """
-    import json
-    import tempfile
-    import os
-    
     try:
         # 检查临时文件是否存在
         temp_dir = tempfile.gettempdir()
