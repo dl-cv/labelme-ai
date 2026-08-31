@@ -2,9 +2,6 @@
 
 import traceback
 
-from qtpy import QtCore
-from qtpy import QtWidgets
-
 from labelme.dlcv import dlcv_tr
 from labelme.dlcv.store import STORE
 from labelme.dlcv.utils import clip_paste as clip_paste_utils
@@ -18,7 +15,7 @@ from labelme.logger import logger
 
 
 class CopyPasteMixin:
-    """挂到 MainWindow：覆盖 copy / paste / duplicate 槽函数。"""
+    """挂到 MainWindow：覆盖 copy / paste 槽函数。"""
 
     def copySelectedShape(self):
         """选中多边形时复制多边形；未选中时复制当前图片。"""
@@ -46,9 +43,6 @@ class CopyPasteMixin:
             )
         except Exception as e:
             notification(dlcv_tr("复制失败"), str(e), ToastPreset.ERROR)
-
-    def duplicateSelectedShape(self):
-        self._copy_selected_shapes_to_clipboard()
 
     def _copy_selected_shapes_to_clipboard(self):
         if not self.canvas.selectedShapes:
@@ -103,11 +97,6 @@ class CopyPasteMixin:
             same_image = source_image_path == self.filename
 
             follow_mouse = STORE.paste_follow_mouse
-            is_shift_pressed = (
-                QtWidgets.QApplication.keyboardModifiers() & QtCore.Qt.ShiftModifier
-            )
-            if is_shift_pressed:
-                follow_mouse = False
 
             mouse_xy = None
             if follow_mouse:
@@ -150,11 +139,3 @@ class CopyPasteMixin:
         except Exception as e:
             traceback.print_exc()
             notification(dlcv_tr("粘贴失败"), str(e), ToastPreset.ERROR)
-
-    def _init_paste_at_original_position_action(self):
-        self.paste_at_original_position_action = QtWidgets.QAction(
-            dlcv_tr("在原位置粘贴"), self
-        )
-        self.paste_at_original_position_action.setShortcut("Ctrl+Shift+V")
-        self.addAction(self.paste_at_original_position_action)
-        self.paste_at_original_position_action.triggered.connect(self.pasteSelectedShape)

@@ -177,14 +177,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
         # UI 主题由独立组件管理（仅外观，不改功能）
         self.ui_theme_manager = UiThemeManager(main_window=self, settings=self.settings)
         self.ui_theme_manager.apply_from_settings()
-        self.actions.copy.setEnabled(True)
-        self.actions.paste.setEnabled(True)
 
-        # 修改复制动作的文本
-        self.actions.copy.setText(dlcv_tr("复制"))
-
-        self._init_edit_mode_action()  # 初始化编辑模式切换动作
-        self._init_paste_at_original_position_action()  # 初始化原位置粘贴动作 (Ctrl+Shift+V)
         STORE.set_edit_label_name(self._edit_label)
 
         # 新增设置菜单
@@ -1841,6 +1834,25 @@ class MainWindow(CopyPasteMixin, MainWindow):
         self._init_3d_widget()
         self._init_file_list_widget()
         self._init_trigger_action()
+        self._init_edit_mode_action()
+
+        self.actions.copy.setEnabled(True)
+        self.actions.paste.setEnabled(True)
+        self.actions.copy.setText(dlcv_tr("复制"))
+
+        # Duplicate / Ctrl+D 弃用：上游 labelme 仍有该 action，这里从工具栏/菜单摘掉
+        dup = getattr(self.actions, "duplicate", None)
+        if dup is not None:
+            self.actions.tool = tuple(a for a in self.actions.tool if a is not dup)
+            self.actions.menu = tuple(a for a in self.actions.menu if a is not dup)
+            self.actions.editMenu = tuple(a for a in self.actions.editMenu if a is not dup)
+            removeAction(self.menus.edit, dup)
+            removeAction(self.canvas.menus[0], dup)
+            removeAction(self.tools, dup)
+            dup.setVisible(False)
+            dup.setEnabled(False)
+            dup.setShortcut("")
+            self.populateModeActions()
 
         def canvas_move(pos: QtCore.QPoint):
             try:
