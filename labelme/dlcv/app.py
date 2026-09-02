@@ -1880,6 +1880,12 @@ class MainWindow(CopyPasteMixin, MainWindow):
         # 文本标记
         self._init_text_flag_wgt()
 
+        # 工具栏不显示上游翻译文本中的 mnemonic（如 删除(&D)、亮度 对比度(&B)）。
+        for action in (self.actions.deleteFile, self.actions.brightnessContrast):
+            text = action.text().split("(&", 1)[0].replace("&", "").rstrip()
+            action.setText(text)
+            action.setIconText(text)
+
         # 修改快捷键文本
         # self.actions.openNextImg.setIconText(
         #     dlcv_tr("open next image")

@@ -15,6 +15,11 @@ features:
       - docs/qa/copy-paste-polygon-checklist.md
     related:
       - agent-gauntlet
+  shortcut-cleanup:
+    docs:
+      - .agent/features/shortcut-cleanup/README.md
+    related:
+      - agent-gauntlet
 
 decisions:
   - .agent/decisions/2026-08-31-agent-用测试门禁而不是逐行读代码.md
