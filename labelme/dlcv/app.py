@@ -136,6 +136,9 @@ class MainWindow(CopyPasteMixin, MainWindow):
         "select_fill_color",
     )
 
+    def minimumZoomValue(self):
+        return 1
+
     def __init__(
         self, config=None, filename=None, output=None, output_file=None, output_dir=None
     ):
