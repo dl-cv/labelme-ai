@@ -2913,18 +2913,25 @@ def init_backend_ws():
     from labelme.dlcv.store import STORE
     port = 13888
     STORE.backend_ws = None
+
     def ws_thread():
-        """在后台线程中保持 websocket 连接"""
-        try:
-            ws = websocket.WebSocketApp(
-                f"ws://localhost:{port}/ws/lock"
-            )
-            STORE.backend_ws = ws
-            ws.run_forever()
-        except Exception as e:
-            STORE.backend_ws = None
-            logger.error(f"WebSocket connection failed: {e}")
-    
+        """在后台线程中保持 websocket 连接，最多自动重试 5 次"""
+        for attempt in range(5):
+            ws = None
+            try:
+                ws = websocket.WebSocketApp(f"ws://localhost:{port}/ws/lock")
+                STORE.backend_ws = ws
+                ws.run_forever()
+            except Exception as e:
+                logger.warning(
+                    f"WebSocket connection failed ({attempt + 1}/5), retrying: {e}"
+                )
+            finally:
+                if STORE.backend_ws is ws:
+                    STORE.backend_ws = None
+            if attempt < 4:
+                time.sleep(2)
+
     # 在后台线程中启动 websocket 连接
     thread = threading.Thread(target=ws_thread, daemon=True)
     thread.start()
