@@ -639,7 +639,9 @@ class MainWindow(CopyPasteMixin, MainWindow):
         lang_group = QtWidgets.QActionGroup(self)
         lang_group.setExclusive(True)
 
-        self.actions.lang_zh = QtWidgets.QAction("简体中文", self)
+        self.actions.lang_zh = QtWidgets.QAction(
+            "简体中文 (Simplified Chinese)", self
+        )
         self.actions.lang_zh.setCheckable(True)
         self.actions.lang_zh.setData("zh_CN")
         self.actions.lang_en = QtWidgets.QAction("English", self)

@@ -107,6 +107,8 @@ tr_map = {
         'Language',
         '简体中文':
         'Simplified Chinese',
+        '简体中文 (Simplified Chinese)':
+        'Simplified Chinese',
         '英文':
         'English',
         '字体大小':
@@ -193,6 +195,14 @@ tr_map = {
         "Input keywords to filter - Enter to search",
         "Enter键搜索":
         "Enter to search",
+        "已标注":
+        "Annotated",
+        "未标注":
+        "Unannotated",
+        "显示已有标注文件(JSON)的图片":
+        "Show images with annotation files (JSON)",
+        "显示没有标注文件的图片":
+        "Show images without annotation files",
         "复制文件到剪贴板成功":
         "Copy file to clipboard successfully",
         "已将文件复制到剪贴板":
@@ -419,6 +429,8 @@ tr_map = {
         
         # ======界面风格======
         '界面风格(UI Theme)':
+        'UI Theme',
+        '界面风格':
         'UI Theme',
         '新版UI(现代)':
         'Modern UI',
