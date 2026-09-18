@@ -5,6 +5,7 @@ from PyQt5.QtCore import QPointF
 from qtpy import QtWidgets
 from shapely.geometry import Polygon
 from labelme.dlcv.shape import Shape,ShapeType
+from labelme.dlcv.dlcv_translator import dlcv_tr
 
 def get_shape_attribute(shape:Shape):
     """
@@ -114,10 +115,10 @@ class viewAttribute(QtWidgets.QWidget):
         # 创建布局
         layout = QtWidgets.QVBoxLayout()
         
-        # 创建标签显示属性
-        width_label = QtWidgets.QLabel(f"宽度: {self.width} pixels")
-        height_label = QtWidgets.QLabel(f"高度: {self.height} pixels") 
-        area_label = QtWidgets.QLabel(f"面积: {self.area} pixels")
+        # 创建标签显示属性（英文为源串，中文经 dlcv_tr 查 zh_CN 表）
+        width_label = QtWidgets.QLabel(f"{dlcv_tr('Width:')} {self.width} pixels")
+        height_label = QtWidgets.QLabel(f"{dlcv_tr('Height:')} {self.height} pixels")
+        area_label = QtWidgets.QLabel(f"{dlcv_tr('Area:')} {self.area} pixels")
         
         # 添加标签到布局
         layout.addWidget(width_label)

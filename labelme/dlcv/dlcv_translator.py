@@ -410,8 +410,8 @@ tr_map = {
         "Enabled, draw a cross at the center of each shape",
         'AI多边形点数简化设置':
         'AI polygon simplify epsilon setting',
-        '简化程度说明':
-        'Simplification degree description',
+        '简化程度说明：':
+        'Simplification degree description:',
         '0.001: 轻微简化':
         '0.001: Mild simplification',
         '0.005: 默认简化':
@@ -476,6 +476,32 @@ tr_map = {
         ' 类型，标注文件是否正确': ', make sure the raw json data is correct',
 
         # ======其他处理======
+
+        # ======国际化审计补充（2026-09-19）======
+        '系统设置(System Settings)':
+        'System Settings',
+        '语言设置':
+        'Language Setting',
+        '语言已更改，请重启软件以应用修改。':
+        'Language changed. Please restart the software to apply the modification.',
+        '加载标签失败':
+        'Failed to load labels',
+        '请检查标签文件是否正确,当前标签文件: {filename}':
+        'Please check whether the label file is correct. Current label file: {filename}',
+        '请先打开一张图片':
+        'Please open an image first.',
+        '搜索文件名':
+        'Search file names',
+        '关闭':
+        'Close',
+        '3D视图':
+        '3D View',
+        'setting dock':
+        'Settings',
+        '请输入需要自动标注的类别，多个类别用,或，隔开':
+        'Enter the categories to be automatically annotated, separated by "," or "，"',
+        '显卡驱动版本过低, 当前版本：{version}，请升级显卡驱动版本至562以上，以支持GPU加速AI标注。':
+        'GPU driver version too low. Current version: {version}. Please upgrade the GPU driver to 562 or later to enable GPU-accelerated AI annotation.',
     },
     'zh_CN': {
         'ai processing...': 'ai分析中...',

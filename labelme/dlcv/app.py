@@ -629,7 +629,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
     def _init_setting_menu(self):
         # 在菜单栏添加设置菜单选项
         self.menus.setting = self.menu(
-            "系统设置(System Settings)"
+            dlcv_tr("系统设置(System Settings)")
         )
 
         # region
@@ -717,23 +717,10 @@ class MainWindow(CopyPasteMixin, MainWindow):
         except Exception:
             QtCore.QSettings("labelme", "labelme").setValue("ui/language", lang_code)
         
-        cn_lang_title = '语言设置'
-        cn_lang_info = '语言已更改，请重启软件以应用修改。'
-    
-        en_lang_title = 'Language Setting'
-        en_lang_info = 'Language changed. Please restart the software to apply the modification.'
-        
-        # 通知用户
+        # 通知用户（当前界面语言尚未切换，用当前语言提示一次即可）
         notification(
-            cn_lang_title,
-            cn_lang_info,
-            ToastPreset.WARNING,
-            8000
-        )
-        
-        notification(
-            en_lang_title,
-            en_lang_info,
+            dlcv_tr("语言设置"),
+            dlcv_tr("语言已更改，请重启软件以应用修改。"),
             ToastPreset.WARNING,
             8000
         )
@@ -915,8 +902,8 @@ class MainWindow(CopyPasteMixin, MainWindow):
             # 弹窗询问是否切换图片
             reply = QtWidgets.QMessageBox.question(
                 self,
-                "存在不合法多边形",
-                "存在不合法多边形,是否切换图片?",
+                dlcv_tr("存在不合法多边形"),
+                dlcv_tr("存在不合法多边形,是否切换图片?"),
                 QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
                 QtWidgets.QMessageBox.No,
             )
@@ -1104,8 +1091,10 @@ class MainWindow(CopyPasteMixin, MainWindow):
             error_msg = traceback.format_exc()
             logger.error(error_msg)
             notification(
-                "加载标签失败",
-                f"请检查标签文件是否正确,当前标签文件: {self.labelFile.filename}",
+                dlcv_tr("加载标签失败"),
+                dlcv_tr(
+                    "请检查标签文件是否正确,当前标签文件: {filename}"
+                ).format(filename=self.labelFile.filename),
                 ToastPreset.ERROR,
             )
 
@@ -1953,7 +1942,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
             
         except Exception as e:
             traceback.print_exc()
-            notification("分割更新失败", str(e), ToastPreset.ERROR)
+            notification(dlcv_tr("分割更新失败"), str(e), ToastPreset.ERROR)
     
     def select_shape_by_name(self, shape_name: str):
         select_shape = []

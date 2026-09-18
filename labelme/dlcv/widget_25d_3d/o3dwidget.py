@@ -3,6 +3,8 @@ import sys
 import cv2
 from qtpy import QtWidgets, QtGui, QtCore
 
+from labelme.dlcv.dlcv_translator import dlcv_tr
+
 
 class InitFlagEnum:
     NOT_INIT = 0
@@ -16,7 +18,7 @@ class InitFlagEnum:
 
 class O3DWidget(QtWidgets.QDockWidget):
     def __init__(self, parent=None):
-        super(O3DWidget, self).__init__("3D视图", parent)
+        super(O3DWidget, self).__init__(dlcv_tr("3D视图"), parent)
 
         # 属性
         self._init_flag = InitFlagEnum.NOT_INIT  # 如果改了文本，需要同步修改__getattribute__函数

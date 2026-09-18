@@ -234,8 +234,13 @@ class SettingDock(QtWidgets.QDockWidget):
                         "min": 0.001,
                         "max": 0.1,
                         "step": 0.005,
-                        "tip": dlcv_tr(
-                            "简化程度说明：\n0.001: 轻微简化\n0.005: 默认简化\n0.01: 较多简化\n0.05: 大量简化\n0.1: 极度简化"
+                        "tip": (
+                            dlcv_tr("简化程度说明：") + "\n" +
+                            dlcv_tr("0.001: 轻微简化") + "\n" +
+                            dlcv_tr("0.005: 默认简化") + "\n" +
+                            dlcv_tr("0.01: 较多简化") + "\n" +
+                            dlcv_tr("0.05: 大量简化") + "\n" +
+                            dlcv_tr("0.1: 极度简化")
                         ),
                     },
                 ],
