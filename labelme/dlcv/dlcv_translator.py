@@ -25,30 +25,30 @@ class DlcvTranslator:
         return self.lang
 
     def __lazy_init(self):
-        """初始化语言设置，优先级：用户设置 > 系统语言 > 默认英文"""
+        """初始化语言：已保存的用户选择优先；未保存时系统语言以 en 开头为英文，否则中文。"""
         from labelme.dlcv.store import STORE
         from PyQt5 import QtCore
 
         supported_langs = tr_map.keys()
-        self.lang = "zh_CN"
-
-        # 优先使用用户设置的语言
+        saved_lang = None
         try:
             saved_lang = STORE.main_window.settings.value(
                 "ui/language", type=str)
-            if saved_lang in supported_langs:
-                self.lang = saved_lang
-        except:
-            # 其次使用系统语言
+        except Exception:
+            saved_lang = None
+
+        if saved_lang in supported_langs:
+            self.lang = saved_lang
+        else:
             try:
-                system_lang = QtCore.QLocale.system().name()
-                lang_code = system_lang.split('.')[0].replace('-', '_')
-                if lang_code in supported_langs:
-                    self.lang = lang_code
-                elif lang_code.startswith('zh'):
-                    self.lang = "zh_CN"
-            except:
-                pass
+                system_lang = QtCore.QLocale.system().name() or ""
+                self.lang = (
+                    "en_US"
+                    if system_lang.replace("-", "_").lower().startswith("en")
+                    else "zh_CN"
+                )
+            except Exception:
+                self.lang = "zh_CN"
 
         # 加载翻译数据
         if STORE.q_translator and self.lang == "zh_CN":
