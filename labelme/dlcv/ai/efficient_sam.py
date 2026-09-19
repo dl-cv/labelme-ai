@@ -28,13 +28,15 @@ class EfficientSam(EfficientSam, DlcvTrObject, QtCore.QObject):
             print(f"Driver Version: {driver_version}")
             pynvml.nvmlShutdown()
             version = int(driver_version.split('.')[0])
-            if version >= 531:
+            if version >= 561:
                 support_gpu = True
             else:
                 from qtpy.QtWidgets import QMessageBox
                 QMessageBox.warning(
-                    None, "提示",
-                    f"显卡驱动版本过低, 当前版本：{version}，请升级显卡驱动版本至532以上，以支持GPU加速AI标注。")
+                    None, self.tr("提示"),
+                    self.tr(
+                        "显卡驱动版本过低, 当前版本：{version}，请升级显卡驱动版本至562以上，以支持GPU加速AI标注。"
+                    ).format(version=version))
         except:
             pass
 
