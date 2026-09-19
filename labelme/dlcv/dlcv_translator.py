@@ -502,6 +502,12 @@ tr_map = {
         'Enter the categories to be automatically annotated, separated by "," or "，"',
         '显卡驱动版本过低, 当前版本：{version}，请升级显卡驱动版本至562以上，以支持GPU加速AI标注。':
         'GPU driver version too low. Current version: {version}. Please upgrade the GPU driver to 562 or later to enable GPU-accelerated AI annotation.',
+        '宽度:':
+        'Width:',
+        '高度:':
+        'Height:',
+        '面积:':
+        'Area:',
     },
     'zh_CN': {
         'ai processing...': 'ai分析中...',
