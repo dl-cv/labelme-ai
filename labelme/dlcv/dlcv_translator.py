@@ -105,6 +105,8 @@ tr_map = {
         'System Settings',
         '语言(Language)':
         'Language',
+        '语言':
+        'Language',
         '简体中文':
         'Simplified Chinese',
         '简体中文 (Simplified Chinese)':
@@ -478,8 +480,6 @@ tr_map = {
         # ======其他处理======
 
         # ======国际化审计补充（2026-09-19）======
-        '系统设置(System Settings)':
-        'System Settings',
         '语言设置':
         'Language Setting',
         '语言已更改，请重启软件以应用修改。':

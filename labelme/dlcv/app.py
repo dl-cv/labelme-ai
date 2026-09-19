@@ -628,14 +628,11 @@ class MainWindow(CopyPasteMixin, MainWindow):
     # 新增设置菜单
     def _init_setting_menu(self):
         # 在菜单栏添加设置菜单选项
-        self.menus.setting = self.menu(
-            dlcv_tr("系统设置(System Settings)")
-        )
+        self.menus.setting = self.menu(dlcv_tr("系统设置"))
 
         # region
         # 语言子菜单
-        self.menus.setting_lang = self.menus.setting.addMenu(dlcv_tr("语言(Language)")
-        )
+        self.menus.setting_lang = self.menus.setting.addMenu(dlcv_tr("语言"))
         lang_group = QtWidgets.QActionGroup(self)
         lang_group.setExclusive(True)
 
