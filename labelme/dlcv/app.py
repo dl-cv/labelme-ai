@@ -40,7 +40,7 @@ from shapely.ops import split
 from shapely.validation import explain_validity
 from labelme.dlcv.shape import ShapeType
 from labelme.utils import print_time  # noqa
-from labelme.dlcv.utils.drag_drop import classify_dropped_paths
+from labelme.dlcv.utils.drag_drop import get_drop_target
 from labelme.dlcv.shape import Shape
 from labelme.dlcv.widget.viewAttribute import (
     get_shape_attribute,
@@ -1596,34 +1596,26 @@ class MainWindow(CopyPasteMixin, MainWindow):
             for fmt in QtGui.QImageReader.supportedImageFormats()
         ]
         items = [url.toLocalFile() for url in event.mimeData().urls()]
-        directory, image_paths = classify_dropped_paths(items, extensions)
-        if directory or image_paths:
-            event.accept()
-        else:
+        directory, _ = get_drop_target(items, extensions)
+        if directory is None:
             event.ignore()
+        else:
+            event.accept()
 
     def dropEvent(self, event):
         items = [url.toLocalFile() for url in event.mimeData().urls()]
-        directory, image_paths = classify_dropped_paths(
+        directory, filename = get_drop_target(
             items,
             [
                 ".%s" % fmt.data().decode().lower()
                 for fmt in QtGui.QImageReader.supportedImageFormats()
             ],
         )
-        if directory is None and not image_paths:
+        if directory is None or not self.mayContinue():
             event.ignore()
             return
 
-        if not self.mayContinue():
-            event.ignore()
-            return
-
-        if directory is not None:
-            self._openDirectory(directory)
-        else:
-            image_path = image_paths[0]
-            self._openDirectory(str(Path(image_path).parent), image_path)
+        self._openDirectory(directory, filename)
         event.accept()
 
     def _openDirectory(self, directory, filename=None):

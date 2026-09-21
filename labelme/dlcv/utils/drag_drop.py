@@ -1,15 +1,20 @@
 from pathlib import Path
 
 
-def classify_dropped_paths(paths, image_extensions):
-    """区分单个目录与图片文件拖拽。"""
-    paths = [str(path) for path in paths if path]
-    if len(paths) == 1 and Path(paths[0]).is_dir():
-        return paths[0], []
+def get_drop_target(paths, image_extensions):
+    """返回拖拽目标目录及需要选中的图片。"""
+    paths = [Path(path) for path in paths if path]
+    if len(paths) != 1:
+        return None, None
 
-    extensions = tuple(
+    path = paths[0]
+    if path.is_dir():
+        return str(path), None
+
+    extensions = {
         extension.lower() if extension.startswith(".") else f".{extension.lower()}"
         for extension in image_extensions
-    )
-    image_paths = [path for path in paths if path.lower().endswith(extensions)]
-    return None, image_paths
+    }
+    if path.is_file() and path.suffix.lower() in extensions:
+        return str(path.parent), str(path)
+    return None, None

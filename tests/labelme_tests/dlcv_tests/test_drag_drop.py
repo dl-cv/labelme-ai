@@ -1,36 +1,21 @@
-from labelme.dlcv.utils.drag_drop import classify_dropped_paths
+from labelme.dlcv.utils.drag_drop import get_drop_target
 
 
-def test_classify_single_dropped_directory(tmp_path):
-    directory, image_paths = classify_dropped_paths([tmp_path], ["png", "jpg"])
+def test_get_drop_target_directory(tmp_path):
+    directory, filename = get_drop_target([tmp_path], ["png", "jpg"])
 
     assert directory == str(tmp_path)
-    assert image_paths == []
+    assert filename is None
 
 
-def test_classify_dropped_images(tmp_path):
-    png_path = tmp_path / "first.PNG"
-    jpg_path = tmp_path / "second.jpg"
-    text_path = tmp_path / "notes.txt"
+def test_get_drop_target_image(tmp_path):
+    image_path = tmp_path / "selected.PNG"
+    image_path.touch()
 
-    directory, image_paths = classify_dropped_paths(
-        [png_path, jpg_path, text_path], ["png", ".jpg"]
-    )
+    directory, filename = get_drop_target([image_path], ["png", ".jpg"])
 
-    assert directory is None
-    assert image_paths == [str(png_path), str(jpg_path)]
-
-
-def test_multiple_dropped_directories_are_not_opened_as_one(tmp_path):
-    first = tmp_path / "first"
-    second = tmp_path / "second"
-    first.mkdir()
-    second.mkdir()
-
-    directory, image_paths = classify_dropped_paths([first, second], ["png"])
-
-    assert directory is None
-    assert image_paths == []
+    assert directory == str(tmp_path)
+    assert filename == str(image_path)
 
 
 class _LocalUrl:
@@ -65,7 +50,7 @@ class _DropEvent:
         self.ignored = True
 
 
-def test_drop_directory_opens_directory_without_image_import(tmp_path):
+def _drop(paths):
     from labelme.dlcv.app import MainWindow
 
     opened = []
@@ -79,9 +64,13 @@ def test_drop_directory_opens_directory_without_image_import(tmp_path):
         def _openDirectory(directory, filename=None):
             opened.append((directory, filename))
 
-    event = _DropEvent([str(tmp_path)])
-
+    event = _DropEvent(paths)
     MainWindow.dropEvent(Window(), event)
+    return opened, event
+
+
+def test_drop_directory_opens_directory(tmp_path):
+    opened, event = _drop([str(tmp_path)])
 
     assert opened == [(str(tmp_path), None)]
     assert event.accepted is True
@@ -89,24 +78,10 @@ def test_drop_directory_opens_directory_without_image_import(tmp_path):
 
 
 def test_drop_image_opens_parent_directory_and_selects_image(tmp_path):
-    from labelme.dlcv.app import MainWindow
-
     image_path = tmp_path / "selected.png"
     image_path.touch()
-    opened = []
 
-    class Window:
-        @staticmethod
-        def mayContinue():
-            return True
-
-        @staticmethod
-        def _openDirectory(directory, filename=None):
-            opened.append((directory, filename))
-
-    event = _DropEvent([str(image_path)])
-
-    MainWindow.dropEvent(Window(), event)
+    opened, event = _drop([str(image_path)])
 
     assert opened == [(str(tmp_path), str(image_path))]
     assert event.accepted is True
