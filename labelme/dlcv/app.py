@@ -1611,24 +1611,30 @@ class MainWindow(CopyPasteMixin, MainWindow):
                 for fmt in QtGui.QImageReader.supportedImageFormats()
             ],
         )
-        if directory is not None:
-            if not self.mayContinue():
-                event.ignore()
-                return
-
-            self._openDirectory(directory)
-            event.accept()
+        if directory is None and not image_paths:
+            event.ignore()
             return
 
-        if image_paths:
-            super().dropEvent(event)
-        else:
+        if not self.mayContinue():
             event.ignore()
+            return
 
-    def _openDirectory(self, directory):
+        if directory is not None:
+            self._openDirectory(directory)
+        else:
+            image_path = image_paths[0]
+            self._openDirectory(str(Path(image_path).parent), image_path)
+        event.accept()
+
+    def _openDirectory(self, directory, filename=None):
         self.resetState()
         self.canvas.loadPixmap(QtGui.QPixmap())
         self.importDirImages(directory)
+        if filename is not None:
+            filename = str(Path(filename).absolute().as_posix())
+            if filename in self.imageList:
+                self.fileListWidget.setCurrentRow(self.imageList.index(filename))
+                self.fileListWidget.repaint()
 
     def openDirDialog(self, _value=False, dirpath=None):
         if not self.mayContinue():
