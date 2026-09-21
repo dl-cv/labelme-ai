@@ -1,9 +1,6 @@
 github2pypi==1.0.0
 pytest
 pytest-qt
-pytest-cov
-pytest-bdd
-cosmic-ray
 shapely
 ruff==0.1.9
 twine

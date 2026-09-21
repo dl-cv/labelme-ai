@@ -1,28 +1,45 @@
-"""复制 / 粘贴：Ctrl+C 分流、Ctrl+V 偏移/跟随鼠标/裁切。"""
-
-import traceback
+"""Ctrl+C 和 Ctrl+V 的多边形复制粘贴逻辑。"""
 
 from labelme.dlcv import dlcv_tr
 from labelme.dlcv.store import STORE
-from labelme.dlcv.utils import clip_paste as clip_paste_utils
+from labelme.dlcv.utils import copy_paste as copy_paste_utils
 from labelme.dlcv.utils_func import ToastPreset
 from labelme.dlcv.utils_func import notification
-from labelme.dlcv.widget.clipboard import clear_copied_shapes
 from labelme.dlcv.widget.clipboard import copy_file_to_clipboard
-from labelme.dlcv.widget.clipboard import copy_shapes_to_clipboard
-from labelme.dlcv.widget.clipboard import paste_shapes_from_clipboard
 from labelme.logger import logger
 
 
 class CopyPasteMixin:
-    """挂到 MainWindow：覆盖 copy / paste 槽函数。"""
+    """为主窗口提供图片复制、多边形复制和多边形粘贴。"""
 
     def copySelectedShape(self):
-        """选中多边形时复制多边形；未选中时复制当前图片。"""
-        if clip_paste_utils.copy_target_is_shapes(self.canvas.selectedShapes):
-            self._copy_selected_shapes_to_clipboard()
+        selected_polygons = self._selected_polygons()
+        if selected_polygons:
+            self._copy_selected_shapes(selected_polygons)
         else:
             self.copy_image_to_clipboard()
+
+    def _selected_polygons(self):
+        selected = []
+        selected_ids = set()
+
+        def add(shape):
+            if shape is None or id(shape) in selected_ids:
+                return
+            selected_ids.add(id(shape))
+            selected.append(shape)
+
+        for shape in getattr(self.canvas, "selectedShapes", ()):
+            add(shape)
+        for shape in getattr(self.canvas, "shapes", ()):
+            if getattr(shape, "selected", False):
+                add(shape)
+        label_list = getattr(self, "labelList", None)
+        if label_list is not None:
+            for item in label_list.selectedItems():
+                add(item.shape())
+
+        return [shape for shape in selected if shape.shape_type == "polygon"]
 
     def copy_image_to_clipboard(self):
         file_path = getattr(self, "imagePath", None)
@@ -33,109 +50,144 @@ class CopyPasteMixin:
                 ToastPreset.WARNING,
             )
             return
+
         try:
             copy_file_to_clipboard(file_path)
-            clear_copied_shapes()
-            notification(
-                dlcv_tr("复制成功"),
-                dlcv_tr("图像已复制"),
-                ToastPreset.SUCCESS,
-            )
-        except Exception as e:
-            notification(dlcv_tr("复制失败"), str(e), ToastPreset.ERROR)
+        except Exception as exc:
+            logger.exception("复制图像失败")
+            notification(dlcv_tr("复制失败"), str(exc), ToastPreset.ERROR)
+            return
 
-    def _copy_selected_shapes_to_clipboard(self):
-        if not self.canvas.selectedShapes:
+        self._copied_shapes = None
+        self._copied_shapes_source = ""
+        self._same_image_paste_count = 0
+        self.actions.paste.setEnabled(False)
+        notification(
+            dlcv_tr("复制成功"),
+            dlcv_tr("图像已复制"),
+            ToastPreset.SUCCESS,
+        )
+
+    def _copy_selected_shapes(self, selected_shapes):
+        shapes = [shape.copy() for shape in selected_shapes]
+        try:
+            copy_paste_utils.validate_shapes(shapes)
+        except copy_paste_utils.CopyPasteError:
+            self._copied_shapes = None
+            self._copied_shapes_source = ""
+            self._same_image_paste_count = 0
+            self.actions.paste.setEnabled(False)
             notification(
-                dlcv_tr("提示"), dlcv_tr("请先选中要复制的形状"), ToastPreset.WARNING
+                dlcv_tr("复制失败"),
+                dlcv_tr("选中的多边形非法，无法复制"),
+                ToastPreset.WARNING,
             )
             return
-        try:
-            shapes_data = [
-                clip_paste_utils.format_shape_for_clipboard(shape)
-                for shape in self.canvas.selectedShapes
-            ]
-            source_image_path = self.filename
-            logger.debug(f"=== DEBUG: 记录源图像路径: {source_image_path} ===")
-            copy_shapes_to_clipboard(shapes_data, source_image_path)
-            self.actions.paste.setEnabled(True)
-            self._same_image_paste_count = 0
-            notification(
-                dlcv_tr("复制成功"),
-                dlcv_tr("多边形已复制"),
-                ToastPreset.SUCCESS,
-            )
-        except Exception as e:
-            notification(dlcv_tr("复制失败"), str(e), ToastPreset.ERROR)
+
+        for shape in shapes:
+            shape.selected = False
+        source_path = getattr(self, "imagePath", None) or getattr(
+            self, "filename", None
+        )
+        self._copied_shapes = shapes
+        self._copied_shapes_source = copy_paste_utils.normalize_image_path(source_path)
+        self._same_image_paste_count = 0
+        self.actions.paste.setEnabled(True)
+        notification(
+            dlcv_tr("复制成功"),
+            dlcv_tr("多边形已复制"),
+            ToastPreset.SUCCESS,
+        )
 
     def pasteSelectedShape(self):
-        """Ctrl+V：同图累加右下偏移；异图原坐标；可选跟随鼠标；超边裁切。"""
+        if not self._copied_shapes:
+            notification(
+                dlcv_tr("提示"),
+                dlcv_tr("没有可粘贴的多边形"),
+                ToastPreset.WARNING,
+            )
+            return
+
+        shapes = [shape.copy() for shape in self._copied_shapes]
+        target_path = getattr(self, "imagePath", None) or getattr(
+            self, "filename", None
+        )
+        same_image = copy_paste_utils.is_same_image(
+            self._copied_shapes_source,
+            target_path,
+        )
+        follow_cursor = bool(STORE.paste_follow_mouse)
+        cursor_xy = None
+        if follow_cursor:
+            cursor = getattr(self.canvas, "prevMovePoint", None)
+            if cursor is not None:
+                cursor_xy = (cursor.x(), cursor.y())
+
+        paste_count = getattr(self, "_same_image_paste_count", 0)
+        offset = 10.0 * (paste_count + 1) if same_image and not follow_cursor else 0.0
         try:
-            shapes_data = paste_shapes_from_clipboard()
-            if not shapes_data:
-                notification(
-                    dlcv_tr("提示"),
-                    dlcv_tr("剪贴板中没有可粘贴的内容"),
-                    ToastPreset.WARNING,
-                )
-                return
-
-            shapes = []
-            for shape_data in shapes_data:
-                shape = clip_paste_utils.create_shape_from_data(shape_data)
-                if shape is not None and shape.points:
-                    shapes.append(shape)
-            if not shapes:
-                notification(
-                    dlcv_tr("提示"),
-                    dlcv_tr("剪贴板中没有可粘贴的内容"),
-                    ToastPreset.WARNING,
-                )
-                return
-
-            source_image_path = shapes_data[0].get("source_image_path")
-            same_image = source_image_path == self.filename
-
-            follow_mouse = STORE.paste_follow_mouse
-
-            mouse_xy = None
-            if follow_mouse:
-                target_pos = self.canvas.prevMovePoint
-                mouse_xy = (target_pos.x(), target_pos.y())
-
-            paste_count = getattr(self, "_same_image_paste_count", 0)
-            offset = 5
-            if same_image and not follow_mouse:
-                offset = clip_paste_utils.next_same_image_paste_offset(paste_count + 1)
-
-            kept = clip_paste_utils.apply_paste_transform(
+            dx, dy = copy_paste_utils.placement_translation(
                 shapes,
                 same_image=same_image,
-                follow_mouse=follow_mouse,
-                mouse_xy=mouse_xy,
+                follow_cursor=follow_cursor,
+                cursor_xy=cursor_xy,
                 max_x=self.max_x_width,
                 max_y=self.max_y_height,
                 offset=offset,
             )
-            if not kept:
-                notification(
-                    dlcv_tr("提示"),
-                    dlcv_tr("粘贴的形状超出图像边界，已全部裁切"),
-                    ToastPreset.WARNING,
+            copy_paste_utils.translate_shapes(shapes, dx, dy)
+            copy_paste_utils.validate_shapes(shapes)
+        except copy_paste_utils.CopyPasteError as exc:
+            self._notify_copy_paste_error(exc.code)
+            return
+
+        if same_image and not follow_cursor:
+            self._same_image_paste_count = paste_count + 1
+        self.loadShapes(shapes, replace=False)
+        self.setDirty()
+        self.canvas.selectShapes(shapes)
+        notification(
+            dlcv_tr("粘贴成功"),
+            dlcv_tr("多边形已粘贴"),
+            ToastPreset.SUCCESS,
+        )
+
+    def prepare_polygons_for_save(self):
+        moved = False
+        for shape in self.canvas.shapes:
+            if shape.shape_type != "polygon":
+                continue
+            try:
+                dx, dy = copy_paste_utils.move_shape_inside_image(
+                    shape,
+                    max_x=self.max_x_width,
+                    max_y=self.max_y_height,
                 )
-                return
+            except copy_paste_utils.CopyPasteError as exc:
+                self.canvas.selectShapes([shape])
+                self._notify_copy_paste_error(exc.code, saving=True)
+                return False
+            moved = moved or bool(dx or dy)
 
-            if same_image and not follow_mouse:
-                self._same_image_paste_count = paste_count + 1
+        if moved:
+            self.canvas.storeShapes()
+            self.canvas.update()
+        self.refresh_invalid_polygon_state()
+        return True
 
-            self.loadShapes(kept, replace=False)
-            self.setDirty()
-            self.canvas.selectShapes(kept)
-            notification(
-                dlcv_tr("粘贴成功"),
-                dlcv_tr("已粘贴 {count} 个形状").format(count=len(kept)),
-                ToastPreset.SUCCESS,
+    def _notify_copy_paste_error(self, code, saving=False):
+        if code == "too_large":
+            message = dlcv_tr("当前图像无法包含该多边形")
+        elif code == "cannot_offset":
+            message = dlcv_tr("图像内没有足够空间错开多边形")
+        elif code in ("image_missing", "cursor_missing"):
+            message = dlcv_tr("无法确定多边形的粘贴位置")
+        else:
+            message = dlcv_tr(
+                "多边形非法，无法保存" if saving else "多边形非法，无法粘贴"
             )
-        except Exception as e:
-            traceback.print_exc()
-            notification(dlcv_tr("粘贴失败"), str(e), ToastPreset.ERROR)
+        notification(
+            dlcv_tr("保存失败" if saving else "粘贴失败"),
+            message,
+            ToastPreset.WARNING,
+        )

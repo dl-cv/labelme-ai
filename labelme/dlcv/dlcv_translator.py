@@ -69,14 +69,32 @@ tr_map = {
         'Copy Image',
         '复制':
         'Copy',
-        '复制多边形跟随鼠标':
-        'Copied polygon follows mouse',
-        '启用后，粘贴时多边形左上角跟随鼠标，超出图像边界则裁切':
-        'When enabled, pasted polygon top-left follows the mouse; shapes outside the image are clipped.',
+        '复制多边形跟随光标':
+        'Copied polygon follows cursor',
+        '启用后，粘贴时多边形左上角跟随光标，超出图像范围时整体移回图像内':
+        'When enabled, the pasted polygon top-left follows the cursor and the polygon is moved back inside the image when needed.',
         '图像已复制':
         'Image copied',
         '多边形已复制':
         'Polygon copied',
+        '多边形已粘贴':
+        'Polygon pasted',
+        '没有可粘贴的多边形':
+        'No polygon is available to paste',
+        '选中的多边形非法，无法复制':
+        'The selected polygon is invalid and cannot be copied',
+        '当前图像无法包含该多边形':
+        'The current image cannot contain this polygon',
+        '图像内没有足够空间错开多边形':
+        'There is not enough space in the image to offset the polygon',
+        '无法确定多边形的粘贴位置':
+        'Unable to determine where to paste the polygon',
+        '多边形非法，无法粘贴':
+        'The polygon is invalid and cannot be pasted',
+        '多边形非法，无法保存':
+        'The polygon is invalid and cannot be saved',
+        '保存失败':
+        'Save failed',
         '开发者模式':
         'Developer Mode',
         '开发者密码':

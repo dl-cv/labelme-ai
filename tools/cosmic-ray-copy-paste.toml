@@ -1,8 +1,0 @@
-[cosmic-ray]
-module-path = "labelme/dlcv/utils/clip_paste.py"
-timeout = 30
-exclude-modules = []
-test-command = "python -m pytest -q tests/labelme_tests/dlcv_tests/test_clip_paste.py tests/labelme_tests/dlcv_tests/test_copy_paste_gherkin.py"
-
-[cosmic-ray.distributor]
-name = "local"

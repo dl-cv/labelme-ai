@@ -13,21 +13,3 @@ format:
 
 test:
 	MPLBACKEND='agg' pytest tests
-
-test-copy-paste:
-	MPLBACKEND='agg' pytest tests/labelme_tests/dlcv_tests/test_clip_paste.py tests/labelme_tests/dlcv_tests/test_clipboard_shapes.py tests/labelme_tests/dlcv_tests/test_copy_paste_gherkin.py -q
-
-coverage-copy-paste:
-	mkdir -p .qa-reports
-	MPLBACKEND='agg' pytest tests/labelme_tests/dlcv_tests/test_clip_paste.py tests/labelme_tests/dlcv_tests/test_clipboard_shapes.py tests/labelme_tests/dlcv_tests/test_copy_paste_gherkin.py --cov=labelme.dlcv.utils.clip_paste --cov-report=term-missing --cov-report=json:.qa-reports/coverage-copy-paste.json --cov-fail-under=90
-
-mutate-copy-paste:
-	mkdir -p .qa-reports
-	rm -f .qa-reports/copy-paste.cr.sqlite
-	cosmic-ray init tools/cosmic-ray-copy-paste.toml .qa-reports/copy-paste.cr.sqlite
-	cosmic-ray exec tools/cosmic-ray-copy-paste.toml .qa-reports/copy-paste.cr.sqlite
-	cr-report .qa-reports/copy-paste.cr.sqlite
-
-qa-copy-paste:
-	python tools/qa_copy_paste.py
-

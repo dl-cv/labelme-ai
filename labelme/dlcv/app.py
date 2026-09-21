@@ -941,9 +941,13 @@ class MainWindow(CopyPasteMixin, MainWindow):
                 data["direction"] = s.direction
             return data
 
-        # extra 修正多边形，防止越界
+        if not self.prepare_polygons_for_save():
+            return False
+
+        # 非多边形继续使用原有修正逻辑。
         for t_shape in self.canvas.shapes:
-            self.fix_shape(t_shape)
+            if t_shape.shape_type != ShapeType.POLYGON:
+                self.fix_shape(t_shape)
 
         shapes = [format_shape(item.shape()) for item in self.labelList]
 
