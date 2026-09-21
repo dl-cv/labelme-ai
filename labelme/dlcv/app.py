@@ -40,6 +40,7 @@ from shapely.ops import split
 from shapely.validation import explain_validity
 from labelme.dlcv.shape import ShapeType
 from labelme.utils import print_time  # noqa
+from labelme.dlcv.utils.drag_drop import get_drop_target
 from labelme.dlcv.shape import Shape
 from labelme.dlcv.widget.viewAttribute import (
     get_shape_attribute,
@@ -1586,40 +1587,46 @@ class MainWindow(CopyPasteMixin, MainWindow):
 
     # https://bbs.dlcv.ai/t/topic/357
     def dragEnterEvent(self, event):
+        if not event.mimeData().hasUrls():
+            event.ignore()
+            return
+
         extensions = [
             ".%s" % fmt.data().decode().lower()
             for fmt in QtGui.QImageReader.supportedImageFormats()
         ]
-        if event.mimeData().hasUrls():
-            items = [i.toLocalFile() for i in event.mimeData().urls()]
-            if any([i.lower().endswith(tuple(extensions)) for i in items]):
-                event.accept()
-
-            # extra 添加文件夹拖拽支持
-            elif all([Path(i).is_dir() for i in items]):
-                event.accept()
-        else:
+        items = [url.toLocalFile() for url in event.mimeData().urls()]
+        directory, _ = get_drop_target(items, extensions)
+        if directory is None:
             event.ignore()
+        else:
+            event.accept()
 
     def dropEvent(self, event):
-        super().dropEvent(event)
-        from natsort import os_sorted
+        items = [url.toLocalFile() for url in event.mimeData().urls()]
+        directory, filename = get_drop_target(
+            items,
+            [
+                ".%s" % fmt.data().decode().lower()
+                for fmt in QtGui.QImageReader.supportedImageFormats()
+            ],
+        )
+        if directory is None or not self.mayContinue():
+            event.ignore()
+            return
 
-        # extra 添加文件夹拖拽支持
-        items = [i.toLocalFile() for i in event.mimeData().urls()]
+        self._openDirectory(directory, filename)
+        event.accept()
 
-        file_paths = []
-        suffixes = [
-            ".%s" % fmt.data().decode().lower()
-            for fmt in QtGui.QImageReader.supportedImageFormats()
-        ]
-        for item in items:
-            if Path(item).is_dir():
-                for suffix in suffixes:
-                    str_list = [str(i) for i in Path(item).rglob(f"*{suffix}")]
-                    file_paths.extend(str_list)
-
-        self.importDroppedImageFiles(os_sorted(file_paths))
+    def _openDirectory(self, directory, filename=None):
+        self.resetState()
+        self.canvas.loadPixmap(QtGui.QPixmap())
+        self.importDirImages(directory)
+        if filename is not None:
+            filename = str(Path(filename).absolute().as_posix())
+            if filename in self.imageList:
+                self.fileListWidget.setCurrentRow(self.imageList.index(filename))
+                self.fileListWidget.repaint()
 
     def openDirDialog(self, _value=False, dirpath=None):
         if not self.mayContinue():
@@ -1641,10 +1648,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
             )
         )
         if targetDirPath:
-            # extra 打开空文件夹，图片置空
-            self.resetState()
-            self.canvas.loadPixmap(QtGui.QPixmap())
-        self.importDirImages(targetDirPath)
+            self._openDirectory(targetDirPath)
 
     # https://bbs.dlcv.com.cn/t/topic/421
     def deleteFile(self):
