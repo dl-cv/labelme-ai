@@ -1795,17 +1795,28 @@ class MainWindow(CopyPasteMixin, MainWindow):
         self.menus.help.addAction(about_action)
 
     def show_about_dialog(self):
-        dialog = QtWidgets.QMessageBox(self)
+        dialog = QtWidgets.QDialog(self)
         dialog.setWindowTitle(dlcv_tr("关于"))
-        dialog.setText(
-            f"{__appname__}\n"
-            + dlcv_tr("版本：{version}").format(version=__version__)
-        )
-        dialog.setIcon(QtWidgets.QMessageBox.Information)
-        dialog.setStandardButtons(QtWidgets.QMessageBox.Ok)
         dialog.setWindowModality(QtCore.Qt.WindowModal)
+
+        layout = QtWidgets.QVBoxLayout(dialog)
+        version_label = QtWidgets.QLabel(
+            f"{__appname__}\n"
+            + dlcv_tr("版本：{version}").format(version=__version__),
+            dialog,
+        )
+        version_label.setAlignment(QtCore.Qt.AlignCenter)
+        layout.addWidget(version_label)
+
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok,
+            parent=dialog,
+        )
+        buttons.accepted.connect(dialog.accept)
+        layout.addWidget(buttons)
+
         self._about_dialog = dialog
-        dialog.open()
+        dialog.show()
 
     def _init_ui(self):
         self._init_label_count_dock()

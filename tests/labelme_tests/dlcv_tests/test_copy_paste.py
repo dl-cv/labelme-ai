@@ -287,6 +287,7 @@ def test_help_menu_about_dialog_shows_runtime_version(monkeypatch):
     qt_app.processEvents()
 
     assert window._about_dialog.windowTitle() == "关于"
-    assert window._about_dialog.text() == f"{__appname__}\n版本：{__version__}"
+    version_label = window._about_dialog.findChild(QtWidgets.QLabel)
+    assert version_label.text() == f"{__appname__}\n版本：{__version__}"
     window._about_dialog.close()
     window.close()
