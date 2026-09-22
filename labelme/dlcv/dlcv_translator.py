@@ -65,6 +65,10 @@ tr_map = {
         'ai process done',
         '使用文档':
         'Documentation',
+        '关于':
+        'About',
+        '版本：{version}':
+        'Version: {version}',
         '复制图片':
         'Copy Image',
         '复制':
