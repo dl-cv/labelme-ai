@@ -60,7 +60,12 @@ from labelme.dlcv.widget.setting_dock import (
     LabelPositionEnum,
 )
 from labelme.dlcv.canvas import CURSOR_DRAW
-from labelme.dlcv.label_file import has_image_json, remove_image_json
+from labelme.dlcv.label_file import (
+    UnsupportedImageFormatError,
+    has_image_json,
+    remove_image_annotations,
+    select_annotation_source,
+)
 import os
 from labelme.dlcv.widget.label_count import LabelCountDock
 from labelme.dlcv.ui_theme_manager import UiThemeManager
@@ -958,22 +963,19 @@ class MainWindow(CopyPasteMixin, MainWindow):
         # 空标注时同时清理图片内 JSON 和旧的外部 JSON。
         if not shapes and not any(flags.values()):
             label_file = self.getLabelFile()
-            removed_paths = []
-            if osp.exists(label_file):
-                os.remove(label_file)
-                removed_paths.append(label_file)
             image_paths = [Path(self.filename)]
             for image_name in self.proj_manager.get_img_name_list(self.filename):
-                candidate = Path(self.filename).parent / image_name
-                if candidate not in image_paths:
-                    image_paths.append(candidate)
-            for image_path in image_paths:
-                try:
-                    if image_path.is_file() and has_image_json(image_path):
-                        remove_image_json(image_path)
-                        removed_paths.append(str(image_path))
-                except Exception:
-                    logger.exception(f"清理图片内标注失败：{image_path}")
+                image_paths.append(Path(self.filename).parent / image_name)
+            try:
+                removed_paths = remove_image_annotations(
+                    image_paths, label_file
+                )
+            except LabelFileError as e:
+                self.errorMessage(
+                    self.tr("Error saving label data"),
+                    self.tr("<b>%s</b>") % e,
+                )
+                return False
             if removed_paths:
                 items = self.fileListWidget.findItems(self.filename, Qt.MatchContains)
                 for item in items:
@@ -1030,14 +1032,8 @@ class MainWindow(CopyPasteMixin, MainWindow):
                 flags=flags,
             )
             self.labelFile = lf
-            # 支持的图片从内嵌 JSON 重新读取，其它格式继续读取外部 JSON。
-            reload_source = filename
-            try:
-                if has_image_json(self.filename):
-                    reload_source = self.filename
-            except Exception:
-                logger.exception("读取保存后的图片内标注失败")
-            self.labelFile.load(reload_source)
+            # 直接按保存入口返回的实际来源重新读取，避免错误时改读旧文件。
+            self.labelFile.load(lf.filename)
             # extra End
 
             # 保存标注时，设置文件列表的勾选状态
@@ -1306,8 +1302,11 @@ class MainWindow(CopyPasteMixin, MainWindow):
         try:
             if has_image_json(self.filename):
                 return True
+        except UnsupportedImageFormatError:
+            pass
         except Exception:
             logger.exception("读取图片内标注状态失败")
+            return True
         return osp.exists(self.getLabelFile())
 
     def get_vertical_scrollbar(self):
@@ -1481,16 +1480,29 @@ class MainWindow(CopyPasteMixin, MainWindow):
         self.canvas.offset = QtCore.QPointF(0, 0)
         self.canvas.loadPixmap(QtGui.QPixmap.fromImage(image))
 
-        embedded_label = False
         try:
-            embedded_label = has_image_json(filename)
-        except Exception:
+            annotation_source = select_annotation_source(filename, label_file)
+        except Exception as e:
             logger.exception("读取图片内标注失败")
-        annotation_source = filename if embedded_label else label_file
-        if embedded_label or (QtCore.QFile.exists(label_file) and LabelFile.is_label_file(label_file)):
+            self.errorMessage(
+                self.tr("Error opening file"),
+                self.tr(
+                    "<p><b>%s</b></p>"
+                    "<p>Make sure <i>%s</i> is a valid label file."
+                )
+                % (e, filename),
+            )
+            self.status(self.tr("Error reading %s") % filename)
+            return False
+        embedded_label = (
+            annotation_source is not None
+            and os.path.normcase(os.path.abspath(os.fspath(annotation_source)))
+            == os.path.normcase(os.path.abspath(filename))
+        )
+        if annotation_source is not None:
             try:
-                # 图片内 JSON 优先，外部 JSON 作为兼容读取方式。
-                self.labelFile = LabelFile(annotation_source)
+                # 图片内 JSON 优先，外部 JSON 只用于无内嵌标注或不支持容器。
+                self.labelFile = LabelFile(str(annotation_source))
             except LabelFileError as e:
                 self.errorMessage(
                     self.tr("Error opening file"),
@@ -1498,9 +1510,9 @@ class MainWindow(CopyPasteMixin, MainWindow):
                         "<p><b>%s</b></p>"
                         "<p>Make sure <i>%s</i> is a valid label file."
                     )
-                    % (e, label_file),
+                    % (e, annotation_source),
                 )
-                self.status(self.tr("Error reading %s") % label_file)
+                self.status(self.tr("Error reading %s") % annotation_source)
                 return False
             self.imageData = self.labelFile.imageData
             self.imagePath = (

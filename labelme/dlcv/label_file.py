@@ -1,26 +1,259 @@
+import base64
 import json
+import locale
+import logging
+import math
+import os
+import tempfile
 from pathlib import Path
 
+from labelme import __version__
 from labelme.label_file import *
-import math
 
 try:
-    from dlcv_core.image_json import (
-        SUPPORTED_IMAGE_EXTENSIONS,
-        has_image_json,
-        read_image_json,
-        remove_image_json,
-        write_image_json,
-    )
+    from dlcv_core.image_json import SUPPORTED_IMAGE_EXTENSIONS
+    from dlcv_core.image_json import UnsupportedImageFormatError
+    from dlcv_core.image_json import has_image_json
+    from dlcv_core.image_json import read_image_json
+    from dlcv_core.image_json import remove_image_json
+    from dlcv_core.image_json import write_image_json
     IMAGE_JSON_AVAILABLE = True
-except ImportError:
+    IMAGE_JSON_LIMITATION = None
+except ModuleNotFoundError as exc:
+    if exc.name not in {"dlcv_core", "dlcv_core.image_json"}:
+        raise
     IMAGE_JSON_AVAILABLE = False
+    IMAGE_JSON_LIMITATION = (
+        "当前 dlcv_core 不含图片内 JSON 接口；LabelMeAI 仅可读写外部 JSON，"
+        "无法读取仅保存在图片内的标注。"
+    )
+    SUPPORTED_IMAGE_EXTENSIONS = frozenset()
+    logging.getLogger(__name__).warning(IMAGE_JSON_LIMITATION)
+
+    class UnsupportedImageFormatError(ValueError):
+        pass
 
     def has_image_json(_path):
         return False
 
-    def remove_image_json(path):
-        return Path(path)
+    def remove_image_json(path, output_path=None):
+        return Path(output_path) if output_path is not None else Path(path)
+
+
+def _read_sidecar(path):
+    raw = path.read_bytes()
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = raw.decode(locale.getencoding())
+    return json.loads(text)
+
+
+def _read_embedded(path):
+    try:
+        return read_image_json(path)
+    except UnsupportedImageFormatError:
+        return None
+
+
+def select_annotation_source(image_path, sidecar_path):
+    """选择实际标注来源，受支持容器的读取错误直接向上报告。"""
+    image_path = Path(image_path)
+    sidecar_path = Path(sidecar_path)
+    if (
+        IMAGE_JSON_AVAILABLE
+        and image_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
+    ):
+        try:
+            if has_image_json(image_path):
+                return image_path
+        except UnsupportedImageFormatError:
+            pass
+    if sidecar_path.is_file():
+        return sidecar_path
+    return None
+
+
+def _write_sidecar(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(data, ensure_ascii=False, indent=2)
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            encoding="utf-8",
+            newline="\n",
+            delete=False,
+        ) as file:
+            temp_path = Path(file.name)
+            file.write(text)
+            file.flush()
+            os.fsync(file.fileno())
+        if path.exists():
+            try:
+                os.chmod(temp_path, path.stat().st_mode)
+            except OSError:
+                pass
+        os.replace(temp_path, path)
+        temp_path = None
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+
+
+def _path_key(path):
+    return os.path.normcase(os.path.abspath(os.fspath(path)))
+
+
+def _group_image_names(other_data):
+    names = []
+    for key in ("img_name_list", "image_path_list"):
+        value = (other_data or {}).get(key)
+        if not isinstance(value, (list, tuple)):
+            continue
+        names.extend(name for name in value if isinstance(name, str) and name)
+    return names
+
+
+def _collect_image_paths(primary_image, other_data):
+    candidates = [primary_image]
+    candidates.extend(
+        primary_image.parent / name for name in _group_image_names(other_data)
+    )
+    image_paths = {}
+    for path in candidates:
+        image_paths.setdefault(_path_key(path), Path(path))
+    return list(image_paths.values())
+
+
+def _rebase_embedded_data(data, primary_image, image_path):
+    embedded = dict(data)
+    embedded["imagePath"] = os.path.relpath(primary_image, image_path.parent)
+    for key in ("img_name_list", "image_path_list"):
+        value = embedded.get(key)
+        if not isinstance(value, (list, tuple)):
+            continue
+        embedded[key] = [
+            os.path.relpath(primary_image.parent / name, image_path.parent)
+            if isinstance(name, str) and name else name
+            for name in value
+        ]
+    return embedded
+
+
+def _new_temp_path(path, suffix):
+    with tempfile.NamedTemporaryFile(
+        "wb",
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=suffix,
+        delete=False,
+    ) as file:
+        return Path(file.name)
+
+
+def _cleanup_temp_paths(paths):
+    for temp_path in paths:
+        try:
+            temp_path.unlink(missing_ok=True)
+        except OSError:
+            logging.getLogger(__name__).exception(
+                "清理临时标注文件失败：%s", temp_path
+            )
+
+
+def _commit_image_candidates(candidates, sidecar_path):
+    backups = {}
+    rollback_failed = False
+    try:
+        for image_path, candidate in candidates.items():
+            backup = _new_temp_path(image_path, ".backup")
+            try:
+                os.replace(image_path, backup)
+            except Exception:
+                backup.unlink(missing_ok=True)
+                raise
+            backups[image_path] = backup
+            os.replace(candidate, image_path)
+        if sidecar_path.exists():
+            sidecar_path.unlink()
+    except Exception as exc:
+        rollback_errors = []
+        for image_path, backup in reversed(list(backups.items())):
+            try:
+                os.replace(backup, image_path)
+            except Exception as rollback_exc:
+                rollback_errors.append((image_path, backup, rollback_exc))
+        if rollback_errors:
+            rollback_failed = True
+            failed_paths = ", ".join(str(item[0]) for item in rollback_errors)
+            raise RuntimeError(f"恢复原图片失败：{failed_paths}") from exc
+        raise
+    finally:
+        _cleanup_temp_paths(candidates.values())
+        if not rollback_failed:
+            _cleanup_temp_paths(backups.values())
+
+
+def _write_embedded_group(image_paths, data, primary_image, sidecar_path):
+    candidates = {}
+    try:
+        for image_path in image_paths:
+            candidate = _new_temp_path(image_path, ".candidate")
+            candidates[image_path] = candidate
+            write_image_json(
+                image_path,
+                _rebase_embedded_data(data, primary_image, image_path),
+                output_path=candidate,
+                ensure_ascii=False,
+                indent=2,
+            )
+    except Exception:
+        _cleanup_temp_paths(candidates.values())
+        raise
+    _commit_image_candidates(candidates, sidecar_path)
+
+
+def remove_image_annotations(image_paths, sidecar_path):
+    """清除一组图片内标注；任一步失败时恢复已替换的图片。"""
+    sidecar_path = Path(sidecar_path)
+    candidates = {}
+    removed_paths = []
+    unique_paths = {}
+    for image_path in image_paths:
+        image_path = Path(image_path)
+        unique_paths.setdefault(_path_key(image_path), image_path)
+
+    try:
+        if IMAGE_JSON_AVAILABLE:
+            for image_path in unique_paths.values():
+                if not image_path.is_file():
+                    continue
+                try:
+                    embedded = has_image_json(image_path)
+                except UnsupportedImageFormatError:
+                    continue
+                if not embedded:
+                    continue
+                candidate = _new_temp_path(image_path, ".candidate")
+                candidates[image_path] = candidate
+                remove_image_json(image_path, output_path=candidate)
+                removed_paths.append(str(image_path))
+    except Exception as exc:
+        _cleanup_temp_paths(candidates.values())
+        raise LabelFileError(exc) from exc
+
+    sidecar_existed = sidecar_path.exists()
+    try:
+        _commit_image_candidates(candidates, sidecar_path)
+    except Exception as exc:
+        raise LabelFileError(exc) from exc
+    if sidecar_existed:
+        removed_paths.insert(0, str(sidecar_path))
+    return removed_paths
 
 
 class LabelFile(LabelFile):
@@ -46,26 +279,32 @@ class LabelFile(LabelFile):
         ]
         try:
             source_path = Path(filename)
-            if IMAGE_JSON_AVAILABLE and source_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
-                data = read_image_json(source_path)
+            embedded_source = False
+            if (
+                IMAGE_JSON_AVAILABLE
+                and source_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
+            ):
+                data = _read_embedded(source_path)
+                embedded_source = isinstance(data, dict)
                 if not isinstance(data, dict):
                     sidecar = source_path.with_suffix(".json")
-                    data = json.loads(sidecar.read_text(encoding="utf-8"))
+                    data = _read_sidecar(sidecar)
                     source_path = sidecar
             else:
-                data = json.loads(source_path.read_text(encoding="utf-8"))
+                data = _read_sidecar(source_path)
                 if IMAGE_JSON_AVAILABLE:
                     image_path = source_path.parent / data.get("imagePath", "")
                     if image_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
-                        embedded = read_image_json(image_path)
+                        embedded = _read_embedded(image_path)
                         if isinstance(embedded, dict):
                             data = embedded
                             source_path = image_path
+                            embedded_source = True
             if not isinstance(data, dict):
                 raise LabelFileError(f"标注不是 JSON 对象：{filename}")
 
             flags = data.get("flags") or {}
-            imagePath = data["imagePath"]
+            imagePath = (source_path.name if embedded_source else data["imagePath"])
             shapes = [
                 dict(
                     label=s["label"],
@@ -189,7 +428,12 @@ class LabelFile(LabelFile):
                     rad = 0.0
 
                 # 仅当成功计算出中心和宽高时写入该字段
-                if cx is not None and cy is not None and w is not None and h is not None:
+                if (
+                    cx is not None
+                    and cy is not None
+                    and w is not None
+                    and h is not None
+                ):
                     shape["rotation_box"] = {
                         "Cx": float(cx),
                         "Cy": float(cy),
@@ -272,37 +516,48 @@ class LabelFile(LabelFile):
         # 添加处理旋转框的方向属性
         shapes = self.saveRotationBox(shapes)
         
-        super().save(
-            filename=filename,
-            shapes=shapes,
-            imagePath=imagePath,
-            imageHeight=imageHeight,
-            imageWidth=imageWidth,
-            imageData=imageData,
-            otherData=otherData,
-            flags=flags,
-        )
-        sidecar_path = Path(filename)
-        if IMAGE_JSON_AVAILABLE and sidecar_path.suffix.lower() == ".json":
-            image_paths = [sidecar_path.parent / imagePath]
-            for image_name in (otherData or {}).get("img_name_list", []):
-                candidate = sidecar_path.parent / image_name
-                if candidate not in image_paths:
-                    image_paths.append(candidate)
-            can_embed = all(
-                image_path.is_file()
-                and image_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
-                for image_path in image_paths
+        # 标注保存入口可能收到上次加载的图片路径，不能直接按文本写入。
+        sidecar_path = Path(filename).with_suffix(".json")
+        if imageData is not None:
+            imageData = base64.b64encode(imageData).decode("utf-8")
+            imageHeight, imageWidth = self._check_image_height_and_width(
+                imageData, imageHeight, imageWidth
             )
-            if can_embed:
-                try:
-                    raw_json = sidecar_path.read_bytes()
-                    for image_path in image_paths:
-                        write_image_json(image_path, raw_json)
-                    sidecar_path.unlink()
-                    self.filename = str(image_paths[0])
-                except Exception as exc:
-                    raise LabelFileError(exc) from exc
+        data = dict(
+            version=__version__, flags=flags or {}, shapes=shapes,
+            imagePath=imagePath, imageData=imageData,
+            imageHeight=imageHeight, imageWidth=imageWidth,
+        )
+        for key, value in (otherData or {}).items():
+            if key in data:
+                raise LabelFileError(f"重复的标注字段：{key}")
+            data[key] = value
+        try:
+            if not IMAGE_JSON_AVAILABLE:
+                _write_sidecar(sidecar_path, data)
+                self.filename = str(sidecar_path)
+                return
+            primary_image = Path(os.path.abspath(sidecar_path.parent / imagePath))
+            image_paths = _collect_image_paths(primary_image, otherData)
+            if not all(
+                path.is_file() and path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
+                for path in image_paths
+            ):
+                _write_sidecar(sidecar_path, data)
+                self.filename = str(sidecar_path)
+                return
+            # 先检查整个图片组，BigTIFF 等不支持的容器仍保存外部 JSON。
+            try:
+                for path in image_paths:
+                    read_image_json(path)
+            except UnsupportedImageFormatError:
+                _write_sidecar(sidecar_path, data)
+                self.filename = str(sidecar_path)
+                return
+            _write_embedded_group(image_paths, data, primary_image, sidecar_path)
+            self.filename = str(primary_image)
+        except Exception as exc:
+            raise LabelFileError(exc) from exc
 
     def load_shapes(self, shapes, s, parsers=None):
         shapes = super().load_shapes(shapes, s, parsers)
