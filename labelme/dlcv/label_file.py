@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from labelme.label_file import *
@@ -7,7 +8,7 @@ try:
     from dlcv_core.image_json import (
         SUPPORTED_IMAGE_EXTENSIONS,
         has_image_json,
-        load_image_annotation,
+        read_image_json,
         remove_image_json,
         write_image_json,
     )
@@ -44,15 +45,24 @@ class LabelFile(LabelFile):
             "mask",
         ]
         try:
-            if IMAGE_JSON_AVAILABLE:
-                loaded = load_image_annotation(filename)
-                if loaded is None:
-                    raise LabelFileError(f"找不到图片内或外部标注：{filename}")
-                data, source_path = loaded
+            source_path = Path(filename)
+            if IMAGE_JSON_AVAILABLE and source_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
+                data = read_image_json(source_path)
+                if not isinstance(data, dict):
+                    sidecar = source_path.with_suffix(".json")
+                    data = json.loads(sidecar.read_text(encoding="utf-8"))
+                    source_path = sidecar
             else:
-                with open(filename, "r") as file:
-                    data = json.load(file)
-                source_path = Path(filename)
+                data = json.loads(source_path.read_text(encoding="utf-8"))
+                if IMAGE_JSON_AVAILABLE:
+                    image_path = source_path.parent / data.get("imagePath", "")
+                    if image_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
+                        embedded = read_image_json(image_path)
+                        if isinstance(embedded, dict):
+                            data = embedded
+                            source_path = image_path
+            if not isinstance(data, dict):
+                raise LabelFileError(f"标注不是 JSON 对象：{filename}")
 
             flags = data.get("flags") or {}
             imagePath = data["imagePath"]
