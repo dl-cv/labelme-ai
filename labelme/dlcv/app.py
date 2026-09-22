@@ -29,7 +29,7 @@ from PIL import ImageFile, Image
 import yaml
 import json
 
-from labelme import __appname__
+from labelme import __appname__, __version__
 from labelme.app import *
 from labelme.dlcv.utils_func import notification, normalize_16b_gray_to_uint8, Toast, ToastPreset
 from labelme.dlcv.store import STORE
@@ -170,10 +170,11 @@ class MainWindow(CopyPasteMixin, MainWindow):
         app_cfg = branding.get("App") or branding.get("app") or {}
         v = app_cfg.get("DisplayURL", app_cfg.get("displayurl", None))
         show_help = True if v is None else str(v).strip().lower() not in ("0", "false", "no", "off")
+        tutorial_action = self.menus.help.actions()[0]
         if show_help:
-            self.menus.help.actions()[0].setText(dlcv_tr("使用文档"))
+            tutorial_action.setText(dlcv_tr("使用文档"))
         else:
-            self.menus.help.menuAction().setVisible(False)
+            tutorial_action.setVisible(False)
 
         self._init_dev_mode()
         self._init_ui()
@@ -1784,6 +1785,28 @@ class MainWindow(CopyPasteMixin, MainWindow):
         self.fileListWidget.itemSelectionChanged.connect(file_selection_changed)
         self.file_dock.setWidget(self.fileListWidget)
 
+    def _init_about_action(self):
+        about_action = QtWidgets.QAction(dlcv_tr("关于"), self)
+        about_action.triggered.connect(self.show_about_dialog)
+        self.actions.about = about_action
+
+        if self.menus.help.actions():
+            self.menus.help.addSeparator()
+        self.menus.help.addAction(about_action)
+
+    def show_about_dialog(self):
+        dialog = QtWidgets.QMessageBox(self)
+        dialog.setWindowTitle(dlcv_tr("关于"))
+        dialog.setText(
+            f"{__appname__}\n"
+            + dlcv_tr("版本：{version}").format(version=__version__)
+        )
+        dialog.setIcon(QtWidgets.QMessageBox.Information)
+        dialog.setStandardButtons(QtWidgets.QMessageBox.Ok)
+        dialog.setWindowModality(QtCore.Qt.WindowModal)
+        self._about_dialog = dialog
+        dialog.open()
+
     def _init_ui(self):
         self._init_label_count_dock()
         self._init_setting_dock()  # 必须在所有的 docker widget 都初始化后才执行，否则 docker widget 不会 restore 成上一次退出时的状态
@@ -1834,6 +1857,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
         self._init_file_list_widget()
         self._init_trigger_action()
         self._init_edit_mode_action()
+        self._init_about_action()
 
         self.actions.copy.setEnabled(True)
         self.actions.paste.setEnabled(True)

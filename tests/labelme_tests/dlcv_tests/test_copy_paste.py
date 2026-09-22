@@ -259,3 +259,34 @@ def test_invalid_polygon_blocks_save(monkeypatch):
     assert window.prepare_polygons_for_save() is False
     assert window.selected == [shape]
     assert any("多边形非法，无法保存" in args for args in messages)
+
+def test_help_menu_about_dialog_shows_runtime_version(monkeypatch):
+    from labelme import __appname__, __version__
+    from labelme.dlcv import app as app_module
+    from qtpy import QtWidgets
+
+    monkeypatch.setattr(app_module, "dlcv_tr", lambda text: text)
+    qt_app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+    class AboutWindow(QtWidgets.QWidget):
+        show_about_dialog = app_module.MainWindow.show_about_dialog
+
+    window = AboutWindow()
+    window.actions = SimpleNamespace()
+    window.menus = SimpleNamespace(help=QtWidgets.QMenu(window))
+    window.menus.help.addAction("使用文档")
+
+    app_module.MainWindow._init_about_action(window)
+
+    menu_actions = window.menus.help.actions()
+    assert menu_actions[-2].isSeparator()
+    assert menu_actions[-1] is window.actions.about
+    assert window.actions.about.text() == "关于"
+
+    window.actions.about.trigger()
+    qt_app.processEvents()
+
+    assert window._about_dialog.windowTitle() == "关于"
+    assert window._about_dialog.text() == f"{__appname__}\n版本：{__version__}"
+    window._about_dialog.close()
+    window.close()
