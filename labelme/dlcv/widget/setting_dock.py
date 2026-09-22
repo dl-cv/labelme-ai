@@ -158,11 +158,11 @@ class SettingDock(QtWidgets.QDockWidget):
                     },
                     {
                         "name": "paste_follow_mouse",
-                        "title": dlcv_tr("复制多边形跟随光标"),
+                        "title": dlcv_tr("复制多边形跟随鼠标"),
                         "type": "bool",
                         "value": False,
                         "default": False,
-                        "tip": dlcv_tr("启用后，粘贴时多边形左上角跟随光标，超出图像范围时整体移回图像内"),
+                        "tip": dlcv_tr("启用后，粘贴时多边形左上角跟随鼠标，超出图像边界则裁切"),
                     },
                 ],
             },

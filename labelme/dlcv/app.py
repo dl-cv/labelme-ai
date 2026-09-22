@@ -171,10 +171,9 @@ class MainWindow(CopyPasteMixin, MainWindow):
         v = app_cfg.get("DisplayURL", app_cfg.get("displayurl", None))
         show_help = True if v is None else str(v).strip().lower() not in ("0", "false", "no", "off")
         tutorial_action = self.menus.help.actions()[0]
+        tutorial_action.setVisible(show_help)
         if show_help:
             tutorial_action.setText(dlcv_tr("使用文档"))
-        else:
-            tutorial_action.setVisible(False)
 
         self._init_dev_mode()
         self._init_ui()
@@ -942,13 +941,9 @@ class MainWindow(CopyPasteMixin, MainWindow):
                 data["direction"] = s.direction
             return data
 
-        if not self.prepare_polygons_for_save():
-            return False
-
-        # 非多边形继续使用原有修正逻辑。
+        # extra 修正多边形，防止越界
         for t_shape in self.canvas.shapes:
-            if t_shape.shape_type != ShapeType.POLYGON:
-                self.fix_shape(t_shape)
+            self.fix_shape(t_shape)
 
         shapes = [format_shape(item.shape()) for item in self.labelList]
 
@@ -1795,11 +1790,22 @@ class MainWindow(CopyPasteMixin, MainWindow):
         self.menus.help.addAction(about_action)
 
     def show_about_dialog(self):
-        dialog = QtWidgets.QDialog(self)
+        window_flags = (
+            QtCore.Qt.Dialog
+            | QtCore.Qt.WindowTitleHint
+            | QtCore.Qt.WindowSystemMenuHint
+            | QtCore.Qt.WindowMinimizeButtonHint
+            | QtCore.Qt.WindowCloseButtonHint
+        )
+        dialog = QtWidgets.QDialog(self, window_flags)
         dialog.setWindowTitle(dlcv_tr("关于"))
         dialog.setWindowModality(QtCore.Qt.WindowModal)
+        dialog.setMinimumWidth(360)
 
         layout = QtWidgets.QVBoxLayout(dialog)
+        layout.setContentsMargins(32, 24, 32, 20)
+        layout.setSpacing(18)
+
         version_label = QtWidgets.QLabel(
             f"{__appname__}\n"
             + dlcv_tr("版本：{version}").format(version=__version__),
@@ -1817,6 +1823,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
 
         self._about_dialog = dialog
         dialog.show()
+        return dialog
 
     def _init_ui(self):
         self._init_label_count_dock()

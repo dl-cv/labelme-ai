@@ -1,12 +1,18 @@
+import json
+import os
+import tempfile
+
+from labelme.logger import logger
+
+
 def copy_files_to_clipboard(file_paths):
     """
     将多个文件复制到剪贴板
-
+    
     Args:
         file_paths (list): 文件路径列表
     """
     import ctypes
-    import os
     from ctypes import wintypes
 
     if not file_paths:
@@ -83,11 +89,10 @@ def copy_files_to_clipboard(file_paths):
     finally:
         user32.CloseClipboard()
 
-
 def copy_file_to_clipboard(file_path):
     """
     将单个文件复制到剪贴板（向后兼容）
-
+    
     Args:
         file_path (str): 文件路径
     """
@@ -111,9 +116,9 @@ def copy_bytes_to_clipboard(file_bytes, file_name):
     # 创建临时文件，使用指定的文件名
     temp_dir = tempfile.gettempdir()
     temp_path = os.path.join(temp_dir, file_name)
-
+    
     # 写入文件内容
-    with open(temp_path, "wb") as temp_file:
+    with open(temp_path, 'wb') as temp_file:
         temp_file.write(file_bytes)
 
     try:
@@ -139,6 +144,84 @@ def clear_temps():
     all_temp_files.clear()
 
 
+def copy_shapes_to_clipboard(shapes_data, source_image_path=None):
+    """
+    将形状数据复制到剪贴板
+    
+    Args:
+        shapes_data (list): 形状数据列表，每个形状是一个字典
+        source_image_path (str): 源图像路径，用于判断是否在同一张图片上粘贴
+    """
+    try:
+        # 为每个形状添加源图像路径信息
+        shapes_data_with_source = []
+        for shape_data in shapes_data:
+            shape_with_source = shape_data.copy()
+            shape_with_source['source_image_path'] = source_image_path
+            shapes_data_with_source.append(shape_with_source)
+        
+        # 将形状数据序列化为JSON
+        json_data = json.dumps(shapes_data_with_source, ensure_ascii=False, indent=2)
+        
+        # 创建临时文件
+        temp_dir = tempfile.gettempdir()
+        temp_path = os.path.join(temp_dir, "copied_shapes.json")
+        
+        # 写入JSON数据
+        with open(temp_path, 'w', encoding='utf-8') as temp_file:
+            temp_file.write(json_data)
+        
+        try:
+            # 使用现有的copy_file_to_clipboard函数复制临时文件
+            copy_file_to_clipboard(temp_path)
+        finally:
+            all_temp_files.append(temp_path)
+            
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def clear_copied_shapes():
+    """清除形状剪贴板临时文件，避免复制图片后 Ctrl+V 仍粘贴旧多边形。"""
+    temp_path = os.path.join(tempfile.gettempdir(), "copied_shapes.json")
+    if os.path.exists(temp_path):
+        try:
+            os.remove(temp_path)
+        except OSError:
+            pass
+
+
+def paste_shapes_from_clipboard():
+    """
+    从剪贴板读取形状数据
+    
+    Returns:
+        list: 形状数据列表，如果失败返回None
+    """
+    try:
+        # 检查临时文件是否存在
+        temp_dir = tempfile.gettempdir()
+        temp_path = os.path.join(temp_dir, "copied_shapes.json")
+        
+        if not os.path.exists(temp_path):
+            return None
+            
+        # 读取JSON数据
+        with open(temp_path, 'r', encoding='utf-8') as temp_file:
+            content = temp_file.read()
+            shapes_data = json.loads(content)
+            
+        return shapes_data
+        
+    except Exception as e:
+        logger.info(f"=== DEBUG: 从剪贴板读取形状数据失败: {e} ===")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
 if __name__ == "__main__":
     # 测试单文件复制
     # file_path = r"C:\dlcv\datasets\dogs_vs_cats\狗\dog.0.jpg"
@@ -148,7 +231,7 @@ if __name__ == "__main__":
     file_paths = [
         r"C:\dlcv\datasets\dogs_vs_cats\狗\dog.0.jpg",
         r"C:\dlcv\datasets\dogs_vs_cats\狗\dog.1.jpg",
-        r"C:\dlcv\datasets\dogs_vs_cats\狗\dog.2.jpg",
+        r"C:\dlcv\datasets\dogs_vs_cats\狗\dog.2.jpg"
     ]
     copy_files_to_clipboard(file_paths)
 
