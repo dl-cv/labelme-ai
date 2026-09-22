@@ -923,6 +923,9 @@ class MainWindow(CopyPasteMixin, MainWindow):
         if self.is_3d or self.is_2_5d:
             filename = self.getLabelFile()
 
+        # 保存失败时保留未保存状态，切换图片前仍可重试。
+        self.dirty = True
+        self.actions.save.setEnabled(True)
         lf = LabelFile()
 
         def format_shape(s):
@@ -1000,6 +1003,8 @@ class MainWindow(CopyPasteMixin, MainWindow):
             # 实时更新统计信息
             if hasattr(self, "label_count_dock"):
                 self.label_count_dock.count_labels_in_file([], {})
+            self.dirty = False
+            self.actions.save.setEnabled(False)
             return True
 
         # 不需要保存 False 的 flag
@@ -1007,6 +1012,8 @@ class MainWindow(CopyPasteMixin, MainWindow):
         # extra End
 
         try:
+            if Path(filename).suffix.lower() != ".json":
+                filename = self.getLabelFile()
             imagePath = osp.relpath(self.imagePath, osp.dirname(filename))
             imageData = self.imageData if self._config["store_data"] else None
             if osp.dirname(filename) and not osp.exists(osp.dirname(filename)):
@@ -1030,6 +1037,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
                 imageWidth=self.image.width(),
                 otherData=self.otherData,
                 flags=flags,
+                save_external_json=self._config.get("save_external_json", True),
             )
             self.labelFile = lf
             # 直接按保存入口返回的实际来源重新读取，避免错误时改读旧文件。
@@ -1078,6 +1086,8 @@ class MainWindow(CopyPasteMixin, MainWindow):
 
             # disable allows next and previous image to proceed
             # self.filename = filename
+            self.dirty = False
+            self.actions.save.setEnabled(False)
             return True
         except LabelFileError as e:
             self.errorMessage(

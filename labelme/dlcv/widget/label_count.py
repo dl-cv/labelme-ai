@@ -7,6 +7,15 @@ from labelme.utils.qt import newIcon
 from collections import Counter
 import os
 import json
+from pathlib import Path
+
+try:
+    from dlcv_core.image_annotations import collect_annotation_paths, load_annotation
+except ModuleNotFoundError as exc:
+    if exc.name not in {"dlcv_core", "dlcv_core.image_annotations"}:
+        raise
+    collect_annotation_paths = None
+    load_annotation = None
 
 
 class LabelCountDock(QtWidgets.QDockWidget):
@@ -46,10 +55,7 @@ class LabelCountDock(QtWidgets.QDockWidget):
 
     # 统计当前文件夹内的标签/标记数量
     def count_labels_in_dir(self):
-        """
-        递归统计当前文件夹及所有子文件夹下json文件中的标签/文本标记数量，并在文本框中显示结果
-        """
-        # 假设parent有lastOpenDir属性
+        """递归统计图片内嵌优先的标注，同一份标注只计数一次。"""
         parent = self.parent()
         dir_path = getattr(parent, "lastOpenDir", None)
         if not dir_path or not os.path.isdir(dir_path):
@@ -58,65 +64,72 @@ class LabelCountDock(QtWidgets.QDockWidget):
             )
             return
 
-        # 递归遍历文件夹下所有json文件
-        json_files_count = 0
+        try:
+            annotation_paths = (
+                collect_annotation_paths(dir_path)
+                if collect_annotation_paths is not None
+                else sorted(Path(dir_path).rglob("*.json"))
+            )
+        except Exception as exc:
+            self.label_count_text.setText(
+                dlcv_tr("读取文件夹标注失败：{error}").format(error=exc)
+            )
+            return
+
         label_counter = Counter()
         flag_counter = Counter()
-        for root, _, files in os.walk(dir_path):
-            for file in files:
-                if file.endswith(".json"):
-                    json_path = os.path.join(root, file)
-                    json_files_count += 1
-                    try:
-                        with open(json_path, "r", encoding="utf-8") as f:
-                            data = json.load(f)
-                        shapes = data.get("shapes", [])
-                        flags = data.get("flags", {})
-
-                        # 统计标签
-                        for shape in shapes:
-                            label = shape.get("label", "")
-                            if label:
-                                label_counter[label] += 1
-
-                        # 统计文本标记（只统计值为True的flag文本）
-                        if isinstance(flags, dict):
-                            for flag_name, flag_value in flags.items():
-                                if flag_value is True:
-                                    flag_counter[flag_name] += 1
-                    except Exception as e:
-                        continue
-
-        if not label_counter and not flag_counter:
-            if json_files_count == 0:
-                self.label_count_text.setText(dlcv_tr("未找到任何JSON文件，请先进行标注。"))
-            else:
-                self.label_count_text.setText(
-                    dlcv_tr("找到 {count} 个JSON文件，但未统计到任何标签。").format(
-                        count=json_files_count
-                    )
+        failed_count = 0
+        for path in annotation_paths:
+            try:
+                data = (
+                    load_annotation(path)
+                    if load_annotation is not None
+                    else json.loads(path.read_text(encoding="utf-8-sig"))
                 )
+                if not isinstance(data, dict):
+                    continue
+                for shape in data.get("shapes", []):
+                    label = shape.get("label", "")
+                    if label:
+                        label_counter[label] += 1
+                flags = data.get("flags", {})
+                if isinstance(flags, dict):
+                    for flag_name, flag_value in flags.items():
+                        if flag_value is True:
+                            flag_counter[flag_name] += 1
+            except Exception:
+                failed_count += 1
+
+        if not annotation_paths:
+            result = dlcv_tr("未找到任何标注，请先进行标注。")
+        elif not label_counter and not flag_counter:
+            result = dlcv_tr("找到 {count} 份标注，但未统计到任何标签或文本标记。").format(
+                count=len(annotation_paths)
+            )
         else:
-            result = dlcv_tr("统计结果（共扫描 {count} 个JSON文件）：\n").format(
-                count=json_files_count
+            result = dlcv_tr("统计结果（共扫描 {count} 份标注）：\n").format(
+                count=len(annotation_paths)
             )
             if flag_counter:
                 result += dlcv_tr("\n文本标记统计:\n")
-                total_flags = sum(flag_counter.values())
                 for flag, count in flag_counter.most_common():
                     result += f"{flag}: {count}\n"
-                result += dlcv_tr("文本标记总数: {count}\n").format(count=total_flags)
+                result += dlcv_tr("文本标记总数: {count}\n").format(
+                    count=sum(flag_counter.values())
+                )
             if label_counter:
                 result += dlcv_tr("\n标签统计:\n")
-                total_labels = sum(label_counter.values())
-                # 使用most_common()方法按数量降序排列， 返回从高到低排序的元组列表
                 for label, count in label_counter.most_common():
                     result += f"{label}: {count}\n"
-                result += dlcv_tr("标签总数: {count}").format(count=total_labels)
-
-            total = sum(label_counter.values()) + sum(flag_counter.values())
-            result += dlcv_tr("\n\n总数: {count}").format(count=total)
-            self.label_count_text.setText(result)
+                result += dlcv_tr("标签总数: {count}").format(
+                    count=sum(label_counter.values())
+                )
+            result += dlcv_tr("\n\n总数: {count}").format(
+                count=sum(label_counter.values()) + sum(flag_counter.values())
+            )
+        if failed_count:
+            result += dlcv_tr("\n读取失败: {count} 份标注").format(count=failed_count)
+        self.label_count_text.setText(result)
 
     # 统计当前文件的标签/标记数量; 在画布的save函数中调用
     def count_labels_in_file(self, shapes: list[Shape], flags: dict):

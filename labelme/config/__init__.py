@@ -93,6 +93,7 @@ def get_config(*args, **kwargs):
     config = {
         "auto_save": True,
         "store_data": False,
+        "save_external_json": True,
         "shortcuts": {
             "close": "Ctrl+P",
             "open": "Ctrl+O",

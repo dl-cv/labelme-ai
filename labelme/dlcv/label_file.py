@@ -131,7 +131,7 @@ def _collect_image_paths(primary_image, other_data):
 
 def _rebase_embedded_data(data, primary_image, image_path):
     embedded = dict(data)
-    embedded["imagePath"] = os.path.relpath(primary_image, image_path.parent)
+    embedded["imagePath"] = image_path.name
     for key in ("img_name_list", "image_path_list"):
         value = embedded.get(key)
         if not isinstance(value, (list, tuple)):
@@ -198,23 +198,29 @@ def _commit_image_candidates(candidates, sidecar_path):
             _cleanup_temp_paths(backups.values())
 
 
-def _write_embedded_group(image_paths, data, primary_image, sidecar_path):
-    candidates = {}
-    try:
-        for image_path in image_paths:
-            candidate = _new_temp_path(image_path, ".candidate")
-            candidates[image_path] = candidate
+def _write_embedded_group(image_paths, data, primary_image):
+    """逐图保存内嵌标注，单张失败不撤回其他图片的最新数据。"""
+    saved_paths = []
+    unsupported_paths = []
+    failures = []
+    for image_path in image_paths:
+        if image_path.suffix.lower() not in SUPPORTED_IMAGE_EXTENSIONS:
+            unsupported_paths.append(image_path)
+            continue
+        try:
             write_image_json(
                 image_path,
                 _rebase_embedded_data(data, primary_image, image_path),
-                output_path=candidate,
                 ensure_ascii=False,
                 indent=2,
             )
-    except Exception:
-        _cleanup_temp_paths(candidates.values())
-        raise
-    _commit_image_candidates(candidates, sidecar_path)
+        except UnsupportedImageFormatError:
+            unsupported_paths.append(image_path)
+        except Exception as exc:
+            failures.append((image_path, exc))
+        else:
+            saved_paths.append(image_path)
+    return saved_paths, unsupported_paths, failures
 
 
 def remove_image_annotations(image_paths, sidecar_path):
@@ -512,6 +518,8 @@ class LabelFile(LabelFile):
         imageData=None,
         otherData=None,
         flags=None,
+        *,
+        save_external_json=True,
     ):
         # 添加处理旋转框的方向属性
         shapes = self.saveRotationBox(shapes)
@@ -539,23 +547,32 @@ class LabelFile(LabelFile):
                 return
             primary_image = Path(os.path.abspath(sidecar_path.parent / imagePath))
             image_paths = _collect_image_paths(primary_image, otherData)
-            if not all(
-                path.is_file() and path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
-                for path in image_paths
-            ):
-                _write_sidecar(sidecar_path, data)
-                self.filename = str(sidecar_path)
-                return
-            # 先检查整个图片组，BigTIFF 等不支持的容器仍保存外部 JSON。
-            try:
-                for path in image_paths:
-                    read_image_json(path)
-            except UnsupportedImageFormatError:
-                _write_sidecar(sidecar_path, data)
-                self.filename = str(sidecar_path)
-                return
-            _write_embedded_group(image_paths, data, primary_image, sidecar_path)
-            self.filename = str(primary_image)
+            saved_paths, unsupported_paths, failures = _write_embedded_group(
+                image_paths, data, primary_image
+            )
+            # 外部文件默认共存；关闭设置后，内嵌失败仍保存外部备份。
+            backup_saved = False
+            if save_external_json or unsupported_paths or failures:
+                try:
+                    _write_sidecar(sidecar_path, data)
+                    backup_saved = True
+                except Exception as exc:
+                    failures.append((sidecar_path, exc))
+            if failures:
+                failed_details = "; ".join(
+                    f"{path}: {error}" for path, error in failures
+                )
+                backup_message = (
+                    f"最新标注已保存至外部 JSON：{sidecar_path}。"
+                    if backup_saved else "外部 JSON 备份未完成。"
+                )
+                raise LabelFileError(
+                    f"标注保存未全部完成，已更新 {len(saved_paths)} 张图片。"
+                    f"{backup_message}失败文件：{failed_details}"
+                )
+            self.filename = str(
+                primary_image if primary_image in saved_paths else sidecar_path
+            )
         except Exception as exc:
             raise LabelFileError(exc) from exc
 
