@@ -1,5 +1,25 @@
+from pathlib import Path
+
 from labelme.label_file import *
 import math
+
+try:
+    from dlcv_core.image_json import (
+        SUPPORTED_IMAGE_EXTENSIONS,
+        has_image_json,
+        load_image_annotation,
+        remove_image_json,
+        write_image_json,
+    )
+    IMAGE_JSON_AVAILABLE = True
+except ImportError:
+    IMAGE_JSON_AVAILABLE = False
+
+    def has_image_json(_path):
+        return False
+
+    def remove_image_json(path):
+        return Path(path)
 
 
 class LabelFile(LabelFile):
@@ -24,8 +44,15 @@ class LabelFile(LabelFile):
             "mask",
         ]
         try:
-            with open(filename, "r") as f:
-                data = json.load(f)
+            if IMAGE_JSON_AVAILABLE:
+                loaded = load_image_annotation(filename)
+                if loaded is None:
+                    raise LabelFileError(f"找不到图片内或外部标注：{filename}")
+                data, source_path = loaded
+            else:
+                with open(filename, "r") as file:
+                    data = json.load(file)
+                source_path = Path(filename)
 
             flags = data.get("flags") or {}
             imagePath = data["imagePath"]
@@ -57,7 +84,7 @@ class LabelFile(LabelFile):
         self.shapes = shapes
         self.imagePath = imagePath
         self.imageData = None  # 2024年10月20日14:37:58 cyf修改, 弃用 imageData
-        self.filename = filename
+        self.filename = str(source_path)
         self.otherData = otherData
 
     # 修改该函数是为了 https://bbs.dlcv.ai/t/topic/328
@@ -235,7 +262,7 @@ class LabelFile(LabelFile):
         # 添加处理旋转框的方向属性
         shapes = self.saveRotationBox(shapes)
         
-        return super().save(
+        super().save(
             filename=filename,
             shapes=shapes,
             imagePath=imagePath,
@@ -245,6 +272,27 @@ class LabelFile(LabelFile):
             otherData=otherData,
             flags=flags,
         )
+        sidecar_path = Path(filename)
+        if IMAGE_JSON_AVAILABLE and sidecar_path.suffix.lower() == ".json":
+            image_paths = [sidecar_path.parent / imagePath]
+            for image_name in (otherData or {}).get("img_name_list", []):
+                candidate = sidecar_path.parent / image_name
+                if candidate not in image_paths:
+                    image_paths.append(candidate)
+            can_embed = all(
+                image_path.is_file()
+                and image_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
+                for image_path in image_paths
+            )
+            if can_embed:
+                try:
+                    raw_json = sidecar_path.read_bytes()
+                    for image_path in image_paths:
+                        write_image_json(image_path, raw_json)
+                    sidecar_path.unlink()
+                    self.filename = str(image_paths[0])
+                except Exception as exc:
+                    raise LabelFileError(exc) from exc
 
     def load_shapes(self, shapes, s, parsers=None):
         shapes = super().load_shapes(shapes, s, parsers)
