@@ -923,6 +923,14 @@ class MainWindow(CopyPasteMixin, MainWindow):
         if self.is_3d or self.is_2_5d:
             filename = self.getLabelFile()
 
+        if Path(filename).suffix.lower() != ".json":
+            label_file = getattr(self, "labelFile", None)
+            filename = getattr(label_file, "sidecar_path", None)
+            if not filename:
+                filename = self.getLabelFile()
+                if getattr(self, "output_dir", None):
+                    filename = osp.join(self.output_dir, osp.basename(filename))
+
         # 保存失败时保留未保存状态，切换图片前仍可重试。
         self.dirty = True
         self.actions.save.setEnabled(True)
@@ -965,7 +973,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
 
         # 空标注时同时清理图片内 JSON 和旧的外部 JSON。
         if not shapes and not any(flags.values()):
-            label_file = self.getLabelFile()
+            label_file = filename
             image_paths = [Path(self.filename)]
             for image_name in self.proj_manager.get_img_name_list(self.filename):
                 image_paths.append(Path(self.filename).parent / image_name)
@@ -1012,8 +1020,6 @@ class MainWindow(CopyPasteMixin, MainWindow):
         # extra End
 
         try:
-            if Path(filename).suffix.lower() != ".json":
-                filename = self.getLabelFile()
             imagePath = osp.relpath(self.imagePath, osp.dirname(filename))
             imageData = self.imageData if self._config["store_data"] else None
             if osp.dirname(filename) and not osp.exists(osp.dirname(filename)):
@@ -1513,6 +1519,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
             try:
                 # 图片内 JSON 优先，外部 JSON 只用于无内嵌标注或不支持容器。
                 self.labelFile = LabelFile(str(annotation_source))
+                self.labelFile.sidecar_path = str(label_file)
             except LabelFileError as e:
                 self.errorMessage(
                     self.tr("Error opening file"),

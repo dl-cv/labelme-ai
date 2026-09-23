@@ -4,7 +4,7 @@ import locale
 import logging
 import math
 import os
-import tempfile
+from io import BytesIO
 from pathlib import Path
 
 from labelme import __version__
@@ -74,34 +74,39 @@ def select_annotation_source(image_path, sidecar_path):
     return None
 
 
+def _write_buffer(path, buffer):
+    original = path.read_bytes() if path.exists() else None
+    opened = False
+    try:
+        with path.open("wb") as file:
+            opened = True
+            view = buffer.getbuffer()
+            try:
+                if file.write(view) != len(view):
+                    raise OSError(f"文件内容未完整写入：{path}")
+            finally:
+                view.release()
+            file.flush()
+            os.fsync(file.fileno())
+    except Exception as exc:
+        if opened:
+            try:
+                if original is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    path.write_bytes(original)
+            except OSError as restore_error:
+                raise OSError(
+                    f"文件写入失败且原内容恢复失败：{path}：{restore_error}"
+                ) from exc
+        raise
+
+
 def _write_sidecar(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(data, ensure_ascii=False, indent=2)
-    temp_path = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            "w",
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            encoding="utf-8",
-            newline="\n",
-            delete=False,
-        ) as file:
-            temp_path = Path(file.name)
-            file.write(text)
-            file.flush()
-            os.fsync(file.fileno())
-        if path.exists():
-            try:
-                os.chmod(temp_path, path.stat().st_mode)
-            except OSError:
-                pass
-        os.replace(temp_path, path)
-        temp_path = None
-    finally:
-        if temp_path is not None:
-            temp_path.unlink(missing_ok=True)
+    with BytesIO(text.encode("utf-8")) as buffer:
+        _write_buffer(path, buffer)
 
 
 def _path_key(path):
@@ -144,60 +149,6 @@ def _rebase_embedded_data(data, primary_image, image_path):
     return embedded
 
 
-def _new_temp_path(path, suffix):
-    with tempfile.NamedTemporaryFile(
-        "wb",
-        dir=path.parent,
-        prefix=f".{path.name}.",
-        suffix=suffix,
-        delete=False,
-    ) as file:
-        return Path(file.name)
-
-
-def _cleanup_temp_paths(paths):
-    for temp_path in paths:
-        try:
-            temp_path.unlink(missing_ok=True)
-        except OSError:
-            logging.getLogger(__name__).exception(
-                "清理临时标注文件失败：%s", temp_path
-            )
-
-
-def _commit_image_candidates(candidates, sidecar_path):
-    backups = {}
-    rollback_failed = False
-    try:
-        for image_path, candidate in candidates.items():
-            backup = _new_temp_path(image_path, ".backup")
-            try:
-                os.replace(image_path, backup)
-            except Exception:
-                backup.unlink(missing_ok=True)
-                raise
-            backups[image_path] = backup
-            os.replace(candidate, image_path)
-        if sidecar_path.exists():
-            sidecar_path.unlink()
-    except Exception as exc:
-        rollback_errors = []
-        for image_path, backup in reversed(list(backups.items())):
-            try:
-                os.replace(backup, image_path)
-            except Exception as rollback_exc:
-                rollback_errors.append((image_path, backup, rollback_exc))
-        if rollback_errors:
-            rollback_failed = True
-            failed_paths = ", ".join(str(item[0]) for item in rollback_errors)
-            raise RuntimeError(f"恢复原图片失败：{failed_paths}") from exc
-        raise
-    finally:
-        _cleanup_temp_paths(candidates.values())
-        if not rollback_failed:
-            _cleanup_temp_paths(backups.values())
-
-
 def _write_embedded_group(image_paths, data, primary_image):
     """逐图保存内嵌标注，单张失败不撤回其他图片的最新数据。"""
     saved_paths = []
@@ -224,10 +175,10 @@ def _write_embedded_group(image_paths, data, primary_image):
 
 
 def remove_image_annotations(image_paths, sidecar_path):
-    """清除一组图片内标注；任一步失败时恢复已替换的图片。"""
+    """原图片保存在内存中；清理失败时恢复已修改图片。"""
     sidecar_path = Path(sidecar_path)
-    candidates = {}
-    removed_paths = []
+    originals = {}
+    changed_paths = []
     unique_paths = {}
     for image_path in image_paths:
         image_path = Path(image_path)
@@ -242,21 +193,32 @@ def remove_image_annotations(image_paths, sidecar_path):
                     embedded = has_image_json(image_path)
                 except UnsupportedImageFormatError:
                     continue
-                if not embedded:
-                    continue
-                candidate = _new_temp_path(image_path, ".candidate")
-                candidates[image_path] = candidate
-                remove_image_json(image_path, output_path=candidate)
-                removed_paths.append(str(image_path))
-    except Exception as exc:
-        _cleanup_temp_paths(candidates.values())
-        raise LabelFileError(exc) from exc
+                if embedded:
+                    originals[image_path] = BytesIO(image_path.read_bytes())
 
-    sidecar_existed = sidecar_path.exists()
-    try:
-        _commit_image_candidates(candidates, sidecar_path)
+        for image_path in originals:
+            changed_paths.append(image_path)
+            remove_image_json(image_path)
+        sidecar_existed = sidecar_path.exists()
+        if sidecar_existed:
+            sidecar_path.unlink()
     except Exception as exc:
+        restore_errors = []
+        for image_path in reversed(changed_paths):
+            try:
+                _write_buffer(image_path, originals[image_path])
+            except Exception as restore_exc:
+                restore_errors.append(f"{image_path}: {restore_exc}")
+        if restore_errors:
+            raise LabelFileError(
+                f"清理标注失败：{exc}；恢复原图片失败：{'; '.join(restore_errors)}"
+            ) from exc
         raise LabelFileError(exc) from exc
+    finally:
+        for buffer in originals.values():
+            buffer.close()
+
+    removed_paths = [str(path) for path in changed_paths]
     if sidecar_existed:
         removed_paths.insert(0, str(sidecar_path))
     return removed_paths
@@ -285,6 +247,15 @@ class LabelFile(LabelFile):
         ]
         try:
             source_path = Path(filename)
+            if source_path.suffix.lower() == ".json":
+                self.sidecar_path = str(source_path)
+            elif (
+                not getattr(self, "sidecar_path", None)
+                or _path_key(source_path) != _path_key(
+                    getattr(self, "filename", None) or source_path
+                )
+            ):
+                self.sidecar_path = str(source_path.with_suffix(".json"))
             embedded_source = False
             if (
                 IMAGE_JSON_AVAILABLE
@@ -525,7 +496,14 @@ class LabelFile(LabelFile):
         shapes = self.saveRotationBox(shapes)
         
         # 标注保存入口可能收到上次加载的图片路径，不能直接按文本写入。
-        sidecar_path = Path(filename).with_suffix(".json")
+        input_path = Path(filename)
+        if input_path.suffix.lower() == ".json":
+            sidecar_path = input_path
+        else:
+            sidecar_path = Path(
+                getattr(self, "sidecar_path", None) or input_path.with_suffix(".json")
+            )
+            imagePath = os.path.relpath(input_path, sidecar_path.parent)
         if imageData is not None:
             imageData = base64.b64encode(imageData).decode("utf-8")
             imageHeight, imageWidth = self._check_image_height_and_width(
@@ -543,6 +521,7 @@ class LabelFile(LabelFile):
         try:
             if not IMAGE_JSON_AVAILABLE:
                 _write_sidecar(sidecar_path, data)
+                self.sidecar_path = str(sidecar_path)
                 self.filename = str(sidecar_path)
                 return
             primary_image = Path(os.path.abspath(sidecar_path.parent / imagePath))
@@ -570,6 +549,7 @@ class LabelFile(LabelFile):
                     f"标注保存未全部完成，已更新 {len(saved_paths)} 张图片。"
                     f"{backup_message}失败文件：{failed_details}"
                 )
+            self.sidecar_path = str(sidecar_path)
             self.filename = str(
                 primary_image if primary_image in saved_paths else sidecar_path
             )

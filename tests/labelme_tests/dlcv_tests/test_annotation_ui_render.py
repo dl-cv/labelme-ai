@@ -393,7 +393,3 @@ def test_annotation_storage_setting_main_window_render(monkeypatch, tmp_path):
         _close_window(app, evidence_window)
         app.setFont(previous_font)
         QtCore.QSettings.setDefaultFormat(previous_format)
-
-
-
-

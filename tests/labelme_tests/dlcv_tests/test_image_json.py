@@ -384,19 +384,15 @@ def test_failed_multi_image_save_keeps_successful_images_and_external_backup(
         json.dumps(sidecar_data, ensure_ascii=False), encoding="utf-8"
     )
     original_images = {path: path.read_bytes() for path in [first, second]}
-    original_replace = module.os.replace
-    image_replacements = 0
+    original_write = module.write_image_json
 
-    def fail_second_image_replace(source, target):
-        nonlocal image_replacements
-        if Path(target) in {first, second}:
-            image_replacements += 1
-            if image_replacements == 2:
-                raise OSError("模拟第二张图片替换失败")
-        return original_replace(source, target)
+    def fail_second_image_write(image_path, *args, **kwargs):
+        if Path(image_path) == second:
+            raise OSError("模拟第二张图片写入失败")
+        return original_write(image_path, *args, **kwargs)
 
-    monkeypatch.setattr(module.os, "replace", fail_second_image_replace)
-    with pytest.raises(LabelFileError, match="模拟第二张图片替换失败"):
+    monkeypatch.setattr(module, "write_image_json", fail_second_image_write)
+    with pytest.raises(LabelFileError, match="模拟第二张图片写入失败"):
         _save_label(
             LabelFile(),
             first,
@@ -581,18 +577,14 @@ def test_failed_multi_image_clear_rolls_back_images_and_keeps_sidecar(
     )
     original_images = {path: path.read_bytes() for path in [first, second]}
     original_sidecar = sidecar_path.read_bytes()
-    original_replace = module.os.replace
-    image_replacements = 0
+    original_remove = module.remove_image_json
 
-    def fail_second_image_replace(source, target):
-        nonlocal image_replacements
-        if Path(target) in {first, second}:
-            image_replacements += 1
-            if image_replacements == 2:
-                raise OSError("模拟第二张图片清理失败")
-        return original_replace(source, target)
+    def fail_second_image_clear(image_path, output_path=None):
+        if Path(image_path) == second:
+            raise OSError("模拟第二张图片清理失败")
+        return original_remove(image_path, output_path=output_path)
 
-    monkeypatch.setattr(module.os, "replace", fail_second_image_replace)
+    monkeypatch.setattr(module, "remove_image_json", fail_second_image_clear)
     window, errors = _empty_save_window(first, sidecar_path, image_names)
 
     assert MainWindow.saveLabels(window, str(sidecar_path)) is False
@@ -824,3 +816,120 @@ def test_folder_count_keeps_independent_sidecar_after_renaming_2d_image(tmp_path
     assert "共扫描 2 份标注" in text
     assert "内嵌副本: 1" in text
     assert "独立外部标注: 1" in text
+
+
+@pytest.mark.parametrize("custom_name", ["sample.json", "export.json"])
+def test_manual_save_keeps_external_output_path(tmp_path, custom_name):
+    from types import SimpleNamespace
+    from qtpy import QtCore
+    from labelme.app import MainWindow as BaseMainWindow
+    from labelme.dlcv.app import MainWindow
+
+    image_path = tmp_path / "sample.png"
+    sidecar_path = tmp_path / "labels" / custom_name
+    _save_image(image_path)
+    window, errors = _empty_save_window(image_path, sidecar_path, [image_path.name])
+    current_flag = {"label": "第一次"}
+    flag = SimpleNamespace(
+        text=lambda: current_flag["label"], checkState=lambda: QtCore.Qt.Checked
+    )
+    window.flag_widget = SimpleNamespace(count=lambda: 1, item=lambda index: flag)
+    window._config = {"store_data": False, "save_external_json": True}
+    window.imagePath = str(image_path)
+    window.imageData = None
+    window.image = SimpleNamespace(height=lambda: 16, width=lambda: 24, isNull=lambda: False)
+    window.otherData = {}
+    window.output_dir = str(sidecar_path.parent)
+    window.getLabelFile = lambda: str(image_path.with_suffix(".json"))
+    window.fileListWidget = SimpleNamespace(findItems=lambda *args: [])
+    window._saveFile = lambda filename: MainWindow.saveLabels(window, filename)
+
+    assert MainWindow.saveLabels(window, str(sidecar_path))
+    current_flag["label"] = "第二次"
+    BaseMainWindow.saveFile(window)
+
+    assert not errors
+    assert json.loads(sidecar_path.read_text(encoding="utf-8"))["flags"] == {"第二次": True}
+    assert read_image_json(image_path)["flags"] == {"第二次": True}
+    assert not image_path.with_suffix(".json").exists()
+
+
+def test_label_file_keeps_sidecar_after_embedded_reload(tmp_path):
+    image = tmp_path / "sample.png"
+    output = tmp_path / "labels" / "custom.json"
+    _save_image(image)
+    label_file = LabelFile()
+    label_file.save(
+        filename=str(output), shapes=[_shape("第一次")], imagePath="../sample.png",
+        imageHeight=16, imageWidth=24, flags={},
+    )
+    label_file.load(label_file.filename)
+    label_file.save(
+        filename=label_file.filename, shapes=[_shape("第二次")], imagePath=label_file.imagePath,
+        imageHeight=16, imageWidth=24, flags={},
+    )
+    assert json.loads(output.read_text(encoding="utf-8"))["shapes"][0]["label"] == "第二次"
+    assert read_image_json(image)["shapes"][0]["label"] == "第二次"
+    assert not image.with_suffix(".json").exists()
+
+
+def test_save_and_clear_use_memory_buffers_for_long_names(tmp_path, monkeypatch):
+    import tempfile
+    from labelme.dlcv.label_file import remove_image_annotations
+
+    image = tmp_path / ("a" * 240 + ".png")
+    _save_image(image)
+
+    def reject_disk_temporary_file(*args, **kwargs):
+        raise AssertionError("不应创建磁盘临时文件")
+
+    monkeypatch.setattr(tempfile, "NamedTemporaryFile", reject_disk_temporary_file)
+    _save_label(LabelFile(), image)
+    assert read_image_json(image)["shapes"][0]["label"] == "中文缺陷"
+    assert json.loads(image.with_suffix(".json").read_text(encoding="utf-8"))["imagePath"] == image.name
+    assert set(tmp_path.iterdir()) == {image, image.with_suffix(".json")}
+    remove_image_annotations([image], image.with_suffix(".json"))
+    assert read_image_json(image) is None
+    assert list(tmp_path.iterdir()) == [image]
+
+
+@pytest.mark.parametrize("existing", [False, True])
+def test_partial_sidecar_write_restores_previous_file(tmp_path, monkeypatch, existing):
+    from labelme.dlcv.label_file import _write_sidecar
+
+    sidecar = tmp_path / "sample.json"
+    original = b'{"flags":{"old":true}}'
+    if existing:
+        sidecar.write_bytes(original)
+    original_open = Path.open
+    failed = False
+
+    class FailedWriter:
+        def __init__(self, file):
+            self.file = file
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            self.file.close()
+
+        def write(self, data):
+            self.file.write(data[:8])
+            raise OSError("模拟写入中断")
+
+    def fail_first_write(path, mode="r", *args, **kwargs):
+        nonlocal failed
+        file = original_open(path, mode, *args, **kwargs)
+        if path == sidecar and mode == "wb" and not failed:
+            failed = True
+            return FailedWriter(file)
+        return file
+
+    monkeypatch.setattr(Path, "open", fail_first_write)
+    with pytest.raises(OSError, match="模拟写入中断"):
+        _write_sidecar(sidecar, {"flags": {"latest": True}})
+    if existing:
+        assert sidecar.read_bytes() == original
+    else:
+        assert not sidecar.exists()
