@@ -263,7 +263,7 @@ def render_screenshots(filename, output_dir):
     if any((output_dir / name).exists() for name in names):
         raise FileExistsError("截图文件已存在，请选择空目录")
 
-    # 仅在离屏模式下禁用需要外部授权的 AI 工具栏；其余控件均由正式主窗创建。
+    # Qt 按类名查找主窗翻译，离屏主窗沿用 MainWindow 名称。
     BaseMainWindow = globals()["MainWindow"]
 
     class MainWindow(BaseMainWindow):
