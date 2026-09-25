@@ -438,14 +438,14 @@ tr_map = {
         'UI Theme',
         '界面风格':
         'UI Theme',
-        '新版UI(现代)':
+        '新版UI（现代）':
         'Modern UI',
-        '原版UI(恢复CSS)':
-        'Classic UI (Restore CSS)',
+        '原生':
+        'Native',
         '已切换为新版界面':
         'Switched to Modern UI',
-        '已恢复为原版界面':
-        'Restored to Classic UI',
+        '已切换为原生界面':
+        'Switched to Native UI',
         '停靠':
         'Dock',
         '浮动':
@@ -564,9 +564,9 @@ tr_map = {
         # 界面风格
         'UI Theme': '界面风格',
         'Modern UI': '新版UI（现代）',
-        'Classic UI (Restore CSS)': '原版UI（恢复CSS）',
+        'Native': '原生',
         'Switched to Modern UI': '已切换为新版界面',
-        'Restored to Classic UI': '已恢复为原版界面',
+        'Switched to Native UI': '已切换为原生界面',
         'Dock': '停靠',
         'Float': '浮动',
         

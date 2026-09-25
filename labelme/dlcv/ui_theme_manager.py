@@ -29,7 +29,7 @@ class UiThemeManager:
 
     说明：
     - 仅调整“外观”，不改变业务功能。
-    - 默认 classic；若 settings 中保存为 modern，则启动即应用 modern。
+    - 默认 modern；若 settings 中保存了主题，则按保存值启动。
     """
 
     THEME_MODERN = "modern"
@@ -56,7 +56,7 @@ class UiThemeManager:
         self._action_classic: Optional[QtWidgets.QAction] = None
 
     # -------------------- Public API --------------------
-    def get_saved_theme(self, default: str = THEME_CLASSIC) -> str:
+    def get_saved_theme(self, default: str = THEME_MODERN) -> str:
         try:
             theme = self.settings.value("ui/theme", default)
         except Exception:
@@ -65,8 +65,8 @@ class UiThemeManager:
         return theme if theme in self._VALID_THEMES else default
 
     def apply_from_settings(self) -> None:
-        """启动时调用：按 settings 应用主题（默认 classic）。"""
-        self.set_theme(self.get_saved_theme(default=self.THEME_CLASSIC), persist=False, notify=False)
+        """启动时调用：按 settings 应用主题（默认 modern）。"""
+        self.set_theme(self.get_saved_theme(default=self.THEME_MODERN), persist=False, notify=False)
 
     def install_to_setting_menu(self, setting_menu: QtWidgets.QMenu) -> QtWidgets.QMenu:
         """把“界面风格”子菜单安装到系统设置菜单里（可重复调用，幂等）。"""
@@ -81,11 +81,11 @@ class UiThemeManager:
         group.setExclusive(True)
         self._theme_action_group = group
 
-        act_modern = QtWidgets.QAction(dlcv_tr("新版UI(现代)"), self.main_window)
+        act_modern = QtWidgets.QAction(dlcv_tr("新版UI（现代）"), self.main_window)
         act_modern.setCheckable(True)
         act_modern.setData(self.THEME_MODERN)
 
-        act_classic = QtWidgets.QAction(dlcv_tr("原版UI(恢复CSS)"), self.main_window)
+        act_classic = QtWidgets.QAction(dlcv_tr("原生"), self.main_window)
         act_classic.setCheckable(True)
         act_classic.setData(self.THEME_CLASSIC)
 
@@ -104,9 +104,9 @@ class UiThemeManager:
 
     def set_theme(self, theme: str, persist: bool = True, notify: bool = True) -> None:
         """切换主题（即时生效）。theme: 'modern' | 'classic'"""
-        theme = (theme or self.THEME_CLASSIC).strip().lower()
+        theme = (theme or self.THEME_MODERN).strip().lower()
         if theme not in self._VALID_THEMES:
-            theme = self.THEME_CLASSIC
+            theme = self.THEME_MODERN
 
         self._ensure_original_ui_style_backup()
         self.current_theme = theme
@@ -173,7 +173,7 @@ class UiThemeManager:
                 msg = (
                     dlcv_tr("已切换为新版界面")
                     if theme == self.THEME_MODERN
-                    else dlcv_tr("已恢复为原版界面")
+                    else dlcv_tr("已切换为原生界面")
                 )
                 if ToastPreset is not None:
                     notification(dlcv_tr("界面风格"), msg, ToastPreset.SUCCESS, 2500)
@@ -182,7 +182,7 @@ class UiThemeManager:
 
     def on_app_font_changed(self) -> None:
         """当应用字体被修改（字号改变）后调用，用于新版主题下强制刷新与重算 Dock 标题栏高度。"""
-        theme = self.current_theme or self.get_saved_theme(default=self.THEME_CLASSIC)
+        theme = self.current_theme or self.get_saved_theme(default=self.THEME_MODERN)
         if theme != self.THEME_MODERN:
             return
         app = QtWidgets.QApplication.instance()
@@ -244,7 +244,7 @@ class UiThemeManager:
     def _sync_menu_checked_state(self) -> None:
         if self._action_modern is None or self._action_classic is None:
             return
-        theme = self.current_theme or self.get_saved_theme(default=self.THEME_CLASSIC)
+        theme = self.current_theme or self.get_saved_theme(default=self.THEME_MODERN)
         try:
             if theme == self.THEME_CLASSIC:
                 self._action_classic.setChecked(True)

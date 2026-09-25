@@ -259,7 +259,7 @@ QDockWidget[objectName="Label List"] QListWidget {{
 QDockWidget#Flags QListWidget::item,
 QDockWidget#Labels QListView::item,
 QDockWidget[objectName="Label List"] QListWidget::item {{
-    padding: 2px 6px;
+    padding: 4px 6px;
 }}
 
 QWidget#settingPanel {{
@@ -270,6 +270,9 @@ QTreeWidget#settingParameterTree {{
     background: #FFFFFF;
     border: 1px solid #E5E7EB;
     border-radius: 6px;
+}}
+QTreeWidget#settingParameterTree::item {{
+    padding: 3px 6px;
 }}
 
 QTextEdit#labelCountText {{

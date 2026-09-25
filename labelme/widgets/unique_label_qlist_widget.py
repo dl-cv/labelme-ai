@@ -2,6 +2,7 @@
 
 import html
 
+from qtpy import QtCore
 from qtpy import QtWidgets
 from qtpy.QtCore import Qt
 
@@ -44,7 +45,8 @@ class UniqueLabelQListWidget(EscapableQListWidget):
                     html.escape(label), *color
                 )
             )
-        qlabel.setAlignment(Qt.AlignBottom)
+        qlabel.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+        qlabel.setContentsMargins(6, 3, 6, 3)
 
         # 安装事件过滤器
         qlabel.installEventFilter(self)
@@ -55,7 +57,7 @@ class UniqueLabelQListWidget(EscapableQListWidget):
         self.setItemWidget(item, qlabel)
 
     def eventFilter(self, obj, event):
-        if isinstance(obj, QtWidgets.QLabel) and event.type() == event.MouseButtonPress:
+        if isinstance(obj, QtWidgets.QLabel) and event.type() == QtCore.QEvent.MouseButtonPress:
             item = obj.property("item")
             if item:
                 self.setCurrentItem(item)
