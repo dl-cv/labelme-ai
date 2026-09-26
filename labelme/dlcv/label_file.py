@@ -1,5 +1,227 @@
-from labelme.label_file import *
+import base64
+import json
+import locale
+import logging
 import math
+import os
+from io import BytesIO
+from pathlib import Path
+
+from labelme import __version__
+from labelme.label_file import *
+
+try:
+    from dlcv_core.image_json import SUPPORTED_IMAGE_EXTENSIONS
+    from dlcv_core.image_json import UnsupportedImageFormatError
+    from dlcv_core.image_json import has_image_json
+    from dlcv_core.image_json import read_image_json
+    from dlcv_core.image_json import remove_image_json
+    from dlcv_core.image_json import write_image_json
+    IMAGE_JSON_AVAILABLE = True
+    IMAGE_JSON_LIMITATION = None
+except ModuleNotFoundError as exc:
+    if exc.name not in {"dlcv_core", "dlcv_core.image_json"}:
+        raise
+    IMAGE_JSON_AVAILABLE = False
+    IMAGE_JSON_LIMITATION = (
+        "当前 dlcv_core 不含图片内 JSON 接口；LabelMeAI 仅可读写外部 JSON，"
+        "无法读取仅保存在图片内的标注。"
+    )
+    SUPPORTED_IMAGE_EXTENSIONS = frozenset()
+    logging.getLogger(__name__).warning(IMAGE_JSON_LIMITATION)
+
+    class UnsupportedImageFormatError(ValueError):
+        pass
+
+    def has_image_json(_path):
+        return False
+
+    def remove_image_json(path, output_path=None):
+        return Path(output_path) if output_path is not None else Path(path)
+
+
+def _read_sidecar(path):
+    raw = path.read_bytes()
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = raw.decode(locale.getencoding())
+    return json.loads(text)
+
+
+def _read_embedded(path):
+    try:
+        return read_image_json(path)
+    except UnsupportedImageFormatError:
+        return None
+
+
+def select_annotation_source(image_path, sidecar_path):
+    """选择实际标注来源，受支持容器的读取错误直接向上报告。"""
+    image_path = Path(image_path)
+    sidecar_path = Path(sidecar_path)
+    if (
+        IMAGE_JSON_AVAILABLE
+        and image_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
+    ):
+        try:
+            if has_image_json(image_path):
+                return image_path
+        except UnsupportedImageFormatError:
+            pass
+    if sidecar_path.is_file():
+        return sidecar_path
+    return None
+
+
+def _write_buffer(path, buffer):
+    original = path.read_bytes() if path.exists() else None
+    opened = False
+    try:
+        with path.open("wb") as file:
+            opened = True
+            view = buffer.getbuffer()
+            try:
+                if file.write(view) != len(view):
+                    raise OSError(f"文件内容未完整写入：{path}")
+            finally:
+                view.release()
+            file.flush()
+            os.fsync(file.fileno())
+    except Exception as exc:
+        if opened:
+            try:
+                if original is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    path.write_bytes(original)
+            except OSError as restore_error:
+                raise OSError(
+                    f"文件写入失败且原内容恢复失败：{path}：{restore_error}"
+                ) from exc
+        raise
+
+
+def _write_sidecar(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(data, ensure_ascii=False, indent=2)
+    with BytesIO(text.encode("utf-8")) as buffer:
+        _write_buffer(path, buffer)
+
+
+def _path_key(path):
+    return os.path.normcase(os.path.abspath(os.fspath(path)))
+
+
+def _group_image_names(other_data):
+    names = []
+    for key in ("img_name_list", "image_path_list"):
+        value = (other_data or {}).get(key)
+        if not isinstance(value, (list, tuple)):
+            continue
+        names.extend(name for name in value if isinstance(name, str) and name)
+    return names
+
+
+def _collect_image_paths(primary_image, other_data):
+    candidates = [primary_image]
+    candidates.extend(
+        primary_image.parent / name for name in _group_image_names(other_data)
+    )
+    image_paths = {}
+    for path in candidates:
+        image_paths.setdefault(_path_key(path), Path(path))
+    return list(image_paths.values())
+
+
+def _rebase_embedded_data(data, primary_image, image_path):
+    embedded = dict(data)
+    embedded["imagePath"] = image_path.name
+    for key in ("img_name_list", "image_path_list"):
+        value = embedded.get(key)
+        if not isinstance(value, (list, tuple)):
+            continue
+        embedded[key] = [
+            os.path.relpath(primary_image.parent / name, image_path.parent)
+            if isinstance(name, str) and name else name
+            for name in value
+        ]
+    return embedded
+
+
+def _write_embedded_group(image_paths, data, primary_image):
+    """逐图保存内嵌标注，单张失败不撤回其他图片的最新数据。"""
+    saved_paths = []
+    unsupported_paths = []
+    failures = []
+    for image_path in image_paths:
+        if image_path.suffix.lower() not in SUPPORTED_IMAGE_EXTENSIONS:
+            unsupported_paths.append(image_path)
+            continue
+        try:
+            write_image_json(
+                image_path,
+                _rebase_embedded_data(data, primary_image, image_path),
+                ensure_ascii=False,
+                indent=2,
+            )
+        except UnsupportedImageFormatError:
+            unsupported_paths.append(image_path)
+        except Exception as exc:
+            failures.append((image_path, exc))
+        else:
+            saved_paths.append(image_path)
+    return saved_paths, unsupported_paths, failures
+
+
+def remove_image_annotations(image_paths, sidecar_path):
+    """原图片保存在内存中；清理失败时恢复已修改图片。"""
+    sidecar_path = Path(sidecar_path)
+    originals = {}
+    changed_paths = []
+    unique_paths = {}
+    for image_path in image_paths:
+        image_path = Path(image_path)
+        unique_paths.setdefault(_path_key(image_path), image_path)
+
+    try:
+        if IMAGE_JSON_AVAILABLE:
+            for image_path in unique_paths.values():
+                if not image_path.is_file():
+                    continue
+                try:
+                    embedded = has_image_json(image_path)
+                except UnsupportedImageFormatError:
+                    continue
+                if embedded:
+                    originals[image_path] = BytesIO(image_path.read_bytes())
+
+        for image_path in originals:
+            changed_paths.append(image_path)
+            remove_image_json(image_path)
+        sidecar_existed = sidecar_path.exists()
+        if sidecar_existed:
+            sidecar_path.unlink()
+    except Exception as exc:
+        restore_errors = []
+        for image_path in reversed(changed_paths):
+            try:
+                _write_buffer(image_path, originals[image_path])
+            except Exception as restore_exc:
+                restore_errors.append(f"{image_path}: {restore_exc}")
+        if restore_errors:
+            raise LabelFileError(
+                f"清理标注失败：{exc}；恢复原图片失败：{'; '.join(restore_errors)}"
+            ) from exc
+        raise LabelFileError(exc) from exc
+    finally:
+        for buffer in originals.values():
+            buffer.close()
+
+    removed_paths = [str(path) for path in changed_paths]
+    if sidecar_existed:
+        removed_paths.insert(0, str(sidecar_path))
+    return removed_paths
 
 
 class LabelFile(LabelFile):
@@ -24,11 +246,42 @@ class LabelFile(LabelFile):
             "mask",
         ]
         try:
-            with open(filename, "r") as f:
-                data = json.load(f)
+            source_path = Path(filename)
+            if source_path.suffix.lower() == ".json":
+                self.sidecar_path = str(source_path)
+            elif (
+                not getattr(self, "sidecar_path", None)
+                or _path_key(source_path) != _path_key(
+                    getattr(self, "filename", None) or source_path
+                )
+            ):
+                self.sidecar_path = str(source_path.with_suffix(".json"))
+            embedded_source = False
+            if (
+                IMAGE_JSON_AVAILABLE
+                and source_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
+            ):
+                data = _read_embedded(source_path)
+                embedded_source = isinstance(data, dict)
+                if not isinstance(data, dict):
+                    sidecar = source_path.with_suffix(".json")
+                    data = _read_sidecar(sidecar)
+                    source_path = sidecar
+            else:
+                data = _read_sidecar(source_path)
+                if IMAGE_JSON_AVAILABLE:
+                    image_path = source_path.parent / data.get("imagePath", "")
+                    if image_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
+                        embedded = _read_embedded(image_path)
+                        if isinstance(embedded, dict):
+                            data = embedded
+                            source_path = image_path
+                            embedded_source = True
+            if not isinstance(data, dict):
+                raise LabelFileError(f"标注不是 JSON 对象：{filename}")
 
             flags = data.get("flags") or {}
-            imagePath = data["imagePath"]
+            imagePath = (source_path.name if embedded_source else data["imagePath"])
             shapes = [
                 dict(
                     label=s["label"],
@@ -57,7 +310,7 @@ class LabelFile(LabelFile):
         self.shapes = shapes
         self.imagePath = imagePath
         self.imageData = None  # 2024年10月20日14:37:58 cyf修改, 弃用 imageData
-        self.filename = filename
+        self.filename = str(source_path)
         self.otherData = otherData
 
     # 修改该函数是为了 https://bbs.dlcv.ai/t/topic/328
@@ -152,7 +405,12 @@ class LabelFile(LabelFile):
                     rad = 0.0
 
                 # 仅当成功计算出中心和宽高时写入该字段
-                if cx is not None and cy is not None and w is not None and h is not None:
+                if (
+                    cx is not None
+                    and cy is not None
+                    and w is not None
+                    and h is not None
+                ):
                     shape["rotation_box"] = {
                         "Cx": float(cx),
                         "Cy": float(cy),
@@ -231,20 +489,72 @@ class LabelFile(LabelFile):
         imageData=None,
         otherData=None,
         flags=None,
+        *,
+        save_external_json=True,
     ):
         # 添加处理旋转框的方向属性
         shapes = self.saveRotationBox(shapes)
         
-        return super().save(
-            filename=filename,
-            shapes=shapes,
-            imagePath=imagePath,
-            imageHeight=imageHeight,
-            imageWidth=imageWidth,
-            imageData=imageData,
-            otherData=otherData,
-            flags=flags,
+        # 标注保存入口可能收到上次加载的图片路径，不能直接按文本写入。
+        input_path = Path(filename)
+        if input_path.suffix.lower() == ".json":
+            sidecar_path = input_path
+        else:
+            sidecar_path = Path(
+                getattr(self, "sidecar_path", None) or input_path.with_suffix(".json")
+            )
+            imagePath = os.path.relpath(input_path, sidecar_path.parent)
+        if imageData is not None:
+            imageData = base64.b64encode(imageData).decode("utf-8")
+            imageHeight, imageWidth = self._check_image_height_and_width(
+                imageData, imageHeight, imageWidth
+            )
+        data = dict(
+            version=__version__, flags=flags or {}, shapes=shapes,
+            imagePath=imagePath, imageData=imageData,
+            imageHeight=imageHeight, imageWidth=imageWidth,
         )
+        for key, value in (otherData or {}).items():
+            if key in data:
+                raise LabelFileError(f"重复的标注字段：{key}")
+            data[key] = value
+        try:
+            if not IMAGE_JSON_AVAILABLE:
+                _write_sidecar(sidecar_path, data)
+                self.sidecar_path = str(sidecar_path)
+                self.filename = str(sidecar_path)
+                return
+            primary_image = Path(os.path.abspath(sidecar_path.parent / imagePath))
+            image_paths = _collect_image_paths(primary_image, otherData)
+            saved_paths, unsupported_paths, failures = _write_embedded_group(
+                image_paths, data, primary_image
+            )
+            # 外部文件默认共存；关闭设置后，内嵌失败仍保存外部备份。
+            backup_saved = False
+            if save_external_json or unsupported_paths or failures:
+                try:
+                    _write_sidecar(sidecar_path, data)
+                    backup_saved = True
+                except Exception as exc:
+                    failures.append((sidecar_path, exc))
+            if failures:
+                failed_details = "; ".join(
+                    f"{path}: {error}" for path, error in failures
+                )
+                backup_message = (
+                    f"最新标注已保存至外部 JSON：{sidecar_path}。"
+                    if backup_saved else "外部 JSON 备份未完成。"
+                )
+                raise LabelFileError(
+                    f"标注保存未全部完成，已更新 {len(saved_paths)} 张图片。"
+                    f"{backup_message}失败文件：{failed_details}"
+                )
+            self.sidecar_path = str(sidecar_path)
+            self.filename = str(
+                primary_image if primary_image in saved_paths else sidecar_path
+            )
+        except Exception as exc:
+            raise LabelFileError(exc) from exc
 
     def load_shapes(self, shapes, s, parsers=None):
         shapes = super().load_shapes(shapes, s, parsers)

@@ -7,7 +7,15 @@ from qtpy import QtCore, QtWidgets, QtGui
 from qtpy.QtCore import Qt
 
 from labelme.dlcv.dlcv_translator import dlcv_tr
+from labelme.dlcv.label_file import has_image_json
 from labelme.dlcv.store import STORE
+
+
+def _has_embedded_annotation(image_path):
+    try:
+        return has_image_json(image_path)
+    except Exception:
+        return False
 
 
 class FileTreeItem(QtWidgets.QTreeWidgetItem):
@@ -168,7 +176,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             # 仍走项目 get_json_path（2D/3D/2.5D 规则不同），仅存在性用 name_set
             json_path = proj_manager.get_json_path(item_path)
             json_name = os.path.basename(json_path).lower()
-            checked = json_name in name_set_lower
+            checked = json_name in name_set_lower or _has_embedded_annotation(item_path)
             file_items.append([item_name, item_path, checked])
 
         # 对收集的项目进行自然排序
@@ -281,7 +289,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             json_path = proj_manager.get_json_path(img_path)
             json_dir = os.path.dirname(json_path)
             json_name = os.path.basename(json_path).lower()
-            checked = json_name in _names_lower(json_dir)
+            checked = json_name in _names_lower(json_dir) or _has_embedded_annotation(img_path)
             file_item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
 
     def delete_item(self, items: list[FileTreeItem]):
@@ -426,7 +434,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             return False
 
         json_path = STORE.main_window.proj_manager.get_json_path(img_path)
-        is_annotated = os.path.exists(json_path)
+        is_annotated = os.path.exists(json_path) or _has_embedded_annotation(img_path)
 
         # 两个都没勾 = 不筛选标注状态，全部显示
         if not show_annotated and not show_unannotated:

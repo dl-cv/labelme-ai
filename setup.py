@@ -33,6 +33,7 @@ def main():
         version=version,
         description="DLCV-Labelme AI",
         install_requires=[
+            "dlcv-core>=2026.9.26.2a0",
             "pyqt-toast-notification",
             "open3d",
         ],
