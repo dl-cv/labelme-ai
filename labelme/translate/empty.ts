@@ -32,7 +32,7 @@
     </message>
     <message>
         <location filename="../app.py" line="130"/>
-        <source>Select label to start annotating for it. Press &apos;Esc&apos; to deselect.</source>
+        <source>Select label to start annotating for it.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
