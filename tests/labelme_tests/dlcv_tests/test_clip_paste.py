@@ -261,6 +261,7 @@ def test_clipboard_roundtrip_rotation(real_shape):
     data = format_shape_for_clipboard(shape)
     assert data["direction"] == 45.0
     restored = create_shape_from_data(data)
+    assert restored.shape_type == "rotation"
     assert restored.direction == 45.0
 
 
@@ -307,8 +308,18 @@ def test_clip_circle_overflow_becomes_polygon(real_shape):
     assert shape.shape_type == "polygon"
 
 
-def test_clip_rotation_overflow_becomes_polygon(make_shape):
+def test_clip_rotation_overflow_moves_inside_and_keeps_type(make_shape):
     shape = make_shape("rotation", [(90, 10), (120, 10), (120, 40), (90, 40)])
+    shape.direction = 30.0
+
+    assert clip_shape_to_image(shape, IMG_W, IMG_H) is True
+    assert shape.shape_type == "rotation"
+    assert shape.direction == 30.0
+    assert _pts(shape) == [(70, 10), (100, 10), (100, 40), (70, 40)]
+
+
+def test_clip_rotation_larger_than_image_becomes_polygon(make_shape):
+    shape = make_shape("rotation", [(-10, 10), (120, 10), (120, 40), (-10, 40)])
     assert clip_shape_to_image(shape, IMG_W, IMG_H) is True
     assert shape.shape_type == "polygon"
 
