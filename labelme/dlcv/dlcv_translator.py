@@ -440,8 +440,8 @@ tr_map = {
         'UI Theme',
         '新版UI（现代）':
         'Modern UI',
-        '原生':
-        'Native',
+        '原版UI（原生）':
+        'Original UI (Native)',
         '已切换为新版界面':
         'Switched to Modern UI',
         '已切换为原生界面':
@@ -564,7 +564,7 @@ tr_map = {
         # 界面风格
         'UI Theme': '界面风格',
         'Modern UI': '新版UI（现代）',
-        'Native': '原生',
+        'Original UI (Native)': '原版UI（原生）',
         'Switched to Modern UI': '已切换为新版界面',
         'Switched to Native UI': '已切换为原生界面',
         'Dock': '停靠',

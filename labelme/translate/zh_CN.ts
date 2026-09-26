@@ -33,13 +33,13 @@
     </message>
     <message>
         <location filename="../app.py" line="130"/>
-        <source>Select label to start annotating for it. Press &apos;Esc&apos; to deselect.</source>
-        <translation>选择标签类型并开始以其标注。按&apos;Esc&apos;取消选择。</translation>
+        <source>Select label to start annotating for it.</source>
+        <translation>选择标签类型并开始以其标注。</translation>
     </message>
     <message>
         <location filename="../app.py" line="141"/>
         <source>Label List</source>
-        <translation>标签列表(单击标签后,会设置标注名称,按‘Esc’取消选择）</translation>
+        <translation>标签列表（单击标签后设置标注名称）</translation>
     </message>
     <message>
         <location filename="../app.py" line="146"/>

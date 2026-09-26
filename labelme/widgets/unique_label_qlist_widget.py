@@ -32,7 +32,7 @@ class UniqueLabelQListWidget(EscapableQListWidget):
         return item
 
     def setItemLabel(self, item, label, color=None):
-        qlabel = QtWidgets.QLabel()
+        qlabel = QtWidgets.QLabel(self.viewport())
 
         if color is not None:
             item.setData(self.ITEM_COLOR_ROLE, color)
@@ -52,12 +52,30 @@ class UniqueLabelQListWidget(EscapableQListWidget):
         qlabel.installEventFilter(self)
         qlabel.setProperty("item", item)
 
+        qlabel.ensurePolished()
         item.setSizeHint(qlabel.sizeHint())
 
         self.setItemWidget(item, qlabel)
 
+    def _refresh_item_sizes(self):
+        for row in range(self.count()):
+            item = self.item(row)
+            label = self.itemWidget(item)
+            if label is not None:
+                label.ensurePolished()
+                item.setSizeHint(label.sizeHint())
+        self.doItemsLayout()
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() in (QtCore.QEvent.FontChange, QtCore.QEvent.StyleChange):
+            QtCore.QTimer.singleShot(0, self._refresh_item_sizes)
+
     def eventFilter(self, obj, event):
-        if isinstance(obj, QtWidgets.QLabel) and event.type() == QtCore.QEvent.MouseButtonPress:
+        if (
+            isinstance(obj, QtWidgets.QLabel)
+            and event.type() == QtCore.QEvent.MouseButtonPress
+        ):
             item = obj.property("item")
             if item:
                 self.setCurrentItem(item)

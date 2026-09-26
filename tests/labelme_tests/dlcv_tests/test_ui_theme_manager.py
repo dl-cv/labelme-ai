@@ -48,7 +48,23 @@ def test_theme_menu_uses_native_name(theme_manager):
         theme_menu = manager.install_to_setting_menu(menu)
         assert [action.text() for action in theme_menu.actions()] == [
             "新版UI（现代）",
-            "原生",
+            "原版UI（原生）",
         ]
     finally:
         dlcv_tr.set_lang(old_lang)
+
+
+def test_modern_titles_are_created_before_window_is_shown(theme_manager):
+    manager, _ = theme_manager
+    dock = QtWidgets.QDockWidget("设置面板", manager.main_window)
+    dock.setWidget(QtWidgets.QListWidget())
+    manager.main_window.addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)
+    assert not dock.isVisible()
+    manager._apply_modern_dock_title_bars(True)
+    title = dock.titleBarWidget()
+    assert title is not None
+    label = title.findChild(QtWidgets.QLabel, "dlcvDockTitleLabel")
+    assert label.text() == "设置面板"
+    assert title.height() >= label.fontMetrics().height() + 6
+    manager._apply_modern_dock_title_bars(False)
+    assert dock.titleBarWidget() is None

@@ -85,7 +85,7 @@ class UiThemeManager:
         act_modern.setCheckable(True)
         act_modern.setData(self.THEME_MODERN)
 
-        act_classic = QtWidgets.QAction(dlcv_tr("原生"), self.main_window)
+        act_classic = QtWidgets.QAction(dlcv_tr("原版UI（原生）"), self.main_window)
         act_classic.setCheckable(True)
         act_classic.setData(self.THEME_CLASSIC)
 
@@ -397,9 +397,8 @@ class UiThemeManager:
                 if dock is not None:
                     docks.append(dock)
 
+        # 启动时主窗口尚未显示，也必须完成标题栏初始化。
         for dock in docks:
-            if not dock.isVisible():
-                continue
             if enable:
                 self._set_dock_custom_title_bar(dock)
             else:
@@ -520,6 +519,7 @@ class UiThemeManager:
         label.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         # 允许标题在 Dock 变窄时收缩（避免长标题把右侧按钮/内容“挤坏”）
         label.setMinimumWidth(0)
+        label.setToolTip(dock.windowTitle())
         layout.addWidget(label, 1)
 
         # float 按钮（如果允许）
