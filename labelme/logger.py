@@ -63,7 +63,10 @@ logger.addHandler(stream_handler)
 
 # windows 平台
 if os.name == "nt":
-    log_path = fr'C:\dlcv\Lib\site-packages\dlcv_labelme_ai\{__appname__}.log'
+    log_dir = os.environ.get(
+        "LABELME_LOG_DIR", r"C:\dlcv\Lib\site-packages\dlcv_labelme_ai"
+    )
+    log_path = os.path.join(log_dir, f"{__appname__}.log")
 
     # 大于500MB
     os.makedirs(os.path.dirname(log_path), exist_ok=True)

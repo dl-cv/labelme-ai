@@ -137,7 +137,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.uniqLabelList = UniqueLabelQListWidget()
         self.uniqLabelList.setToolTip(
             self.tr(
-                "Select label to start annotating for it. " "Press 'Esc' to deselect."
+                "Select label to start annotating for it."
             )
         )
         if self._config["labels"]:

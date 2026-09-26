@@ -256,10 +256,15 @@ QDockWidget[objectName="Label List"] QListWidget {{
     padding: 4px;
 }}
 
-QDockWidget#Flags QListWidget::item,
-QDockWidget#Labels QListView::item,
+QDockWidget#Flags QListWidget::item {{
+    padding: 4px 6px;
+}}
+QDockWidget#Labels QListView::item {{
+    padding: 0px 6px;
+}}
+/* 标签行由内嵌 QLabel 提供间距，避免样式再次扣减文字空间。 */
 QDockWidget[objectName="Label List"] QListWidget::item {{
-    padding: 2px 6px;
+    padding: 0px;
 }}
 
 QWidget#settingPanel {{
@@ -270,6 +275,9 @@ QTreeWidget#settingParameterTree {{
     background: #FFFFFF;
     border: 1px solid #E5E7EB;
     border-radius: 6px;
+}}
+QTreeWidget#settingParameterTree::item {{
+    padding: 3px 6px;
 }}
 
 QTextEdit#labelCountText {{

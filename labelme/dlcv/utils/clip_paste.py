@@ -233,6 +233,29 @@ def clip_shape_to_image(shape, max_x, max_y):
     if inside:
         return True
 
+    if shape_type == "rotation":
+        min_x = min(x for x, _ in pts)
+        max_shape_x = max(x for x, _ in pts)
+        min_y = min(y for _, y in pts)
+        max_shape_y = max(y for _, y in pts)
+        if (
+            len(pts) == 4
+            and max_shape_x - min_x <= max_x
+            and max_shape_y - min_y <= max_y
+        ):
+            dx = 0.0
+            if min_x < 0:
+                dx = -min_x
+            elif max_shape_x > max_x:
+                dx = max_x - max_shape_x
+            dy = 0.0
+            if min_y < 0:
+                dy = -min_y
+            elif max_shape_y > max_y:
+                dy = max_y - max_shape_y
+            translate_shape(shape, dx, dy)
+            return True
+
     new_coords = clip_closed_coords(pts, max_x, max_y)
     if not new_coords:
         return False
