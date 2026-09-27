@@ -290,11 +290,9 @@ def render_screenshots(filename, output_dir):
         for scope in (QtCore.QSettings.UserScope, QtCore.QSettings.SystemScope):
             QtCore.QSettings.setPath(QtCore.QSettings.IniFormat, scope, str(temp_path))
         config = get_config(str(temp_path / ".labelmerc"), {})
-        settings = QtCore.QSettings("labelme", "labelme")
-        settings.setValue("ui/language", "zh_CN")
-        settings.sync()
-        if settings.status() != QtCore.QSettings.NoError:
-            raise RuntimeError("隔离语言设置写入失败")
+        language_file = temp_path / "dlcv" / "language.txt"
+        language_file.parent.mkdir(parents=True, exist_ok=True)
+        language_file.write_text("zh", encoding="utf-8")
         translator = QtCore.QTranslator()
         STORE.q_translator = translator
         STORE.backend_ws = None

@@ -1,3 +1,33 @@
+import os
+from pathlib import Path
+
+
+def _language_file_path():
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        return Path(appdata) / "dlcv" / "language.txt"
+    return Path.home() / "AppData" / "Roaming" / "dlcv" / "language.txt"
+
+
+def _write_language(language):
+    value = "en" if str(language).lower().startswith("en") else "zh"
+    path = _language_file_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(value, encoding="utf-8")
+    return value
+
+
+def _read_language():
+    path = _language_file_path()
+    try:
+        value = path.read_text(encoding="utf-8").strip()
+        if value in {"zh", "en"}:
+            return value
+    except OSError:
+        pass
+    return _write_language("zh")
+
+
 class DlcvTrObject:
     # 2025年11月25日 已弃用，直接使用 dlcv_tr(text) 即可
 
@@ -19,36 +49,19 @@ class DlcvTranslator:
         return tr_map.get(self.lang, {}).get(text, text)
 
     def set_lang(self, lang):
-        self.lang = lang
+        self.lang = "en_US" if str(lang).lower().startswith("en") else "zh_CN"
+
+    def save_lang(self, lang):
+        _write_language(lang)
 
     def get_lang(self):
         return self.lang
 
     def __lazy_init(self):
-        """初始化语言：已保存的用户选择优先；未保存时系统语言以 en 开头为英文，否则中文。"""
+        """从 DLCV 公共语言文件初始化界面语言。"""
         from labelme.dlcv.store import STORE
-        from PyQt5 import QtCore
 
-        supported_langs = tr_map.keys()
-        saved_lang = None
-        try:
-            saved_lang = STORE.main_window.settings.value(
-                "ui/language", type=str)
-        except Exception:
-            saved_lang = None
-
-        if saved_lang in supported_langs:
-            self.lang = saved_lang
-        else:
-            try:
-                system_lang = QtCore.QLocale.system().name() or ""
-                self.lang = (
-                    "en_US"
-                    if system_lang.replace("-", "_").lower().startswith("en")
-                    else "zh_CN"
-                )
-            except Exception:
-                self.lang = "zh_CN"
+        self.lang = "en_US" if _read_language() == "en" else "zh_CN"
 
         # 加载翻译数据
         if STORE.q_translator and self.lang == "zh_CN":

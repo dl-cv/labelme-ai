@@ -33,6 +33,7 @@ def main():
         for name in ("profile", "logs", "settings", "data"):
             (root / name).mkdir()
         os.environ["HOME"] = os.environ["USERPROFILE"] = str(root / "profile")
+        os.environ["APPDATA"] = str(root / "data")
         os.environ["LABELME_LOG_DIR"] = str(root / "logs")
         os.environ["QT_API"] = "pyqt5"
         from qtpy import QtCore, QtWidgets
@@ -41,7 +42,9 @@ def main():
         for scope in (QtCore.QSettings.UserScope, QtCore.QSettings.SystemScope):
             QtCore.QSettings.setPath(QtCore.QSettings.IniFormat, scope, str(root / "settings"))
         settings = QtCore.QSettings("labelme", "labelme")
-        settings.setValue("ui/language", "zh_CN")
+        language_file = root / "data" / "dlcv" / "language.txt"
+        language_file.parent.mkdir(parents=True, exist_ok=True)
+        language_file.write_text("zh", encoding="utf-8")
         settings.setValue("ui/font_point_size", args.font_size)
         settings.setValue("window/size", QtCore.QSize(1920, 1100))
         if args.theme != "default":
