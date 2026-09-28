@@ -2,6 +2,10 @@ import os
 from pathlib import Path
 
 
+SIMPLIFIED_CHINESE_TAG = "zh-Hans"
+ENGLISH_TAG = "en"
+
+
 def _language_file_path():
     appdata = os.environ.get("APPDATA")
     if appdata:
@@ -10,7 +14,7 @@ def _language_file_path():
 
 
 def _write_language(language):
-    value = "en" if str(language).lower().startswith("en") else "zh"
+    value = ENGLISH_TAG if str(language).strip().lower() == ENGLISH_TAG else SIMPLIFIED_CHINESE_TAG
     path = _language_file_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(value, encoding="utf-8")
@@ -20,12 +24,15 @@ def _write_language(language):
 def _read_language():
     path = _language_file_path()
     try:
-        value = path.read_text(encoding="utf-8").strip()
-        if value in {"zh", "en"}:
-            return value
-    except OSError:
+        saved = path.read_text(encoding="utf-8").strip()
+        lowered = saved.lower()
+        if lowered == ENGLISH_TAG:
+            return _write_language(ENGLISH_TAG) if saved != ENGLISH_TAG else ENGLISH_TAG
+        if lowered == SIMPLIFIED_CHINESE_TAG.lower():
+            return _write_language(SIMPLIFIED_CHINESE_TAG) if saved != SIMPLIFIED_CHINESE_TAG else SIMPLIFIED_CHINESE_TAG
+    except (OSError, UnicodeError):
         pass
-    return _write_language("zh")
+    return _write_language(SIMPLIFIED_CHINESE_TAG)
 
 
 class DlcvTrObject:
@@ -52,7 +59,8 @@ class DlcvTranslator:
         self.lang = "en_US" if str(lang).lower().startswith("en") else "zh_CN"
 
     def save_lang(self, lang):
-        _write_language(lang)
+        tag = ENGLISH_TAG if str(lang).lower().startswith("en") else SIMPLIFIED_CHINESE_TAG
+        _write_language(tag)
 
     def get_lang(self):
         return self.lang

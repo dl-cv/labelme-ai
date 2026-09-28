@@ -292,7 +292,7 @@ def render_screenshots(filename, output_dir):
         config = get_config(str(temp_path / ".labelmerc"), {})
         language_file = temp_path / "dlcv" / "language.txt"
         language_file.parent.mkdir(parents=True, exist_ok=True)
-        language_file.write_text("zh", encoding="utf-8")
+        language_file.write_text("zh-Hans", encoding="utf-8")
         translator = QtCore.QTranslator()
         STORE.q_translator = translator
         STORE.backend_ws = None

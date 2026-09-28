@@ -44,7 +44,7 @@ def main():
         settings = QtCore.QSettings("labelme", "labelme")
         language_file = root / "data" / "dlcv" / "language.txt"
         language_file.parent.mkdir(parents=True, exist_ok=True)
-        language_file.write_text("zh", encoding="utf-8")
+        language_file.write_text("zh-Hans", encoding="utf-8")
         settings.setValue("ui/font_point_size", args.font_size)
         settings.setValue("window/size", QtCore.QSize(1920, 1100))
         if args.theme != "default":
