@@ -14,10 +14,18 @@ def _language_file_path():
 
 
 def _write_language(language):
+    """写入公共语言文件，返回实际使用的标签。
+
+    语言文件不可写（目录被占用、只读或被拦截）时只跳过写入，不中断调用方：
+    界面以本次运行内存中的语言继续，由用户再次切换语言来重试写入。
+    """
     value = ENGLISH_TAG if str(language).strip().lower() == ENGLISH_TAG else SIMPLIFIED_CHINESE_TAG
     path = _language_file_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(value, encoding="utf-8")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(value, encoding="utf-8")
+    except OSError:
+        pass
     return value
 
 
@@ -27,9 +35,13 @@ def _read_language():
         saved = path.read_text(encoding="utf-8").strip()
         lowered = saved.lower()
         if lowered == ENGLISH_TAG:
-            return _write_language(ENGLISH_TAG) if saved != ENGLISH_TAG else ENGLISH_TAG
+            if saved != ENGLISH_TAG:
+                _write_language(ENGLISH_TAG)
+            return ENGLISH_TAG
         if lowered == SIMPLIFIED_CHINESE_TAG.lower():
-            return _write_language(SIMPLIFIED_CHINESE_TAG) if saved != SIMPLIFIED_CHINESE_TAG else SIMPLIFIED_CHINESE_TAG
+            if saved != SIMPLIFIED_CHINESE_TAG:
+                _write_language(SIMPLIFIED_CHINESE_TAG)
+            return SIMPLIFIED_CHINESE_TAG
     except (OSError, UnicodeError):
         pass
     return _write_language(SIMPLIFIED_CHINESE_TAG)
