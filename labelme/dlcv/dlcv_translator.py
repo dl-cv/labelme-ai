@@ -1,3 +1,52 @@
+import os
+from pathlib import Path
+
+
+SIMPLIFIED_CHINESE_TAG = "zh-Hans"
+ENGLISH_TAG = "en"
+
+
+def _language_file_path():
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        return Path(appdata) / "dlcv" / "language.txt"
+    return Path.home() / "AppData" / "Roaming" / "dlcv" / "language.txt"
+
+
+def _write_language(language):
+    """写入公共语言文件，返回实际使用的标签。
+
+    语言文件不可写（目录被占用、只读或被拦截）时只跳过写入，不中断调用方：
+    界面以本次运行内存中的语言继续，由用户再次切换语言来重试写入。
+    """
+    value = ENGLISH_TAG if str(language).strip().lower() == ENGLISH_TAG else SIMPLIFIED_CHINESE_TAG
+    path = _language_file_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(value, encoding="utf-8")
+    except OSError:
+        pass
+    return value
+
+
+def _read_language():
+    path = _language_file_path()
+    try:
+        saved = path.read_text(encoding="utf-8").strip()
+        lowered = saved.lower()
+        if lowered == ENGLISH_TAG:
+            if saved != ENGLISH_TAG:
+                _write_language(ENGLISH_TAG)
+            return ENGLISH_TAG
+        if lowered == SIMPLIFIED_CHINESE_TAG.lower():
+            if saved != SIMPLIFIED_CHINESE_TAG:
+                _write_language(SIMPLIFIED_CHINESE_TAG)
+            return SIMPLIFIED_CHINESE_TAG
+    except (OSError, UnicodeError):
+        pass
+    return _write_language(SIMPLIFIED_CHINESE_TAG)
+
+
 class DlcvTrObject:
     # 2025年11月25日 已弃用，直接使用 dlcv_tr(text) 即可
 
@@ -19,36 +68,20 @@ class DlcvTranslator:
         return tr_map.get(self.lang, {}).get(text, text)
 
     def set_lang(self, lang):
-        self.lang = lang
+        self.lang = "en_US" if str(lang).lower().startswith("en") else "zh_CN"
+
+    def save_lang(self, lang):
+        tag = ENGLISH_TAG if str(lang).lower().startswith("en") else SIMPLIFIED_CHINESE_TAG
+        _write_language(tag)
 
     def get_lang(self):
         return self.lang
 
     def __lazy_init(self):
-        """初始化语言：已保存的用户选择优先；未保存时系统语言以 en 开头为英文，否则中文。"""
+        """从 DLCV 公共语言文件初始化界面语言。"""
         from labelme.dlcv.store import STORE
-        from PyQt5 import QtCore
 
-        supported_langs = tr_map.keys()
-        saved_lang = None
-        try:
-            saved_lang = STORE.main_window.settings.value(
-                "ui/language", type=str)
-        except Exception:
-            saved_lang = None
-
-        if saved_lang in supported_langs:
-            self.lang = saved_lang
-        else:
-            try:
-                system_lang = QtCore.QLocale.system().name() or ""
-                self.lang = (
-                    "en_US"
-                    if system_lang.replace("-", "_").lower().startswith("en")
-                    else "zh_CN"
-                )
-            except Exception:
-                self.lang = "zh_CN"
+        self.lang = "en_US" if _read_language() == "en" else "zh_CN"
 
         # 加载翻译数据
         if STORE.q_translator and self.lang == "zh_CN":

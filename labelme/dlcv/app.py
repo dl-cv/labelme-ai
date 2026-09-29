@@ -709,12 +709,8 @@ class MainWindow(CopyPasteMixin, MainWindow):
 
     def _on_change_language(self, lang_code: str):
         lang_code = lang_code or "zh_CN"
-        # 保存到设置
-        try:
-            self.settings.setValue("ui/language", lang_code)
-        except Exception:
-            QtCore.QSettings("labelme", "labelme").setValue("ui/language", lang_code)
-        
+        dlcv_tr.save_lang(lang_code)
+
         # 通知用户（当前界面语言尚未切换，用当前语言提示一次即可）
         notification(
             dlcv_tr("语言设置"),
