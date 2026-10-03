@@ -144,8 +144,19 @@ def _process_events(app, count=12):
 def _close_window(app, window):
     if window is None:
         return
+    destroyed = []
+    objects = [
+        window,
+        window.menus.labelList,
+        window.menus.recentFiles,
+        *window.canvas.menus,
+    ]
+    for obj in objects:
+        obj.destroyed.connect(lambda: destroyed.append(True))
     window.close()
     window.deleteLater()
+    QtCore.QCoreApplication.sendPostedEvents(window, QtCore.QEvent.DeferredDelete)
+    assert len(destroyed) == len(objects), "关闭窗口后应销毁窗口及所属菜单"
     _process_events(app, 4)
 
 
@@ -214,13 +225,13 @@ def _save_settings_panel_crop(full_image, window, path):
     return panel_image
 
 
-def test_annotation_storage_setting_main_window_render(monkeypatch, tmp_path):
+def test_annotation_storage_setting_main_window_render(monkeypatch, tmp_path, qapp):
     """实际 MainWindow 保存、恢复并渲染新存储设置。"""
     isolated_paths, settings_path, previous_format = _configure_isolated_environment(
         monkeypatch,
         tmp_path,
     )
-    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    app = qapp
     app.setQuitOnLastWindowClosed(False)
     previous_font = QtGui.QFont(app.font())
     font_family = None
@@ -385,10 +396,10 @@ def test_annotation_storage_setting_main_window_render(monkeypatch, tmp_path):
 
 
 @pytest.fixture
-def annotation_window(monkeypatch, tmp_path):
+def annotation_window(monkeypatch, tmp_path, qapp):
     """隔离设置和图片，运行实际标注窗口的保存流程。"""
     _, _, previous_format = _configure_isolated_environment(monkeypatch, tmp_path)
-    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    app = qapp
     app.setQuitOnLastWindowClosed(False)
     window = None
     try:

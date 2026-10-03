@@ -3,17 +3,12 @@
 from types import SimpleNamespace
 
 import pytest
-from qtpy import QtCore, QtWidgets
+from qtpy import QtCore
+from qtpy import QtWidgets
 
 from labelme.config import get_config
-from labelme.dlcv.widget.setting_dock import SettingDock
 from labelme.dlcv.store import STORE
-
-
-@pytest.fixture(scope="module")
-def qt_app():
-    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
-    yield app
+from labelme.dlcv.widget.setting_dock import SettingDock
 
 
 @pytest.fixture(autouse=True)
@@ -36,7 +31,7 @@ def _make_dock():
     return parent, dock, config
 
 
-def test_external_json_is_enabled_by_default(qt_app):
+def test_external_json_is_enabled_by_default(qapp):
     parent, dock, config = _make_dock()
     try:
         parameter = dock.parameter.child("proj_setting", "save_external_json")
@@ -46,36 +41,43 @@ def test_external_json_is_enabled_by_default(qt_app):
     finally:
         parent.close()
         parent.deleteLater()
-        qt_app.processEvents()
+        qapp.processEvents()
 
 
-def test_external_json_setting_updates_config_and_persists(qt_app, tmp_path):
+def test_external_json_setting_updates_config_and_persists(qapp, tmp_path):
     parent, dock, config = _make_dock()
     restored_parent, restored_dock, restored_config = _make_dock()
     try:
         dock.parameter.child("proj_setting", "save_external_json").setValue(False)
         assert config["save_external_json"] is False
-        settings = QtCore.QSettings(str(tmp_path / "settings.ini"), QtCore.QSettings.IniFormat)
+        settings = QtCore.QSettings(
+            str(tmp_path / "settings.ini"), QtCore.QSettings.IniFormat
+        )
         settings.setValue("setting_store", dock.save_settings())
         settings.sync()
         restored_dock.restore_settings(settings)
         assert restored_config["save_external_json"] is False
-        assert restored_dock.parameter.child("proj_setting", "save_external_json").value() is False
+        assert (
+            restored_dock.parameter.child("proj_setting", "save_external_json").value()
+            is False
+        )
     finally:
         for window in [parent, restored_parent]:
             window.close()
             window.deleteLater()
-        qt_app.processEvents()
+        qapp.processEvents()
 
 
-def test_legacy_settings_enable_external_json_by_default(qt_app, tmp_path):
+def test_legacy_settings_enable_external_json_by_default(qapp, tmp_path):
     parent, dock, config = _make_dock()
     try:
-        settings = QtCore.QSettings(str(tmp_path / "legacy.ini"), QtCore.QSettings.IniFormat)
+        settings = QtCore.QSettings(
+            str(tmp_path / "legacy.ini"), QtCore.QSettings.IniFormat
+        )
         settings.setValue("setting_store", {"display_shape_label": True})
         dock.restore_settings(settings)
         assert config["save_external_json"] is True
     finally:
         parent.close()
         parent.deleteLater()
-        qt_app.processEvents()
+        qapp.processEvents()
