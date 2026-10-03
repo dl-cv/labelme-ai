@@ -621,7 +621,7 @@ class MainWindow(QtWidgets.QMainWindow):
             fill_drawing.trigger()
 
         # Label list context menu.
-        labelMenu = QtWidgets.QMenu()
+        labelMenu = QtWidgets.QMenu(self)
         utils.addActions(labelMenu, (edit, delete))
         self.labelList.setContextMenuPolicy(Qt.CustomContextMenu)
         self.labelList.customContextMenuRequested.connect(self.popLabelListMenu)
@@ -725,7 +725,7 @@ class MainWindow(QtWidgets.QMainWindow):
             edit=self.menu(self.tr("&Edit")),
             view=self.menu(self.tr("&View")),
             help=self.menu(self.tr("&Help")),
-            recentFiles=QtWidgets.QMenu(self.tr("Open &Recent")),
+            recentFiles=QtWidgets.QMenu(self.tr("Open &Recent"), self),
             labelList=labelMenu,
         )
 

@@ -68,6 +68,17 @@ class SettingDock(QtWidgets.QDockWidget):
                 "type": "group",
                 "children": [
                     {
+                        "name": "save_external_json",
+                        "title": dlcv_tr("同时保存外部 JSON"),
+                        "type": "bool",
+                        "value": self._config.get("save_external_json", True),
+                        "default": True,
+                        "tip": dlcv_tr(
+                            "始终写入图片内标注；默认同时保存外部 JSON。"
+                            "关闭后保留已有 JSON，内嵌失败时仍保存外部备份并提示。"
+                        ),
+                    },
+                    {
                         "name": "proj_type",
                         "title": dlcv_tr("project type"),
                         "type": "list",
@@ -371,7 +382,9 @@ class SettingDock(QtWidgets.QDockWidget):
             parent_path = path[:-1]
             param_name = path[-1]
 
-            if len(parent_path) == 1 and parent_path[0] == "label_setting":
+            if parent_path == ["proj_setting"] and param_name == "save_external_json":
+                self._config["save_external_json"] = bool(new_value)
+            elif len(parent_path) == 1 and parent_path[0] == "label_setting":
                 if param_name == "blue_line_color":
                     if new_value:
                         Shape.line_color = QtGui.QColor(0, 127, 255, 255)
@@ -423,6 +436,9 @@ class SettingDock(QtWidgets.QDockWidget):
         if not setting_store:
             return
 
+        self._parameter.child("proj_setting", "save_external_json").setValue(
+            setting_store.get("save_external_json", True)
+        )
         self._parameter.child("other_setting", "display_shape_label").setValue(
             setting_store.get("display_shape_label", True)
         )
@@ -476,6 +492,9 @@ class SettingDock(QtWidgets.QDockWidget):
     def save_settings(self):
         """返回需要从 QSettings 保存的参数值字典。"""
         return {
+            "save_external_json": self._parameter.child(
+                "proj_setting", "save_external_json"
+            ).value(),
             "scale_option": self._parameter.child(
                 "other_setting", "scale_option"
             ).value(),
