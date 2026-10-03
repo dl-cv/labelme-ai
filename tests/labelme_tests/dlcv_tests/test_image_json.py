@@ -281,19 +281,6 @@ def test_bigtiff_keeps_readable_external_json(tmp_path):
     assert LabelFile(str(image_path)).shapes[0]["label"] == "中文缺陷"
 
 
-def test_old_core_keeps_external_annotations(tmp_path, monkeypatch):
-    from labelme.dlcv import label_file as module
-
-    image_path = tmp_path / "old-core.png"
-    _save_image(image_path)
-    monkeypatch.setattr(module, "IMAGE_JSON_AVAILABLE", False)
-    _save_label(LabelFile(), image_path)
-    assert image_path.with_suffix(".json").exists()
-    assert read_image_json(image_path) is None
-    loaded = LabelFile(str(image_path.with_suffix(".json")))
-    assert loaded.shapes[0]["label"] == "中文缺陷"
-
-
 def test_mask_image_data_and_extra_shape_fields_round_trip(tmp_path):
     image_path = tmp_path / "semantic.png"
     _save_image(image_path)
@@ -777,16 +764,6 @@ def test_folder_count_counts_shared_images_and_sidecar_once(tmp_path):
     assert "分组标签: 1" in text
 
 
-def test_folder_count_keeps_external_mode_without_new_core(tmp_path, monkeypatch):
-    from labelme.dlcv.widget import label_count as module
-
-    sidecar = tmp_path / "sample.json"
-    sidecar.write_text(json.dumps({"shapes": [_shape("外部标签")]}), encoding="utf-8")
-    monkeypatch.setattr(module, "collect_annotation_paths", None)
-    monkeypatch.setattr(module, "load_annotation", None)
-    assert "外部标签: 1" in _folder_count_text(tmp_path)
-
-
 def test_folder_count_reports_corrupt_embedded_image(tmp_path):
     (tmp_path / "corrupt.png").write_bytes(b"\x89PNG\r\n\x1a\n")
     text = _folder_count_text(tmp_path)
@@ -933,3 +910,16 @@ def test_partial_sidecar_write_restores_previous_file(tmp_path, monkeypatch, exi
         assert sidecar.read_bytes() == original
     else:
         assert not sidecar.exists()
+
+
+@pytest.mark.parametrize("embedded", [None, [], 42, False, '\"文本\"'])
+def test_non_object_embedded_annotation_never_loads_old_sidecar(tmp_path, embedded):
+    image_path = tmp_path / "invalid-annotation.png"
+    _save_image(image_path)
+    _save_label(LabelFile(), image_path, label="外部旧数据")
+    write_image_json(image_path, embedded)
+    sidecar_path = image_path.with_suffix(".json")
+    assert select_annotation_source(image_path, sidecar_path) == image_path
+    for source in (image_path, sidecar_path):
+        with pytest.raises(LabelFileError, match="标注不是 JSON 对象"):
+            LabelFile(str(source))

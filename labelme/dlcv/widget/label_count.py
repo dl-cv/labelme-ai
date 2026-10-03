@@ -1,21 +1,13 @@
-from PyQt5 import QtWidgets
-from openpyxl.styles.builtins import total
-
-from labelme.dlcv.shape import Shape
-from labelme.dlcv import dlcv_tr
-from labelme.utils.qt import newIcon
-from collections import Counter
 import os
-import json
-from pathlib import Path
+from collections import Counter
 
-try:
-    from dlcv_core.image_annotations import collect_annotation_paths, load_annotation
-except ModuleNotFoundError as exc:
-    if exc.name not in {"dlcv_core", "dlcv_core.image_annotations"}:
-        raise
-    collect_annotation_paths = None
-    load_annotation = None
+from dlcv_core.image_annotations import collect_annotation_paths
+from dlcv_core.image_annotations import load_annotation
+from PyQt5 import QtWidgets
+
+from labelme.dlcv import dlcv_tr
+from labelme.dlcv.shape import Shape
+from labelme.utils.qt import newIcon
 
 
 class LabelCountDock(QtWidgets.QDockWidget):
@@ -65,11 +57,7 @@ class LabelCountDock(QtWidgets.QDockWidget):
             return
 
         try:
-            annotation_paths = (
-                collect_annotation_paths(dir_path)
-                if collect_annotation_paths is not None
-                else sorted(Path(dir_path).rglob("*.json"))
-            )
+            annotation_paths = collect_annotation_paths(dir_path)
         except Exception as exc:
             self.label_count_text.setText(
                 dlcv_tr("读取文件夹标注失败：{error}").format(error=exc)
@@ -81,11 +69,7 @@ class LabelCountDock(QtWidgets.QDockWidget):
         failed_count = 0
         for path in annotation_paths:
             try:
-                data = (
-                    load_annotation(path)
-                    if load_annotation is not None
-                    else json.loads(path.read_text(encoding="utf-8-sig"))
-                )
+                data = load_annotation(path)
                 if not isinstance(data, dict):
                     continue
                 for shape in data.get("shapes", []):
@@ -103,9 +87,9 @@ class LabelCountDock(QtWidgets.QDockWidget):
         if not annotation_paths:
             result = dlcv_tr("未找到任何标注，请先进行标注。")
         elif not label_counter and not flag_counter:
-            result = dlcv_tr("找到 {count} 份标注，但未统计到任何标签或文本标记。").format(
-                count=len(annotation_paths)
-            )
+            result = dlcv_tr(
+                "找到 {count} 份标注，但未统计到任何标签或文本标记。"
+            ).format(count=len(annotation_paths))
         else:
             result = dlcv_tr("统计结果（共扫描 {count} 份标注）：\n").format(
                 count=len(annotation_paths)

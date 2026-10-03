@@ -643,6 +643,7 @@ class FileTreeWidget(QtWidgets.QWidget):
         self.search_box.textChanged.connect(self._on_text_changed)
         # 删除请求在当前组件内处理
         self.tree_widget.sig_delete_requested.connect(self._on_delete_requested)
+        self.tree_widget.itemChanged.connect(self._apply_filters)
         # 监听标注状态复选框变化
         self.show_annotated_checkbox.stateChanged.connect(
             self._on_filter_changed)

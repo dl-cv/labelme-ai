@@ -11,7 +11,6 @@ from qtpy import QtCore
 from qtpy import QtGui
 from qtpy import QtWidgets
 
-
 FULL_IMAGE_SIZE = QtCore.QSize(1920, 1080)
 
 
@@ -233,6 +232,7 @@ def test_annotation_storage_setting_main_window_render(monkeypatch, tmp_path):
         font_family, font_path = _configure_cjk_font(app)
 
         from dlcv_core.image_json import read_image_json
+
         from labelme.config import get_config
         from labelme.dlcv import dlcv_tr
         from labelme.dlcv.app import MainWindow
@@ -256,12 +256,8 @@ def test_annotation_storage_setting_main_window_render(monkeypatch, tmp_path):
         )
         assert external_json_path.is_file()
         embedded_data = read_image_json(image_path)
-        external_data = json.loads(
-            external_json_path.read_text(encoding="utf-8")
-        )
-        assert [shape["label"] for shape in external_data["shapes"]] == [
-            "外部旧数据"
-        ]
+        external_data = json.loads(external_json_path.read_text(encoding="utf-8"))
+        assert [shape["label"] for shape in external_data["shapes"]] == ["外部旧数据"]
         assert [shape["label"] for shape in embedded_data["shapes"]] == [
             shape["label"] for shape in expected_shapes
         ]
@@ -339,8 +335,7 @@ def test_annotation_storage_setting_main_window_render(monkeypatch, tmp_path):
 
         result = {
             "window_class": (
-                f"{type(evidence_window).__module__}."
-                f"{type(evidence_window).__name__}"
+                f"{type(evidence_window).__module__}.{type(evidence_window).__name__}"
             ),
             "setting_dock_class": (
                 f"{type(evidence_window.setting_dock).__module__}."
@@ -352,16 +347,10 @@ def test_annotation_storage_setting_main_window_render(monkeypatch, tmp_path):
             "final_restored_save_external_json": setting_parameter.value(),
             "persisted_save_external_json": persisted_store["save_external_json"],
             "external_json_exists": external_json_path.is_file(),
-            "external_labels": [
-                shape["label"] for shape in external_data["shapes"]
-            ],
-            "embedded_labels": [
-                shape["label"] for shape in embedded_data["shapes"]
-            ],
+            "external_labels": [shape["label"] for shape in external_data["shapes"]],
+            "embedded_labels": [shape["label"] for shape in embedded_data["shapes"]],
             "loaded_annotation_source": "embedded",
-            "loaded_labels": [
-                shape.label for shape in evidence_window.canvas.shapes
-            ],
+            "loaded_labels": [shape.label for shape in evidence_window.canvas.shapes],
             "loaded_label_count": len(evidence_window.canvas.shapes),
             "label_count_text": count_text,
             "full_screenshot": {
@@ -393,3 +382,229 @@ def test_annotation_storage_setting_main_window_render(monkeypatch, tmp_path):
         _close_window(app, evidence_window)
         app.setFont(previous_font)
         QtCore.QSettings.setDefaultFormat(previous_format)
+
+
+@pytest.fixture
+def annotation_window(monkeypatch, tmp_path):
+    """隔离设置和图片，运行实际标注窗口的保存流程。"""
+    _, _, previous_format = _configure_isolated_environment(monkeypatch, tmp_path)
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    app.setQuitOnLastWindowClosed(False)
+    window = None
+    try:
+        from labelme.config import get_config
+        from labelme.dlcv.app import MainWindow
+        from labelme.dlcv.label_file import LabelFile
+
+        settings = QtCore.QSettings("labelme", "labelme")
+        settings.clear()
+        settings.setValue("ui/language", "zh_CN")
+        settings.sync()
+        image_dir = tmp_path / "images"
+        image_dir.mkdir()
+        image_path, sidecar_path, _ = _create_sample_annotation(image_dir, LabelFile)
+        other_path = image_dir / "unannotated.png"
+        Image.new("RGB", (1280, 720), (60, 70, 80)).save(other_path)
+        config = get_config()
+        config["auto_save"] = False
+        config["keep_prev"] = False
+        window = MainWindow(config=config, filename=str(image_path))
+        window.actions.saveAuto.setChecked(False)
+        window.importDirImages(str(image_dir), load=False)
+        window.loadFile(str(image_path))
+        window.show()
+        _process_events(app)
+        assert len(window.canvas.shapes) == 2
+        yield app, window, image_path, sidecar_path, other_path
+    finally:
+        if window is not None:
+            window.setClean()
+        _close_window(app, window)
+        QtCore.QSettings.setDefaultFormat(previous_format)
+
+
+@pytest.mark.parametrize("save_external", [True, False])
+def test_main_window_edit_save_switch_and_reopen(annotation_window, save_external):
+    from dlcv_core.image_json import read_image_json
+
+    app, window, image_path, sidecar_path, other_path = annotation_window
+    parameter = window.setting_dock.parameter.child(
+        "proj_setting", "save_external_json"
+    )
+    parameter.setValue(save_external)
+    if not save_external:
+        sidecar_path.unlink()
+    window.canvas.shapes[0].label = "编辑后的标注"
+    window.setDirty()
+    assert window.dirty
+    window.saveFile()
+    assert not window.dirty
+    assert not window.actions.save.isEnabled()
+    assert read_image_json(image_path)["shapes"][0]["label"] == "编辑后的标注"
+    assert sidecar_path.exists() is save_external
+    if save_external:
+        assert (
+            json.loads(sidecar_path.read_text(encoding="utf-8"))["shapes"][0]["label"]
+            == "编辑后的标注"
+        )
+    window.loadFile(str(other_path))
+    _process_events(app)
+    assert window.filename == str(other_path)
+    assert window.canvas.shapes == []
+    window.loadFile(str(image_path))
+    _process_events(app)
+    assert window.filename == str(image_path)
+    assert [shape.label for shape in window.canvas.shapes] == ["编辑后的标注", "缺陷-B"]
+    window.canvas.shapes[1].label = "再次编辑"
+    window.setDirty()
+    window.saveFile()
+    window.loadFile(str(other_path))
+    window.loadFile(str(image_path))
+    assert [shape.label for shape in window.canvas.shapes] == [
+        "编辑后的标注",
+        "再次编辑",
+    ]
+
+
+@pytest.mark.parametrize("save_external", [True, False])
+def test_main_window_annotation_filter_and_clear(annotation_window, save_external):
+    from dlcv_core.image_json import read_image_json
+
+    app, window, image_path, sidecar_path, other_path = annotation_window
+    window.setting_dock.parameter.child("proj_setting", "save_external_json").setValue(
+        save_external
+    )
+    if not save_external:
+        sidecar_path.unlink()
+    window.canvas.shapes[0].label = "已保存标注"
+    window.setDirty()
+    window.saveFile()
+    assert sidecar_path.exists() is save_external
+    tree = window.fileListWidget
+    image_item = tree.findItems(str(image_path))[0]
+    other_item = tree.findItems(str(other_path))[0]
+    assert image_item.checkState(0) == QtCore.Qt.Checked
+    assert other_item.checkState(0) == QtCore.Qt.Unchecked
+    tree.show_annotated_checkbox.setChecked(True)
+    tree.show_unannotated_checkbox.setChecked(False)
+    _process_events(app)
+    assert not image_item.isHidden()
+    assert other_item.isHidden()
+    window.canvas.selectShapes(window.canvas.shapes)
+    window.deleteSelectedShape()
+    window.saveFile()
+    _process_events(app)
+    assert read_image_json(image_path) is None
+    assert not sidecar_path.exists()
+    assert window.canvas.shapes == []
+    assert image_item.checkState(0) == QtCore.Qt.Unchecked
+    assert image_item.isHidden()
+    assert not window.dirty
+    tree.show_annotated_checkbox.setChecked(False)
+    tree.show_unannotated_checkbox.setChecked(True)
+    _process_events(app)
+    assert not image_item.isHidden()
+    assert not other_item.isHidden()
+    window.loadFile(str(other_path))
+    window.loadFile(str(image_path))
+    assert window.canvas.shapes == []
+
+
+@pytest.mark.parametrize("save_external", [True, False])
+def test_main_window_readonly_save_keeps_edits(
+    annotation_window, monkeypatch, save_external
+):
+    """图片实际只读时保留当前编辑，恢复写权限后可继续保存。"""
+    import stat
+
+    from dlcv_core.image_json import read_image_json
+
+    app, window, image_path, sidecar_path, _ = annotation_window
+    errors = []
+    monkeypatch.setattr(
+        window, "errorMessage", lambda title, text: errors.append((title, text))
+    )
+    window.setting_dock.parameter.child("proj_setting", "save_external_json").setValue(
+        save_external
+    )
+    before = image_path.read_bytes()
+    window.canvas.shapes[0].label = "未保存的编辑"
+    window.setDirty()
+    original_mode = image_path.stat().st_mode
+    try:
+        image_path.chmod(stat.S_IREAD)
+        window.saveFile()
+        _process_events(app)
+        assert errors
+        assert window.dirty
+        assert window.actions.save.isEnabled()
+        assert window.filename == str(image_path)
+        assert window.canvas.shapes[0].label == "未保存的编辑"
+        assert image_path.read_bytes() == before
+        assert (
+            json.loads(sidecar_path.read_text(encoding="utf-8"))["shapes"][0]["label"]
+            == "未保存的编辑"
+        )
+    finally:
+        image_path.chmod(original_mode)
+    window.saveFile()
+    assert not window.dirty
+    assert read_image_json(image_path)["shapes"][0]["label"] == "未保存的编辑"
+
+
+@pytest.mark.parametrize("malformed", [None, [], {"shapes": "错误结构"}])
+def test_main_window_external_only_and_corrupt_embedded(
+    annotation_window, monkeypatch, malformed
+):
+    from dlcv_core.image_json import remove_image_json
+    from dlcv_core.image_json import write_image_json
+
+    app, window, image_path, sidecar_path, other_path = annotation_window
+    remove_image_json(image_path)
+    window.loadFile(str(other_path))
+    window.loadFile(str(image_path))
+    _process_events(app)
+    assert [shape.label for shape in window.canvas.shapes] == ["外部旧数据"]
+    assert window.labelFile.filename == str(sidecar_path)
+    window.canvas.shapes[0].label = "外部文件编辑"
+    window.setDirty()
+    window.saveFile()
+    assert (
+        json.loads(sidecar_path.read_text(encoding="utf-8"))["shapes"][0]["label"]
+        == "外部文件编辑"
+    )
+    window.loadFile(str(other_path))
+    errors = []
+    monkeypatch.setattr(
+        window, "errorMessage", lambda title, text: errors.append((title, text))
+    )
+    write_image_json(image_path, malformed)
+    assert window.loadFile(str(image_path)) is False
+    assert errors
+    assert window.canvas.shapes == []
+    assert window.filename == str(image_path)
+
+
+def test_main_window_manual_save_keeps_custom_sidecar(annotation_window):
+    from dlcv_core.image_json import read_image_json
+
+    app, window, image_path, sidecar_path, other_path = annotation_window
+    custom_path = image_path.parent / "labels" / "custom.json"
+    window.canvas.shapes[0].label = "另存数据"
+    window.setDirty()
+    window._saveFile(str(custom_path))
+    first_default = sidecar_path.read_bytes()
+    window.canvas.shapes[0].label = "后续保存"
+    window.setDirty()
+    window.saveFile()
+    assert not window.dirty
+    assert (
+        json.loads(custom_path.read_text(encoding="utf-8"))["shapes"][0]["label"]
+        == "后续保存"
+    )
+    assert sidecar_path.read_bytes() == first_default
+    assert read_image_json(image_path)["shapes"][0]["label"] == "后续保存"
+    window.loadFile(str(other_path))
+    window.loadFile(str(image_path))
+    _process_events(app)
+    assert window.canvas.shapes[0].label == "后续保存"

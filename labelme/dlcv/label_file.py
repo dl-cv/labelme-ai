@@ -1,7 +1,6 @@
 import base64
 import json
 import locale
-import logging
 import math
 import os
 from io import BytesIO
@@ -10,34 +9,12 @@ from pathlib import Path
 from labelme import __version__
 from labelme.label_file import *
 
-try:
-    from dlcv_core.image_json import SUPPORTED_IMAGE_EXTENSIONS
-    from dlcv_core.image_json import UnsupportedImageFormatError
-    from dlcv_core.image_json import has_image_json
-    from dlcv_core.image_json import read_image_json
-    from dlcv_core.image_json import remove_image_json
-    from dlcv_core.image_json import write_image_json
-    IMAGE_JSON_AVAILABLE = True
-    IMAGE_JSON_LIMITATION = None
-except ModuleNotFoundError as exc:
-    if exc.name not in {"dlcv_core", "dlcv_core.image_json"}:
-        raise
-    IMAGE_JSON_AVAILABLE = False
-    IMAGE_JSON_LIMITATION = (
-        "当前 dlcv_core 不含图片内 JSON 接口；LabelMeAI 仅可读写外部 JSON，"
-        "无法读取仅保存在图片内的标注。"
-    )
-    SUPPORTED_IMAGE_EXTENSIONS = frozenset()
-    logging.getLogger(__name__).warning(IMAGE_JSON_LIMITATION)
-
-    class UnsupportedImageFormatError(ValueError):
-        pass
-
-    def has_image_json(_path):
-        return False
-
-    def remove_image_json(path, output_path=None):
-        return Path(output_path) if output_path is not None else Path(path)
+from dlcv_core.image_json import SUPPORTED_IMAGE_EXTENSIONS
+from dlcv_core.image_json import UnsupportedImageFormatError
+from dlcv_core.image_json import has_image_json
+from dlcv_core.image_json import read_image_json
+from dlcv_core.image_json import remove_image_json
+from dlcv_core.image_json import write_image_json
 
 
 def _read_sidecar(path):
@@ -51,7 +28,12 @@ def _read_sidecar(path):
 
 def _read_embedded(path):
     try:
-        return read_image_json(path)
+        data = read_image_json(path)
+        if data is None and not has_image_json(path):
+            return None
+        if not isinstance(data, dict):
+            raise LabelFileError(f"标注不是 JSON 对象：{path}")
+        return data
     except UnsupportedImageFormatError:
         return None
 
@@ -60,10 +42,7 @@ def select_annotation_source(image_path, sidecar_path):
     """选择实际标注来源，受支持容器的读取错误直接向上报告。"""
     image_path = Path(image_path)
     sidecar_path = Path(sidecar_path)
-    if (
-        IMAGE_JSON_AVAILABLE
-        and image_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
-    ):
+    if image_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
         try:
             if has_image_json(image_path):
                 return image_path
@@ -185,16 +164,15 @@ def remove_image_annotations(image_paths, sidecar_path):
         unique_paths.setdefault(_path_key(image_path), image_path)
 
     try:
-        if IMAGE_JSON_AVAILABLE:
-            for image_path in unique_paths.values():
-                if not image_path.is_file():
-                    continue
-                try:
-                    embedded = has_image_json(image_path)
-                except UnsupportedImageFormatError:
-                    continue
-                if embedded:
-                    originals[image_path] = BytesIO(image_path.read_bytes())
+        for image_path in unique_paths.values():
+            if not image_path.is_file():
+                continue
+            try:
+                embedded = has_image_json(image_path)
+            except UnsupportedImageFormatError:
+                continue
+            if embedded:
+                originals[image_path] = BytesIO(image_path.read_bytes())
 
         for image_path in originals:
             changed_paths.append(image_path)
@@ -257,26 +235,22 @@ class LabelFile(LabelFile):
             ):
                 self.sidecar_path = str(source_path.with_suffix(".json"))
             embedded_source = False
-            if (
-                IMAGE_JSON_AVAILABLE
-                and source_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
-            ):
+            if source_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
                 data = _read_embedded(source_path)
-                embedded_source = isinstance(data, dict)
-                if not isinstance(data, dict):
+                embedded_source = data is not None
+                if data is None:
                     sidecar = source_path.with_suffix(".json")
                     data = _read_sidecar(sidecar)
                     source_path = sidecar
             else:
                 data = _read_sidecar(source_path)
-                if IMAGE_JSON_AVAILABLE:
-                    image_path = source_path.parent / data.get("imagePath", "")
-                    if image_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
-                        embedded = _read_embedded(image_path)
-                        if isinstance(embedded, dict):
-                            data = embedded
-                            source_path = image_path
-                            embedded_source = True
+                image_path = source_path.parent / data.get("imagePath", "")
+                if image_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
+                    embedded = _read_embedded(image_path)
+                    if embedded is not None:
+                        data = embedded
+                        source_path = image_path
+                        embedded_source = True
             if not isinstance(data, dict):
                 raise LabelFileError(f"标注不是 JSON 对象：{filename}")
 
@@ -519,11 +493,6 @@ class LabelFile(LabelFile):
                 raise LabelFileError(f"重复的标注字段：{key}")
             data[key] = value
         try:
-            if not IMAGE_JSON_AVAILABLE:
-                _write_sidecar(sidecar_path, data)
-                self.sidecar_path = str(sidecar_path)
-                self.filename = str(sidecar_path)
-                return
             primary_image = Path(os.path.abspath(sidecar_path.parent / imagePath))
             image_paths = _collect_image_paths(primary_image, otherData)
             saved_paths, unsupported_paths, failures = _write_embedded_group(
