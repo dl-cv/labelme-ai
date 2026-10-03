@@ -434,19 +434,32 @@ def test_main_window_edit_save_switch_and_reopen(annotation_window, save_externa
     parameter.setValue(save_external)
     if not save_external:
         sidecar_path.unlink()
+    expected_points = [
+        [[175, 145], [530, 130], [530, 460], [150, 460]],
+        [[680, 190], [1080, 190], [1080, 570], [680, 570]],
+    ]
     window.canvas.shapes[0].label = "编辑后的标注"
+    window.canvas.shapes[0].points[0] = QtCore.QPointF(175, 145)
     window.setDirty()
     assert window.dirty
     window.saveFile()
     assert not window.dirty
     assert not window.actions.save.isEnabled()
-    assert read_image_json(image_path)["shapes"][0]["label"] == "编辑后的标注"
+    embedded = read_image_json(image_path)
+    assert embedded["shapes"][0]["label"] == "编辑后的标注"
+    assert [shape["points"] for shape in embedded["shapes"]] == expected_points
+    assert (embedded["imageWidth"], embedded["imageHeight"]) == (1280, 720)
+    assert embedded["imagePath"] == image_path.name
+    assert (image_path.parent / embedded["imagePath"]).resolve() == image_path.resolve()
     assert sidecar_path.exists() is save_external
     if save_external:
+        external = json.loads(sidecar_path.read_text(encoding="utf-8"))
+        assert external["shapes"][0]["label"] == "编辑后的标注"
+        assert [shape["points"] for shape in external["shapes"]] == expected_points
+        assert (external["imageWidth"], external["imageHeight"]) == (1280, 720)
         assert (
-            json.loads(sidecar_path.read_text(encoding="utf-8"))["shapes"][0]["label"]
-            == "编辑后的标注"
-        )
+            sidecar_path.parent / external["imagePath"]
+        ).resolve() == image_path.resolve()
     window.loadFile(str(other_path))
     _process_events(app)
     assert window.filename == str(other_path)
@@ -455,6 +468,12 @@ def test_main_window_edit_save_switch_and_reopen(annotation_window, save_externa
     _process_events(app)
     assert window.filename == str(image_path)
     assert [shape.label for shape in window.canvas.shapes] == ["编辑后的标注", "缺陷-B"]
+    assert [
+        [list((p.x(), p.y())) for p in shape.points] for shape in window.canvas.shapes
+    ] == expected_points
+    assert (window.image.width(), window.image.height()) == (1280, 720)
+    assert Path(window.imagePath).resolve() == image_path.resolve()
+    assert window.labelFile.imagePath == image_path.name
     window.canvas.shapes[1].label = "再次编辑"
     window.setDirty()
     window.saveFile()
@@ -464,6 +483,15 @@ def test_main_window_edit_save_switch_and_reopen(annotation_window, save_externa
         "编辑后的标注",
         "再次编辑",
     ]
+    assert [
+        [list((p.x(), p.y())) for p in shape.points] for shape in window.canvas.shapes
+    ] == expected_points
+    assert (window.image.width(), window.image.height()) == (1280, 720)
+    assert Path(window.imagePath).resolve() == image_path.resolve()
+    saved = read_image_json(image_path)
+    assert [shape["points"] for shape in saved["shapes"]] == expected_points
+    assert (saved["imageWidth"], saved["imageHeight"]) == (1280, 720)
+    assert saved["imagePath"] == image_path.name
 
 
 @pytest.mark.parametrize("save_external", [True, False])
@@ -590,6 +618,10 @@ def test_main_window_manual_save_keeps_custom_sidecar(annotation_window):
 
     app, window, image_path, sidecar_path, other_path = annotation_window
     custom_path = image_path.parent / "labels" / "custom.json"
+    expected_points = [
+        [[150, 130], [530, 130], [530, 460], [150, 460]],
+        [[680, 190], [1080, 190], [1080, 570], [680, 570]],
+    ]
     window.canvas.shapes[0].label = "另存数据"
     window.setDirty()
     window._saveFile(str(custom_path))
@@ -598,13 +630,26 @@ def test_main_window_manual_save_keeps_custom_sidecar(annotation_window):
     window.setDirty()
     window.saveFile()
     assert not window.dirty
+    external = json.loads(custom_path.read_text(encoding="utf-8"))
+    assert external["shapes"][0]["label"] == "后续保存"
+    assert not Path(external["imagePath"]).is_absolute()
     assert (
-        json.loads(custom_path.read_text(encoding="utf-8"))["shapes"][0]["label"]
-        == "后续保存"
-    )
+        custom_path.parent / external["imagePath"]
+    ).resolve() == image_path.resolve()
+    assert [shape["points"] for shape in external["shapes"]] == expected_points
+    assert (external["imageWidth"], external["imageHeight"]) == (1280, 720)
     assert sidecar_path.read_bytes() == first_default
-    assert read_image_json(image_path)["shapes"][0]["label"] == "后续保存"
+    embedded = read_image_json(image_path)
+    assert embedded["shapes"][0]["label"] == "后续保存"
+    assert embedded["imagePath"] == image_path.name
+    assert [shape["points"] for shape in embedded["shapes"]] == expected_points
+    assert (embedded["imageWidth"], embedded["imageHeight"]) == (1280, 720)
     window.loadFile(str(other_path))
     window.loadFile(str(image_path))
     _process_events(app)
     assert window.canvas.shapes[0].label == "后续保存"
+    assert Path(window.imagePath).resolve() == image_path.resolve()
+    assert (window.image.width(), window.image.height()) == (1280, 720)
+    assert [
+        [list((p.x(), p.y())) for p in shape.points] for shape in window.canvas.shapes
+    ] == expected_points
