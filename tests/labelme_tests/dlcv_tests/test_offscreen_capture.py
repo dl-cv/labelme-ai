@@ -43,3 +43,5 @@ def test_offscreen_capture_uses_real_annotation(tmp_path):
         with Image.open(file) as image:
             assert image.size[0] > 200 and image.size[1] > 200
             assert image.getbbox() is not None
+            if file.name == "主窗口.png":
+                assert image.size == (1920, 1080)

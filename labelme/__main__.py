@@ -312,6 +312,13 @@ def render_screenshots(filename, output_dir):
         try:
             win.resize(1920, 1080)
             win.show()  # offscreen 平台不创建桌面窗口
+            if app.platformName() != "offscreen":
+                available = win.screen().availableGeometry()
+                frame_size = win.frameGeometry().size() - win.size()
+                win.resize(win.size().boundedTo(available.size() - frame_size))
+                frame = win.frameGeometry()
+                frame.moveCenter(available.center())
+                win.move(frame.topLeft())
             for _ in range(5):
                 app.processEvents()
             if (
