@@ -1,13 +1,30 @@
 import os
 from pathlib import Path
 
+from dlcv_core.image_json import ImageJsonError, UnsupportedImageFormatError
+
 import natsort
 from ordered_set import OrderedSet
 from qtpy import QtCore, QtWidgets, QtGui
 from qtpy.QtCore import Qt
 
 from labelme.dlcv.dlcv_translator import dlcv_tr
+from labelme.dlcv.label_file import has_image_json
 from labelme.dlcv.store import STORE
+
+
+def _has_embedded_annotation(image_path):
+    try:
+        return has_image_json(image_path)
+    except UnsupportedImageFormatError:
+        return False
+    except (ImageJsonError, OSError) as exc:
+        from labelme.dlcv.utils_func import notification, ToastPreset
+
+        notification(
+            dlcv_tr("读取标注失败"), f"{image_path}: {exc}", ToastPreset.ERROR
+        )
+        return False
 
 
 class FileTreeItem(QtWidgets.QTreeWidgetItem):
@@ -168,7 +185,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             # 仍走项目 get_json_path（2D/3D/2.5D 规则不同），仅存在性用 name_set
             json_path = proj_manager.get_json_path(item_path)
             json_name = os.path.basename(json_path).lower()
-            checked = json_name in name_set_lower
+            checked = json_name in name_set_lower or _has_embedded_annotation(item_path)
             file_items.append([item_name, item_path, checked])
 
         # 对收集的项目进行自然排序
@@ -281,7 +298,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             json_path = proj_manager.get_json_path(img_path)
             json_dir = os.path.dirname(json_path)
             json_name = os.path.basename(json_path).lower()
-            checked = json_name in _names_lower(json_dir)
+            checked = json_name in _names_lower(json_dir) or _has_embedded_annotation(img_path)
             file_item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
 
     def delete_item(self, items: list[FileTreeItem]):
@@ -425,12 +442,13 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         if search_text and search_text not in img_path:
             return False
 
-        json_path = STORE.main_window.proj_manager.get_json_path(img_path)
-        is_annotated = os.path.exists(json_path)
-
-        # 两个都没勾 = 不筛选标注状态，全部显示
-        if not show_annotated and not show_unannotated:
+        # 不限制标注状态时，仅应用文本搜索，不读取图片或 JSON。
+        if show_annotated == show_unannotated:
             return True
+
+        json_path = STORE.main_window.proj_manager.get_json_path(img_path)
+        is_annotated = os.path.exists(json_path) or _has_embedded_annotation(img_path)
+
         # 只勾了已标注
         if show_annotated and not show_unannotated:
             return is_annotated
@@ -635,6 +653,7 @@ class FileTreeWidget(QtWidgets.QWidget):
         self.search_box.textChanged.connect(self._on_text_changed)
         # 删除请求在当前组件内处理
         self.tree_widget.sig_delete_requested.connect(self._on_delete_requested)
+        self.tree_widget.itemChanged.connect(self._on_item_changed)
         # 监听标注状态复选框变化
         self.show_annotated_checkbox.stateChanged.connect(
             self._on_filter_changed)
@@ -704,6 +723,18 @@ class FileTreeWidget(QtWidgets.QWidget):
     def _on_filter_changed(self, state):
         """处理标注状态复选框变化"""
         self._apply_filters()
+
+    def _on_item_changed(self, item, column):
+        show_annotated = self.show_annotated_checkbox.isChecked()
+        show_unannotated = self.show_unannotated_checkbox.isChecked()
+        if show_annotated == show_unannotated:
+            return
+        img_path = item.get_path()
+        if img_path in self.tree_widget._file_items:
+            item.setHidden(not self.tree_widget._should_show_item(
+                img_path, self.search_box.text().strip(),
+                show_annotated, show_unannotated,
+            ))
 
     def _apply_filters(self):
         """应用当前所有过滤条件"""

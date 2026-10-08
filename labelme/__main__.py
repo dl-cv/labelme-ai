@@ -40,6 +40,10 @@ def main():
         help="在离屏模式下将真实界面绘制到指定目录（需要提供图片路径）",
     )
     parser.add_argument(
+        "--screenshot-clear-group", action="store_true",
+        help="在临时副本中验证两图整组清空（仅用于 --screenshot-output）",
+    )
+    parser.add_argument(
         "--logger-level",
         default="debug",
         choices=["debug", "info", "warning", "fatal", "error"],
@@ -122,12 +126,19 @@ def main():
         default=argparse.SUPPRESS,
     )
     args = parser.parse_args()
+    if args.screenshot_clear_group and args.screenshot_output is None:
+        parser.error("--screenshot-clear-group 必须与 --screenshot-output 一起使用")
     if args.screenshot_output is not None:
         if not args.filename or args.output or args.reset_config:
             parser.error(
                 "截图模式需要图片路径，且不能与 --output 或 --reset-config 一起使用"
             )
-        render_screenshots(args.filename, args.screenshot_output)
+        if args.screenshot_clear_group:
+            # 清空校验失败直接退出，不弹出等待交互的异常对话框。
+            sys.excepthook = sys.__excepthook__
+        render_screenshots(
+            args.filename, args.screenshot_output, args.screenshot_clear_group
+        )
         return
 
     if args.version:
@@ -159,6 +170,7 @@ def main():
 
     config_from_args = args.__dict__
     config_from_args.pop("version")
+    config_from_args.pop("screenshot_clear_group")
     reset_config = config_from_args.pop("reset_config")
 
     # extra 支持 dva 文件
@@ -242,8 +254,9 @@ def main():
     sys.exit()
 
 
-def render_screenshots(filename, output_dir):
+def render_screenshots(filename, output_dir, clear_group=False):
     """使用正式主窗离屏绘制隔离数据，不启动外部服务。"""
+    import json
     import shutil
     import tempfile
 
@@ -260,8 +273,42 @@ def render_screenshots(filename, output_dir):
     if not output_dir.is_dir():
         raise NotADirectoryError(output_dir)
     names = ("主窗口.png", "设置面板.png", "标注页.png")
-    if any((output_dir / name).exists() for name in names):
+    extra_names = ("清空前主窗口.png", "清空验证.json") if clear_group else ()
+    if any((output_dir / name).exists() for name in names + extra_names):
         raise FileExistsError("截图文件已存在，请选择空目录")
+
+    image_paths = [source]
+    if clear_group:
+        from dlcv_core.image_json import has_image_json
+        from labelme.dlcv.label_file import LabelFile, _collect_image_paths
+
+        label_file = LabelFile(str(source))
+        image_paths = [
+            path.resolve(strict=True)
+            for path in _collect_image_paths(source, label_file.otherData)
+        ]
+        if len(image_paths) != 2 or len(set(image_paths)) != 2:
+            raise ValueError("清空校验需要同一组中的两张图片")
+        for path in image_paths:
+            if path.parent != source.parent:
+                raise ValueError("清空校验只接受同目录组图片")
+            sidecar = path.with_suffix(".json").resolve(strict=True)
+            if sidecar.parent != source.parent:
+                raise ValueError("清空校验只接受同目录 JSON")
+            member = LabelFile(str(path))
+            if Path(member.imagePath).is_absolute() or any(
+                item.parent != Path(".")
+                for item in _collect_image_paths(Path(path.name), member.otherData)
+            ):
+                raise ValueError("清空校验的组名单及图片路径必须使用同目录文件名")
+            members = {
+                item.resolve(strict=True)
+                for item in _collect_image_paths(path, member.otherData)
+            }
+            if not members.issubset(image_paths) or (
+                path.parent / member.imagePath
+            ).resolve(strict=True) != path:
+                raise ValueError("图片及其标注必须属于同一目录中的两图组")
 
     # Qt 按类名查找主窗翻译，离屏主窗沿用 MainWindow 名称。
     BaseMainWindow = globals()["MainWindow"]
@@ -284,12 +331,17 @@ def render_screenshots(filename, output_dir):
         ):
             os.environ[key] = str(temp_path)
         copied = temp_path / source.name
-        shutil.copy2(source, copied)
-        shutil.copy2(annotation, temp_path / annotation.name)
+        for path in image_paths:
+            shutil.copy2(path, temp_path / path.name)
+            sidecar = path.with_suffix(".json")
+            shutil.copy2(sidecar, temp_path / sidecar.name)
         QtCore.QSettings.setDefaultFormat(QtCore.QSettings.IniFormat)
         for scope in (QtCore.QSettings.UserScope, QtCore.QSettings.SystemScope):
             QtCore.QSettings.setPath(QtCore.QSettings.IniFormat, scope, str(temp_path))
         config = get_config(str(temp_path / ".labelmerc"), {})
+        if clear_group:
+            # 加载时自动保存会更新组名单，验收副本从首次加载起禁用自动保存。
+            config["auto_save"] = False
         language_file = temp_path / "dlcv" / "language.txt"
         language_file.parent.mkdir(parents=True, exist_ok=True)
         language_file.write_text("zh-Hans", encoding="utf-8")
@@ -312,6 +364,13 @@ def render_screenshots(filename, output_dir):
         try:
             win.resize(1920, 1080)
             win.show()  # offscreen 平台不创建桌面窗口
+            if app.platformName() != "offscreen":
+                available = win.screen().availableGeometry()
+                frame_size = win.frameGeometry().size() - win.size()
+                win.resize(win.size().boundedTo(available.size() - frame_size))
+                frame = win.frameGeometry()
+                frame.moveCenter(available.center())
+                win.move(frame.topLeft())
             for _ in range(5):
                 app.processEvents()
             if (
@@ -330,6 +389,67 @@ def render_screenshots(filename, output_dir):
                 if image.isNull() or not image.save(str(output_dir / name)):
                     raise RuntimeError(f"界面绘制失败: {name}")
 
+            if clear_group:
+                win._config["auto_save"] = False
+                win.actions.saveAuto.setChecked(False)
+                win.fileListWidget.set_root_dir(str(temp_path))
+                results = []
+                for path in image_paths:
+                    image_path = temp_path / path.name
+                    if (
+                        not win.loadFile(str(image_path))
+                        or win.filename != str(image_path)
+                    ):
+                        raise RuntimeError(f"组图片未能加载: {path.name}")
+                    count = len(win.canvas.shapes)
+                    items = win.fileListWidget.findItems(str(image_path))
+                    if not count or not win.hasLabelFile() or not items or any(
+                        item.checkState(0) != QtCore.Qt.Checked for item in items
+                    ):
+                        raise RuntimeError(f"清空前标注或文件树状态错误: {path.name}")
+                    results.append({"name": path.name, "before_label_count": count})
+                if not win.loadFile(str(copied)):
+                    raise RuntimeError("清空前首图未能加载")
+                app.processEvents()
+                capture(win, "清空前主窗口.png")
+                win.canvas.selectShapes(win.canvas.shapes)
+                win.deleteSelectedShape()
+                if not win.saveFile():
+                    raise RuntimeError("整组清空保存失败")
+                for result in results:
+                    image_path = temp_path / result["name"]
+                    result["embedded_json_exists"] = has_image_json(image_path)
+                    result["external_json_exists"] = image_path.with_suffix(
+                        ".json"
+                    ).exists()
+                    if (
+                        not win.loadFile(str(image_path))
+                        or win.filename != str(image_path)
+                    ):
+                        raise RuntimeError(f"清空后组图片未能重开: {result['name']}")
+                    app.processEvents()
+                    result["reopened_label_count"] = len(win.canvas.shapes)
+                    result["has_label_file"] = win.hasLabelFile()
+                    items = win.fileListWidget.findItems(str(image_path))
+                    result["file_tree_checked"] = any(
+                        item.checkState(0) != QtCore.Qt.Unchecked for item in items
+                    )
+                    result["success"] = bool(items) and not any((
+                        result["embedded_json_exists"], result["external_json_exists"],
+                        result["reopened_label_count"], result["has_label_file"],
+                        result["file_tree_checked"],
+                    ))
+                success = all(result["success"] for result in results)
+                (output_dir / "清空验证.json").write_text(
+                    json.dumps({"success": success, "images": results},
+                               ensure_ascii=False, indent=2), encoding="utf-8",
+                )
+                if not success:
+                    raise RuntimeError("整组清空校验失败，详见清空验证.json")
+                if not win.loadFile(str(copied)):
+                    raise RuntimeError("清空后首图未能加载")
+                app.processEvents()
+
             capture(win, names[0])
             capture(win.canvas, names[2])
             for dock in (win.flag_dock, win.label_dock, win.shape_dock,
@@ -338,6 +458,8 @@ def render_screenshots(filename, output_dir):
             app.processEvents()
             capture(win.setting_dock, names[1])
         finally:
+            if clear_group:
+                win.setClean()
             win.close()
             app.processEvents()
             STORE.q_translator = None

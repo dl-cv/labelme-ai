@@ -96,7 +96,7 @@ class Canvas(QtWidgets.QWidget):
         # Menus:
         # 0: right-click without selection and dragging of shapes
         # 1: right-click with selection and dragging of shapes
-        self.menus = (QtWidgets.QMenu(), QtWidgets.QMenu())
+        self.menus = (QtWidgets.QMenu(self), QtWidgets.QMenu(self))
         # Set widget options.
         self.setMouseTracking(True)
         self.setFocusPolicy(QtCore.Qt.WheelFocus)
