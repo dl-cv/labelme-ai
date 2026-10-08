@@ -22,7 +22,7 @@ def test_package_requires_core_with_image_json(monkeypatch):
     requirements = [Requirement(value) for value in metadata["install_requires"]]
     core = [value for value in requirements if value.name == "dlcv-core"]
     assert len(core) == 1
-    assert core[0].specifier == SpecifierSet(">=2026.10.3.1a0")
-    assert not core[0].specifier.contains("2026.10.1.0")
-    assert core[0].specifier.contains("2026.10.3.1a0")
-    assert core[0].specifier.contains("2026.10.3.1")
+    assert core[0].specifier == SpecifierSet(">=2026.10.8.6a0")
+    assert not core[0].specifier.contains("2026.10.8.5a0")
+    assert core[0].specifier.contains("2026.10.8.6a0")
+    assert core[0].specifier.contains("2026.10.8.6")
