@@ -1301,6 +1301,14 @@ class MainWindow(QtWidgets.QMainWindow):
         item = items[0]
 
         if not self.mayContinue():
+            current_items = self.fileListWidget.findItems(str(self.filename), Qt.MatchExactly)
+            if current_items:
+                current = current_items[0]
+                view = self.fileListWidget
+                if isinstance(current, QtWidgets.QTreeWidgetItem):
+                    view = current.treeWidget()
+                with QtCore.QSignalBlocker(view):
+                    view.setCurrentItem(current)
             return
 
         currIndex = self.imageList.index(str(item.text()))

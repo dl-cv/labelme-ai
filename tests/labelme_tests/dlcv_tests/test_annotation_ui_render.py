@@ -863,3 +863,75 @@ def test_main_window_clear_failure_keeps_both_sidecars_and_edits(
     assert window.saveFile()
     assert not default_path.exists() and not custom_path.exists()
     assert read_image_json(image_path) is None
+
+
+@pytest.mark.parametrize("path_style", ["native", "posix"])
+def test_main_window_failed_tree_selection_restores_current_and_retries(
+    annotation_window, monkeypatch, path_style
+):
+    """直接选择文件树节点，保存失败时恢复实际选择，恢复写权限后再次切图。"""
+    import stat
+    from dlcv_core.image_json import read_image_json
+
+    app, window, image_path, _, other_path = annotation_window
+    tree = window.fileListWidget
+    original_item = tree.findItems(str(image_path))[0]
+    other_item = tree.findItems(str(other_path))[0]
+    window.setClean()
+    tree.setCurrentItem(original_item)
+    window.loadFile(str(image_path) if path_style == "native" else image_path.as_posix())
+    assert tree.currentItem() is original_item
+    assert tree.selectedItems() == [original_item]
+    errors = []
+    questions = []
+    monkeypatch.setattr(window, "errorMessage", lambda *args: errors.append(args))
+
+    def choose_save(*args):
+        questions.append(True)
+        return QtWidgets.QMessageBox.Save
+
+    monkeypatch.setattr(QtWidgets.QMessageBox, "question", choose_save)
+    window.canvas.shapes[0].label = "列表切图失败保留编辑"
+    window.canvas.shapes[0].points[0] = QtCore.QPointF(175, 145)
+    window.setDirty()
+    before_shapes = [
+        (shape.label, [(p.x(), p.y()) for p in shape.points])
+        for shape in window.canvas.shapes
+    ]
+    before_image = window.image.copy()
+    before_bytes = image_path.read_bytes()
+    mode = image_path.stat().st_mode
+    try:
+        image_path.chmod(stat.S_IREAD)
+        tree.setCurrentItem(other_item)
+        _process_events(app)
+        assert len(questions) == 1 and len(errors) == 1
+        assert Path(window.filename).resolve() == image_path.resolve()
+        assert tree.currentItem() is original_item
+        assert tree.selectedItems() == [original_item]
+        assert not other_item.isSelected()
+        assert window.image == before_image
+        assert window.dirty and window.actions.save.isEnabled()
+        assert [
+            (shape.label, [(p.x(), p.y()) for p in shape.points])
+            for shape in window.canvas.shapes
+        ] == before_shapes
+        assert image_path.read_bytes() == before_bytes
+    finally:
+        image_path.chmod(mode)
+
+    tree.setCurrentItem(other_item)
+    _process_events(app)
+    assert len(questions) == 2 and len(errors) == 1
+    assert tree.currentItem() is other_item
+    assert tree.selectedItems() == [other_item]
+    assert Path(window.filename).resolve() == other_path.resolve()
+    assert window.canvas.shapes == []
+    # 既有 loadFile 在加载结束调用 setDirty；上一图是否保存由实际内嵌内容证明。
+    assert window.dirty
+    saved = read_image_json(image_path)
+    assert saved["shapes"][0]["label"] == "列表切图失败保留编辑"
+    assert [shape["points"] for shape in saved["shapes"]] == [
+        [list(point) for point in points] for _, points in before_shapes
+    ]
+    assert (saved["imageWidth"], saved["imageHeight"]) == (1280, 720)
