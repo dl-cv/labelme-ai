@@ -61,6 +61,7 @@ from labelme.dlcv.widget.setting_dock import (
 )
 from labelme.dlcv.canvas import CURSOR_DRAW
 from labelme.dlcv.label_file import (
+    _collect_image_paths,
     remove_image_annotations,
     select_annotation_source,
 )
@@ -968,7 +969,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
         # 空标注时同时清理图片内 JSON 和旧的外部 JSON。
         if not shapes and not any(flags.values()):
             label_file = filename
-            image_paths = [Path(self.filename)]
+            image_paths = _collect_image_paths(Path(self.filename), self.otherData)
             for image_name in self.proj_manager.get_img_name_list(self.filename):
                 image_paths.append(Path(self.filename).parent / image_name)
             try:
@@ -982,26 +983,11 @@ class MainWindow(CopyPasteMixin, MainWindow):
                 )
                 return False
             if removed_paths:
-                items = self.fileListWidget.findItems(self.filename, Qt.MatchContains)
-                for item in items:
-                    item.setCheckState(Qt.Unchecked)
-                logger.info(f"删除标注：{', '.join(removed_paths)}")
-            # 如果是2.5d模式，则需要更新所有使用该JSON的图片的勾选状态
-            if self.is_2_5d:
-                # 从映射中查找完整路径
-                json_name = os.path.basename(label_file)
-                json_dir = os.path.dirname(label_file)  # 获取JSON文件所在目录
-                proj_manager = self.proj_manager.o2_5d_manager
-                # 只查找同一目录下使用该JSON的完整路径
-                img_paths = [img_path for img_path, json_file in proj_manager._file_to_json.items()
-                            if json_file == json_name and os.path.dirname(img_path) == json_dir]
-                for img_path in img_paths:
-                    # 标准化路径格式
-                    img_path = str(Path(img_path).absolute().as_posix())
-                    items = self.fileListWidget.findItems(img_path, Qt.MatchExactly)
+                for image_path in image_paths:
+                    items = self.fileListWidget.findItems(str(image_path), Qt.MatchExactly)
                     for item in items:
                         item.setCheckState(Qt.Unchecked)
-            # extra End
+                logger.info(f"删除标注：{', '.join(removed_paths)}")
             # 实时更新统计信息
             if hasattr(self, "label_count_dock"):
                 self.label_count_dock.count_labels_in_file([], {})

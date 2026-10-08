@@ -783,6 +783,45 @@ def test_main_window_clear_default_and_custom_sidecars(annotation_window, save_e
     assert not window.hasLabelFile()
 
 
+@pytest.mark.parametrize("group_field", ["img_name_list", "image_path_list"])
+@pytest.mark.parametrize("save_external", [True, False])
+def test_main_window_clear_stored_image_group(
+    annotation_window, group_field, save_external
+):
+    from dlcv_core.image_json import has_image_json, read_image_json
+    from labelme.dlcv.label_file import LabelFile
+
+    app, window, image_path, _, other_path = annotation_window
+    images = (image_path, other_path)
+    window.setting_dock.parameter.child("proj_setting", "save_external_json").setValue(
+        save_external
+    )
+    data = read_image_json(image_path)
+    for path in images:
+        LabelFile().save(
+            filename=str(path.with_suffix(".json")),
+            shapes=data["shapes"], imagePath=path.name,
+            imageHeight=data["imageHeight"], imageWidth=data["imageWidth"],
+            flags={}, otherData={group_field: [image.name for image in images]},
+            save_external_json=save_external,
+        )
+    window.loadFile(str(image_path))
+    assert window.otherData[group_field] == [image.name for image in images]
+    window.canvas.selectShapes(window.canvas.shapes)
+    window.deleteSelectedShape()
+    assert window.saveFile()
+    assert not window.dirty
+    for path in images:
+        assert not has_image_json(path)
+        assert not path.with_suffix(".json").exists()
+        items = window.fileListWidget.findItems(str(path))
+        assert all(item.checkState(0) == QtCore.Qt.Unchecked for item in items)
+        window.loadFile(str(path))
+        _process_events(app)
+        assert window.canvas.shapes == []
+        assert not window.hasLabelFile()
+
+
 @pytest.mark.parametrize("failure", ["corrupt", "missing"])
 def test_main_window_and_file_tree_report_annotation_read_failure(
     annotation_window, monkeypatch, failure

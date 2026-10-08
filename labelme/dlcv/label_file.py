@@ -164,6 +164,8 @@ def remove_image_annotations(image_paths, sidecar_path, default_sidecar_path=Non
     for image_path in image_paths:
         image_path = Path(image_path)
         unique_paths.setdefault(_path_key(image_path), image_path)
+        image_sidecar = image_path.with_suffix(".json")
+        sidecar_paths.setdefault(_path_key(image_sidecar), image_sidecar)
 
     try:
         for image_path in unique_paths.values():

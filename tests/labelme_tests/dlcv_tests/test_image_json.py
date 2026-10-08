@@ -472,6 +472,7 @@ def _empty_save_window(image_path, sidecar_path, image_names):
         labelList=[],
         flag_widget=SimpleNamespace(count=lambda: 0),
         filename=str(image_path),
+        otherData={},
         proj_manager=SimpleNamespace(
             get_img_name_list=lambda _filename: list(image_names)
         ),
@@ -586,6 +587,28 @@ def test_failed_multi_image_clear_rolls_back_images_and_keeps_sidecar(
         for path in tmp_path.iterdir()
         if path.suffix in {".candidate", ".backup", ".tmp"}
     ]
+
+
+def test_group_sidecar_clear_failure_restores_all_originals(tmp_path, monkeypatch):
+    from labelme.dlcv import label_file as module
+
+    images = [tmp_path / "first.png", tmp_path / "second.png"]
+    for image in images:
+        _save_image(image)
+        _save_label(LabelFile(), image, label="原标注")
+    sidecars = [image.with_suffix(".json") for image in images]
+    originals = {path: path.read_bytes() for path in [*images, *sidecars]}
+    original_unlink = module.Path.unlink
+
+    def fail_second_sidecar(path, *args, **kwargs):
+        if path == sidecars[1]:
+            raise PermissionError("第二张图片的外部标注不可删除")
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(module.Path, "unlink", fail_second_sidecar)
+    with pytest.raises(LabelFileError, match="第二张图片"):
+        module.remove_image_annotations(images, sidecars[0])
+    assert {path: path.read_bytes() for path in originals} == originals
 
 
 @pytest.mark.parametrize("existing_sidecar", [False, True])
