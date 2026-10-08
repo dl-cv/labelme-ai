@@ -1,5 +1,6 @@
 """正式主窗的外部标注读取、切图及保存检查。"""
 
+import json
 import shutil
 from pathlib import Path
 
@@ -19,6 +20,11 @@ def sample_data(tmp_path):
     tutorial.mkdir()
     for name in ("apc2016_obj3.jpg", "apc2016_obj3.json"):
         shutil.copy2(examples / "tutorial" / name, tutorial / name)
+    # 仓库教程 JSON 自带图片数据，但 imagePath 误指向 JSON；引用临时原图。
+    tutorial_json = tutorial / "apc2016_obj3.json"
+    data = json.loads(tutorial_json.read_text(encoding="utf-8"))
+    data["imagePath"] = "apc2016_obj3.jpg"
+    tutorial_json.write_text(json.dumps(data), encoding="utf-8")
     raw = tmp_path / "raw"
     raw.mkdir()
     for image_path in annotated.glob("*.jpg"):
@@ -74,10 +80,18 @@ def test_MainWindow_open_json(qtbot, create_window, sample_data):
         sample_data / "annotated" / "2011_000003.jpg",
     ):
         assert_labelfile_sanity(str(image_path.with_suffix(".json")))
-        window = create_window(filename=str(image_path))
+        window = create_window(filename=str(image_path.with_suffix(".json")))
         _show_and_wait_image(qtbot, window)
         assert window.labelFile is not None
         assert window.canvas.shapes
+        expected = json.loads(image_path.with_suffix(".json").read_text(encoding="utf-8"))
+        assert Path(window.imagePath).resolve() == image_path.resolve()
+        assert (window.image.width(), window.image.height()) == (
+            expected["imageWidth"], expected["imageHeight"]
+        )
+        assert [
+            [[p.x(), p.y()] for p in shape.points] for shape in window.canvas.shapes
+        ] == [shape["points"] for shape in expected["shapes"]]
         window.setClean()
         window.close()
 

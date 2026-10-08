@@ -153,9 +153,11 @@ def _write_embedded_group(image_paths, data, primary_image):
     return saved_paths, unsupported_paths, failures
 
 
-def remove_image_annotations(image_paths, sidecar_path):
-    """原图片保存在内存中；清理失败时恢复已修改图片。"""
-    sidecar_path = Path(sidecar_path)
+def remove_image_annotations(image_paths, sidecar_path, default_sidecar_path=None):
+    """只清理已知标注位置；清理失败时恢复已修改内容。"""
+    sidecar_paths = {_path_key(sidecar_path): Path(sidecar_path)}
+    if default_sidecar_path is not None:
+        sidecar_paths.setdefault(_path_key(default_sidecar_path), Path(default_sidecar_path))
     originals = {}
     changed_paths = []
     unique_paths = {}
@@ -177,9 +179,11 @@ def remove_image_annotations(image_paths, sidecar_path):
         for image_path in originals:
             changed_paths.append(image_path)
             remove_image_json(image_path)
-        sidecar_existed = sidecar_path.exists()
-        if sidecar_existed:
-            sidecar_path.unlink()
+        for sidecar_path in sidecar_paths.values():
+            if sidecar_path.exists():
+                originals[sidecar_path] = BytesIO(sidecar_path.read_bytes())
+                sidecar_path.unlink()
+                changed_paths.append(sidecar_path)
     except Exception as exc:
         restore_errors = []
         for image_path in reversed(changed_paths):
@@ -196,10 +200,7 @@ def remove_image_annotations(image_paths, sidecar_path):
         for buffer in originals.values():
             buffer.close()
 
-    removed_paths = [str(path) for path in changed_paths]
-    if sidecar_existed:
-        removed_paths.insert(0, str(sidecar_path))
-    return removed_paths
+    return [str(path) for path in changed_paths]
 
 
 class LabelFile(LabelFile):

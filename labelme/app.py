@@ -2066,16 +2066,18 @@ class MainWindow(QtWidgets.QMainWindow):
         assert not self.image.isNull(), "cannot save empty image"
         if self.labelFile:
             # DL20180323 - overwrite when in directory
-            self._saveFile(self.labelFile.filename)
+            return self._saveFile(self.labelFile.filename)
         elif self.output_file:
-            self._saveFile(self.output_file)
+            if not self._saveFile(self.output_file):
+                return False
             self.close()
+            return True
         else:
-            self._saveFile(self.saveFileDialog())
+            return self._saveFile(self.saveFileDialog())
 
     def saveFileAs(self, _value=False):
         assert not self.image.isNull(), "cannot save empty image"
-        self._saveFile(self.saveFileDialog())
+        return self._saveFile(self.saveFileDialog())
 
     def saveFileDialog(self):
         caption = self.tr("%s - Choose File") % __appname__
@@ -2111,6 +2113,8 @@ class MainWindow(QtWidgets.QMainWindow):
         if filename and self.saveLabels(filename):
             self.addRecentFile(filename)
             self.setClean()
+            return True
+        return False
 
     def closeFile(self, _value=False):
         if not self.mayContinue():
@@ -2180,8 +2184,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if answer == mb.Discard:
             return True
         elif answer == mb.Save:
-            self.saveFile()
-            return True
+            return self.saveFile()
         else:  # answer == mb.Cancel
             return False
 

@@ -664,3 +664,202 @@ def test_main_window_manual_save_keeps_custom_sidecar(annotation_window):
     assert [
         [list((p.x(), p.y())) for p in shape.points] for shape in window.canvas.shapes
     ] == expected_points
+
+
+@pytest.mark.parametrize("operation", ["switch", "close", "output_file", "cancel"])
+def test_main_window_failed_save_prevents_switch_and_close(
+    annotation_window, monkeypatch, operation
+):
+    """实际只读图片保存失败后，不切图、不退出且保留完整编辑。"""
+    import stat
+
+    from dlcv_core.image_json import read_image_json
+
+    app, window, image_path, _, other_path = annotation_window
+    errors = []
+    monkeypatch.setattr(
+        window, "errorMessage", lambda title, text: errors.append((title, text))
+    )
+    monkeypatch.setattr(
+        QtWidgets.QMessageBox, "question", lambda *args: QtWidgets.QMessageBox.Save
+    )
+    if operation == "switch":
+        window.loadFile(image_path.as_posix())
+        navigate = (
+            window.openNextImg if window.imageList.index(window.filename) == 0
+            else window.openPrevImg
+        )
+    window.canvas.shapes[0].label = "保存失败保留编辑"
+    window.canvas.shapes[0].points[0] = QtCore.QPointF(175, 145)
+    window.setDirty()
+    before_shapes = [
+        (shape.label, [(p.x(), p.y()) for p in shape.points])
+        for shape in window.canvas.shapes
+    ]
+    before_image = window.image.copy()
+    before_bytes = image_path.read_bytes()
+    mode = image_path.stat().st_mode
+    try:
+        image_path.chmod(stat.S_IREAD)
+        if operation == "switch":
+            navigate()
+        elif operation == "close":
+            event = QtGui.QCloseEvent()
+            QtWidgets.QApplication.sendEvent(window, event)
+            assert not event.isAccepted()
+            assert not window.close()
+        elif operation == "output_file":
+            window.labelFile = None
+            window.output_file = str(image_path.parent / "output.json")
+            assert window.saveFile() is False
+        else:
+            window.labelFile = None
+            monkeypatch.setattr(window, "saveFileDialog", lambda: "")
+            assert window.mayContinue() is False
+        _process_events(app)
+        assert bool(errors) is (operation != "cancel")
+        assert window.isVisible()
+        assert Path(window.filename).resolve() == image_path.resolve()
+        assert window.image == before_image
+        assert window.dirty
+        assert window.actions.save.isEnabled()
+        assert [
+            (shape.label, [(p.x(), p.y()) for p in shape.points])
+            for shape in window.canvas.shapes
+        ] == before_shapes
+        assert image_path.read_bytes() == before_bytes
+    finally:
+        image_path.chmod(mode)
+
+    if operation == "cancel":
+        monkeypatch.setattr(window, "saveFileDialog", lambda: str(image_path.with_suffix(".json")))
+    assert window.saveFile()
+    assert not window.dirty
+    saved = read_image_json(image_path)
+    assert saved["shapes"][0]["label"] == "保存失败保留编辑"
+    assert [shape["points"] for shape in saved["shapes"]] == [
+        [list(point) for point in points] for _, points in before_shapes
+    ]
+    assert (saved["imageWidth"], saved["imageHeight"]) == (1280, 720)
+    if operation == "switch":
+        navigate()
+        assert Path(window.filename).resolve() == other_path.resolve()
+    else:
+        assert window.close()
+        assert not window.isVisible()
+
+
+@pytest.mark.parametrize("save_external", [True, False])
+def test_main_window_clear_default_and_custom_sidecars(annotation_window, save_external):
+    from dlcv_core.image_json import has_image_json
+
+    app, window, image_path, default_path, other_path = annotation_window
+    custom_path = image_path.parent / "labels" / "custom.json"
+    window.canvas.shapes[0].label = "另存后的标注"
+    window.setDirty()
+    assert window._saveFile(str(custom_path))
+    assert custom_path.exists() and default_path.exists()
+    window.setting_dock.parameter.child("proj_setting", "save_external_json").setValue(
+        save_external
+    )
+    tree = window.fileListWidget
+    item = tree.findItems(str(image_path))[0]
+    tree.show_annotated_checkbox.setChecked(True)
+    window.canvas.selectShapes(window.canvas.shapes)
+    window.deleteSelectedShape()
+    assert window.saveFile()
+    _process_events(app)
+    assert not custom_path.exists()
+    assert not default_path.exists()
+    assert not has_image_json(image_path)
+    assert item.checkState(0) == QtCore.Qt.Unchecked
+    assert item.isHidden()
+    assert not window.dirty
+    window.loadFile(str(other_path))
+    window.loadFile(str(image_path))
+    assert Path(window.imagePath).resolve() == image_path.resolve()
+    assert (window.image.width(), window.image.height()) == (1280, 720)
+    assert window.canvas.shapes == []
+    assert not window.hasLabelFile()
+
+
+@pytest.mark.parametrize("failure", ["corrupt", "missing"])
+def test_main_window_and_file_tree_report_annotation_read_failure(
+    annotation_window, monkeypatch, failure
+):
+    from labelme.dlcv import utils_func
+    from labelme.dlcv.file_tree_widget import _has_embedded_annotation
+
+    app, window, image_path, sidecar_path, _ = annotation_window
+    errors = []
+    monkeypatch.setattr(utils_func, "notification", lambda *args: errors.append(args))
+    sidecar_path.unlink()
+    original = image_path.read_bytes()
+    try:
+        if failure == "corrupt":
+            image_path.write_bytes(original[:16])
+        else:
+            image_path.unlink()
+        assert not window.hasLabelFile()
+        assert not _has_embedded_annotation(image_path)
+        assert len(errors) == 2
+        assert all(str(image_path) in str(args[1]) for args in errors)
+        assert all(args[2] == utils_func.ToastPreset.ERROR for args in errors)
+    finally:
+        image_path.write_bytes(original)
+
+
+def test_main_window_item_change_filters_only_changed_file(annotation_window, monkeypatch):
+    app, window, image_path, _, other_path = annotation_window
+    tree = window.fileListWidget
+    item = tree.findItems(str(image_path))[0]
+    calls = []
+    original = window.proj_manager.get_json_path
+
+    def record(img_path):
+        calls.append(Path(img_path).resolve())
+        return original(img_path)
+
+    monkeypatch.setattr(window.proj_manager, "get_json_path", record)
+    item.setCheckState(QtCore.Qt.Unchecked)
+    _process_events(app)
+    assert calls == []
+    tree._apply_filters()
+    assert calls == []
+    tree.show_annotated_checkbox.setChecked(True)
+    calls.clear()
+    item.setCheckState(QtCore.Qt.Checked)
+    _process_events(app)
+    assert calls == [image_path.resolve()]
+    assert other_path.resolve() not in calls
+
+
+def test_main_window_clear_failure_keeps_both_sidecars_and_edits(
+    annotation_window, monkeypatch
+):
+    import stat
+    from dlcv_core.image_json import read_image_json
+
+    app, window, image_path, default_path, _ = annotation_window
+    custom_path = image_path.parent / "labels" / "custom.json"
+    window.canvas.shapes[0].label = "清空前有效标注"
+    window.setDirty()
+    assert window._saveFile(str(custom_path))
+    originals = {path: path.read_bytes() for path in (image_path, default_path, custom_path)}
+    window.canvas.selectShapes(window.canvas.shapes)
+    window.deleteSelectedShape()
+    errors = []
+    monkeypatch.setattr(window, "errorMessage", lambda *args: errors.append(args))
+    mode = default_path.stat().st_mode
+    try:
+        default_path.chmod(stat.S_IREAD)
+        assert not window.saveFile()
+        assert errors and window.dirty and window.actions.save.isEnabled()
+        assert window.canvas.shapes == []
+        assert {path: path.read_bytes() for path in originals} == originals
+        assert read_image_json(image_path)["shapes"][0]["label"] == "清空前有效标注"
+    finally:
+        default_path.chmod(mode)
+    assert window.saveFile()
+    assert not default_path.exists() and not custom_path.exists()
+    assert read_image_json(image_path) is None

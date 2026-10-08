@@ -61,8 +61,6 @@ from labelme.dlcv.widget.setting_dock import (
 )
 from labelme.dlcv.canvas import CURSOR_DRAW
 from labelme.dlcv.label_file import (
-    UnsupportedImageFormatError,
-    has_image_json,
     remove_image_annotations,
     select_annotation_source,
 )
@@ -975,7 +973,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
                 image_paths.append(Path(self.filename).parent / image_name)
             try:
                 removed_paths = remove_image_annotations(
-                    image_paths, label_file
+                    image_paths, label_file, default_sidecar_path=self.getLabelFile()
                 )
             except LabelFileError as e:
                 self.errorMessage(
@@ -1311,15 +1309,9 @@ class MainWindow(CopyPasteMixin, MainWindow):
         """图片内标注和外部 JSON 均视为已有标注文件。"""
         if self.filename is None:
             return False
-        try:
-            if has_image_json(self.filename):
-                return True
-        except UnsupportedImageFormatError:
-            pass
-        except Exception:
-            logger.exception("读取图片内标注状态失败")
-            return True
-        return osp.exists(self.getLabelFile())
+        from labelme.dlcv.file_tree_widget import _has_embedded_annotation
+
+        return _has_embedded_annotation(self.filename) or osp.exists(self.getLabelFile())
 
     def get_vertical_scrollbar(self):
         return self.scrollBars[Qt.Vertical]
@@ -1395,6 +1387,21 @@ class MainWindow(CopyPasteMixin, MainWindow):
             )
             return False
 
+        # 直接打开 JSON 时，用实际标注来源解析原图，外部保存仍保留所选路径。
+        label_file = None
+        if LabelFile.is_label_file(filename):
+            label_file = filename
+            try:
+                selected_label = LabelFile(filename)
+            except LabelFileError as e:
+                self.errorMessage(self.tr("Error opening file"), str(e))
+                return False
+            source_path = Path(selected_label.filename)
+            filename = str(
+                source_path.parent / selected_label.imagePath
+                if source_path.suffix.lower() == ".json" else source_path
+            )
+
         # extra 修复加载 json 文件失败,会从文件列表【0】处重新加载
         self.filename = filename
         # extra End
@@ -1402,7 +1409,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
         # assumes same name, but json extension
         self.status(str(self.tr("Loading %s...")) % osp.basename(str(filename)))
 
-        label_file = self.getLabelFile()
+        label_file = label_file or self.getLabelFile()
         if self.output_dir:
             label_file_without_path = osp.basename(label_file)
             label_file = osp.join(self.output_dir, label_file_without_path)
