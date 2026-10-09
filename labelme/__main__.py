@@ -418,8 +418,10 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
                 win.setClean()
                 win.importDirImages(str(image_dir), load=False)
                 win.loadFile(str(copied))
-                win.canvas.shapes[0].label = "未保存验证"
-                win.setDirty()
+                win._update_item(
+                    item=win.labelList.findItemByShape(win.canvas.shapes[0]),
+                    text="未保存验证", flags=None, group_id=None, description=None,
+                )
                 errors = []
                 # 非交互检查保留失败信息，不等待弹窗输入。
                 win.errorMessage = lambda title, message: errors.append(str(message))
