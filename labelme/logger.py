@@ -10,7 +10,6 @@ if os.name == "nt":  # Windows
 
     colorama.init()
 
-from . import __appname__
 
 COLORS = {
     "WARNING": "yellow",
@@ -50,7 +49,7 @@ class ColoredFormatter(logging.Formatter):
         return logging.Formatter.format(self, record)
 
 
-logger = logging.getLogger(__appname__)
+logger = logging.getLogger("LabelmeAI")
 logger.setLevel(logging.INFO)
 
 stream_handler = logging.StreamHandler(sys.stderr)
@@ -69,7 +68,7 @@ if os.name == "nt":
     log_dir = os.environ.get(
         "LABELME_LOG_DIR", os.path.join(appdata_dir, "dlcv")
     )
-    log_path = os.path.join(log_dir, f"{__appname__}.log")
+    log_path = os.path.join(log_dir, "LabelmeAI.log")
 
     # 大于500MB
     os.makedirs(os.path.dirname(log_path), exist_ok=True)

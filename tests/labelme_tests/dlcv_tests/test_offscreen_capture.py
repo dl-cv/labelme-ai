@@ -108,3 +108,32 @@ def test_offscreen_capture_clears_two_image_group(tmp_path):
         with Image.open(output / name) as image:
             assert image.size == (1920, 1080)
             assert image.getbbox() is not None
+
+
+def test_offscreen_readonly_save_keeps_failure_and_dirty_edits(tmp_path):
+    """正式主窗内嵌写入失败时保留编辑，外部备份不能改判成功。"""
+    if os.name != "nt":
+        import pytest
+        pytest.skip("使用 Windows 只读文件属性")
+    repository = Path(__file__).resolve().parents[3]
+    sample = repository / "examples/instance_segmentation/data_annotated/2011_000003.jpg"
+    original = sample.read_bytes()
+    output = tmp_path / "screenshots"
+    output.mkdir()
+    result = subprocess.run(
+        [sys.executable, "-m", "labelme", "--screenshot-output", str(output),
+         "--screenshot-readonly-save", str(sample)],
+        cwd=repository, env=os.environ.copy(), capture_output=True, text=True,
+        encoding="utf-8", timeout=90,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = json.loads((output / "只读保存验证.json").read_text(encoding="utf-8"))
+    assert report["success"] is True
+    assert report["window_title"].startswith("智能标注 - ")
+    assert report["save_returned"] is False
+    assert report["edited_label"] == "未保存验证"
+    assert report["embedded_annotation"] is None
+    assert report["image_unchanged"] and report["image_readonly"]
+    assert report["dirty"] is True
+    assert report["errors"] and "Permission denied" in report["errors"][0]
+    assert sample.read_bytes() == original

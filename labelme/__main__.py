@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 # 离屏模式必须在首次加载 Qt 之前指定平台。
-if "--screenshot-output" in sys.argv:
+if "--screenshot-output" in sys.argv and "--screenshot-native" not in sys.argv:
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 # 判断是否是 python 启动
@@ -42,6 +42,14 @@ def main():
     parser.add_argument(
         "--screenshot-clear-group", action="store_true",
         help="在临时副本中验证两图整组清空（仅用于 --screenshot-output）",
+    )
+    parser.add_argument(
+        "--screenshot-readonly-save", action="store_true",
+        help="在临时只读图片上验证失败与编辑保留（需要 --screenshot-output）",
+    )
+    parser.add_argument(
+        "--screenshot-native", action="store_true",
+        help="保留真实主窗口供隔离桌面采集（需要 --screenshot-output）",
     )
     parser.add_argument(
         "--logger-level",
@@ -128,16 +136,21 @@ def main():
     args = parser.parse_args()
     if args.screenshot_clear_group and args.screenshot_output is None:
         parser.error("--screenshot-clear-group 必须与 --screenshot-output 一起使用")
+    if (args.screenshot_readonly_save or args.screenshot_native) and args.screenshot_output is None:
+        parser.error("截图验证参数需要 --screenshot-output")
+    if args.screenshot_readonly_save and args.screenshot_clear_group:
+        parser.error("只读保存验证不能与整组清空同时使用")
     if args.screenshot_output is not None:
         if not args.filename or args.output or args.reset_config:
             parser.error(
                 "截图模式需要图片路径，且不能与 --output 或 --reset-config 一起使用"
             )
-        if args.screenshot_clear_group:
+        if args.screenshot_clear_group or args.screenshot_readonly_save:
             # 清空校验失败直接退出，不弹出等待交互的异常对话框。
             sys.excepthook = sys.__excepthook__
         render_screenshots(
-            args.filename, args.screenshot_output, args.screenshot_clear_group
+            args.filename, args.screenshot_output, args.screenshot_clear_group,
+            readonly_save=args.screenshot_readonly_save, native=args.screenshot_native,
         )
         return
 
@@ -254,10 +267,11 @@ def main():
     sys.exit()
 
 
-def render_screenshots(filename, output_dir, clear_group=False):
-    """使用正式主窗离屏绘制隔离数据，不启动外部服务。"""
+def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save=False, native=False):
+    """通过正式主窗检查隔离副本，不启动外部服务。"""
     import json
     import shutil
+    import stat
     import tempfile
 
     from qtpy import QtGui
@@ -274,6 +288,8 @@ def render_screenshots(filename, output_dir, clear_group=False):
         raise NotADirectoryError(output_dir)
     names = ("主窗口.png", "设置面板.png", "标注页.png")
     extra_names = ("清空前主窗口.png", "清空验证.json") if clear_group else ()
+    if readonly_save:
+        extra_names += ("只读保存验证.json",)
     if any((output_dir / name).exists() for name in names + extra_names):
         raise FileExistsError("截图文件已存在，请选择空目录")
 
@@ -330,17 +346,19 @@ def render_screenshots(filename, output_dir, clear_group=False):
             "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "XDG_CONFIG_HOME"
         ):
             os.environ[key] = str(temp_path)
-        copied = temp_path / source.name
+        image_dir = temp_path / "images" if readonly_save else temp_path
+        image_dir.mkdir(exist_ok=True)
+        copied = image_dir / source.name
         for path in image_paths:
-            shutil.copy2(path, temp_path / path.name)
+            shutil.copy2(path, image_dir / path.name)
             sidecar = path.with_suffix(".json")
-            shutil.copy2(sidecar, temp_path / sidecar.name)
+            shutil.copy2(sidecar, image_dir / sidecar.name)
         QtCore.QSettings.setDefaultFormat(QtCore.QSettings.IniFormat)
         for scope in (QtCore.QSettings.UserScope, QtCore.QSettings.SystemScope):
             QtCore.QSettings.setPath(QtCore.QSettings.IniFormat, scope, str(temp_path))
         config = get_config(str(temp_path / ".labelmerc"), {})
-        if clear_group:
-            # 加载时自动保存会更新组名单，验收副本从首次加载起禁用自动保存。
+        if clear_group or readonly_save:
+            # 验收副本从首次加载起禁用自动保存。
             config["auto_save"] = False
         language_file = temp_path / "dlcv" / "language.txt"
         language_file.parent.mkdir(parents=True, exist_ok=True)
@@ -360,6 +378,8 @@ def render_screenshots(filename, output_dir, clear_group=False):
                 if families:
                     app.setFont(QtGui.QFont(families[0], 10))
 
+        if readonly_save:
+            copied.chmod(stat.S_IREAD)
         win = MainWindow(config=config, filename=str(copied))
         try:
             win.resize(1920, 1080)
@@ -388,6 +408,42 @@ def render_screenshots(filename, output_dir, clear_group=False):
                 widget.render(image)
                 if image.isNull() or not image.save(str(output_dir / name)):
                     raise RuntimeError(f"界面绘制失败: {name}")
+
+            if readonly_save:
+                from dlcv_core.image_json import read_image_json
+                before = copied.read_bytes()
+                win.setClean()
+                win.importDirImages(str(image_dir), load=False)
+                win.loadFile(str(copied))
+                win._update_item(
+                    item=win.labelList.findItemByShape(win.canvas.shapes[0]),
+                    text="未保存验证", flags=None, group_id=None, description=None,
+                )
+                errors = []
+                # 非交互检查保留失败信息，不等待弹窗输入。
+                win.errorMessage = lambda title, message: errors.append(str(message))
+                save_result = win.saveFile()
+                result = {
+                    "window_title": win.windowTitle(),
+                    "save_returned": save_result,
+                    "edited_label": win.canvas.shapes[0].label,
+                    "image_unchanged": copied.read_bytes() == before,
+                    "image_readonly": not bool(copied.stat().st_mode & stat.S_IWRITE),
+                    "embedded_annotation": read_image_json(copied),
+                    "dirty": win.dirty,
+                    "errors": errors,
+                }
+                result["success"] = all((
+                    not save_result, win.dirty, bool(errors),
+                    result["edited_label"] == "未保存验证",
+                    result["image_unchanged"], result["image_readonly"],
+                    result["embedded_annotation"] is None,
+                ))
+                (output_dir / "只读保存验证.json").write_text(
+                    json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+                if not result["success"]:
+                    raise RuntimeError("只读保存失败处理检查未通过")
+                app.processEvents()
 
             if clear_group:
                 win._config["auto_save"] = False
@@ -450,6 +506,10 @@ def render_screenshots(filename, output_dir, clear_group=False):
                     raise RuntimeError("清空后首图未能加载")
                 app.processEvents()
 
+            if native:
+                QtCore.QTimer.singleShot(60000, app.quit)
+                app.exec_()
+                return
             capture(win, names[0])
             capture(win.canvas, names[2])
             for dock in (win.flag_dock, win.label_dock, win.shape_dock,
@@ -458,7 +518,9 @@ def render_screenshots(filename, output_dir, clear_group=False):
             app.processEvents()
             capture(win.setting_dock, names[1])
         finally:
-            if clear_group:
+            if readonly_save:
+                copied.chmod(stat.S_IREAD | stat.S_IWRITE)
+            if clear_group or readonly_save:
                 win.setClean()
             win.close()
             app.processEvents()

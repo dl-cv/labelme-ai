@@ -977,6 +977,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
                     image_paths, label_file, default_sidecar_path=self.getLabelFile()
                 )
             except LabelFileError as e:
+                logger.error(f"清理标注失败：{label_file}", exc_info=True)
                 self.errorMessage(
                     self.tr("Error saving label data"),
                     self.tr("<b>%s</b>") % e,
@@ -1076,6 +1077,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
             self.actions.save.setEnabled(False)
             return True
         except LabelFileError as e:
+            logger.error(f"保存标注失败：{filename}", exc_info=True)
             self.errorMessage(
                 self.tr("Error saving label data"), self.tr("<b>%s</b>") % e
             )

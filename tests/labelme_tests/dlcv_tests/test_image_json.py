@@ -697,8 +697,9 @@ def test_sidecar_failure_keeps_successful_embedded_updates(tmp_path, monkeypatch
 
 @pytest.mark.parametrize("save_external_json", [False, True])
 def test_auto_save_failure_preserves_dirty_edits_and_saves_backup(
-    tmp_path, monkeypatch, save_external_json
+    tmp_path, monkeypatch, save_external_json, caplog
 ):
+    """保存失败保留编辑，日志包含原始写入异常。"""
     from types import SimpleNamespace
     from qtpy import QtCore
     from labelme.dlcv import label_file as module
@@ -726,8 +727,56 @@ def test_auto_save_failure_preserves_dirty_edits_and_saves_backup(
     assert window.dirty is True
     assert window.labelFile is original_label_file
     assert errors and "最新标注已保存至外部 JSON" in errors[0][1]
+    assert "保存标注失败" in caplog.text
+    assert "Traceback" in caplog.text
+    assert str(sidecar) in caplog.text
     assert json.loads(sidecar.read_text(encoding="utf-8"))["flags"] == {"最新标记": True}
 
+
+
+@pytest.mark.parametrize("save_external_json", [False, True])
+def test_real_readonly_jpeg_failure_writes_complete_traceback(tmp_path, save_external_json):
+    """真实只读 JPG 保存失败，文件日志必须追溯到最初的图片写入调用。"""
+    import logging
+    import os
+    import stat
+    from types import SimpleNamespace
+    from qtpy import QtCore
+    from labelme.dlcv.app import MainWindow
+    from labelme.logger import logger
+
+    if os.name != "nt":
+        pytest.skip("使用 Windows 只读属性")
+    image = tmp_path / "只读图片.jpg"
+    sidecar = image.with_suffix(".json")
+    _save_image(image)
+    original = image.read_bytes()
+    original_mode = image.stat().st_mode
+    window, errors = _empty_save_window(image, sidecar, [image.name])
+    flag = SimpleNamespace(text=lambda: "最新标记", checkState=lambda: QtCore.Qt.Checked)
+    window.flag_widget = SimpleNamespace(count=lambda: 1, item=lambda index: flag)
+    window._config = {"store_data": False, "save_external_json": save_external_json}
+    window.imagePath = str(image)
+    window.imageData = None
+    window.image = SimpleNamespace(height=lambda: 16, width=lambda: 24)
+    window.dirty = True
+    window.labelFile = None
+    handler = next(h for h in logger.handlers if isinstance(h, logging.FileHandler))
+    log_path = Path(handler.baseFilename)
+    offset = log_path.stat().st_size
+    image.chmod(stat.S_IREAD)
+    try:
+        assert MainWindow.saveLabels(window, str(sidecar)) is False
+        assert window.dirty is True and errors
+        assert image.read_bytes() == original
+    finally:
+        image.chmod(original_mode)
+    handler.flush()
+    text = log_path.read_bytes()[offset:].decode("utf-8")
+    assert "保存标注失败" in text and "Traceback (most recent call last)" in text
+    assert "PermissionError" in text and "image_json.py" in text
+    assert "_write_image_buffer" in text and str(image) in text
+    assert "line " in text and "The above exception was the direct cause" in text
 
 
 def _folder_count_text(folder):

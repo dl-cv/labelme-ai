@@ -7,6 +7,8 @@ from qtpy import QtWidgets
 def test_help_menu_about_dialog_shows_runtime_version(monkeypatch, qapp, qtbot):
     from labelme import __appname__
     from labelme import __version__
+
+    assert __appname__ == "智能标注"
     from labelme.dlcv import app as app_module
 
     monkeypatch.setattr(app_module, "dlcv_tr", lambda text: text)

@@ -520,7 +520,7 @@ class LabelFile(LabelFile):
                 raise LabelFileError(
                     f"标注保存未全部完成，已更新 {len(saved_paths)} 张图片。"
                     f"{backup_message}失败文件：{failed_details}"
-                )
+                ) from failures[0][1]
             self.sidecar_path = str(sidecar_path)
             self.filename = str(
                 primary_image if primary_image in saved_paths else sidecar_path
