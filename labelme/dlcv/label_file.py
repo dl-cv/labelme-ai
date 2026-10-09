@@ -128,8 +128,12 @@ def _rebase_embedded_data(data, primary_image, image_path):
     return embedded
 
 
-def _write_embedded_group(image_paths, data, primary_image):
-    """逐图保存内嵌标注，单张失败不撤回其他图片的最新数据。"""
+def write_embedded_group(image_paths, data, primary_image):
+    """2026-10-09：图片拒绝写入后，外部标注已保存却仍提示保存失败。
+    现场拒绝写入的具体原因待确认，已用真实只读文件和读取占用复现。
+    共享保存入口必须区分可安全重读的来源：无旧内嵌时使用外部 JSON，
+    内容相同时不重写，不同时保留失败，防止重开后读取旧标注。
+    """
     saved_paths = []
     external_paths = []
     failures = []
@@ -485,6 +489,10 @@ class LabelFile(LabelFile):
         *,
         save_external_json=True,
     ):
+        """2026-10-09：图片写入受限后，成功的外部保存曾被判为整次失败。
+        此入口按实际保存来源返回结果，强制保留可重读的外部文件；
+        真正失败时保留原始异常，避免遗漏写入位置和堆栈。
+        """
         # 添加处理旋转框的方向属性
         shapes = self.saveRotationBox(shapes)
         
@@ -514,7 +522,7 @@ class LabelFile(LabelFile):
         try:
             primary_image = Path(os.path.abspath(sidecar_path.parent / imagePath))
             image_paths = _collect_image_paths(primary_image, otherData)
-            saved_paths, external_paths, failures = _write_embedded_group(
+            saved_paths, external_paths, failures = write_embedded_group(
                 image_paths, data, primary_image
             )
             # 外部文件默认共存；关闭设置后，内嵌失败仍保存外部备份。

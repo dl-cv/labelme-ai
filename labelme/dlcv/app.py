@@ -913,7 +913,11 @@ class MainWindow(CopyPasteMixin, MainWindow):
     # https://bbs.dlcv.ai/t/topic/99
     # 保存 json 的函数： 自动保存标签
     def saveLabels(self, filename: str):
-        """filename: json 文件路径"""
+        """2026-10-09 16:43：保存标注报错只弹窗，日志没有相关异常。
+        保存异常被捕获后未记录，导致无法从日志定位失败文件和调用位置；
+        本入口记录保存、清空失败的路径及完整堆栈，保留原有失败状态。
+        filename 为 JSON 文件路径。
+        """
         # extra 保存 3d 或 2.5d json
         if self.is_3d or self.is_2_5d:
             filename = self.getLabelFile()
