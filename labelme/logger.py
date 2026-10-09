@@ -63,8 +63,11 @@ logger.addHandler(stream_handler)
 
 # windows 平台
 if os.name == "nt":
+    appdata_dir = os.environ.get("APPDATA") or os.path.join(
+        os.path.expanduser("~"), "AppData", "Roaming"
+    )
     log_dir = os.environ.get(
-        "LABELME_LOG_DIR", r"C:\dlcv\Lib\site-packages\dlcv_labelme_ai"
+        "LABELME_LOG_DIR", os.path.join(appdata_dir, "dlcv")
     )
     log_path = os.path.join(log_dir, f"{__appname__}.log")
 
