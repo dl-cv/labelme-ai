@@ -346,11 +346,13 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
             "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "XDG_CONFIG_HOME"
         ):
             os.environ[key] = str(temp_path)
-        copied = temp_path / source.name
+        image_dir = temp_path / "images" if readonly_save else temp_path
+        image_dir.mkdir(exist_ok=True)
+        copied = image_dir / source.name
         for path in image_paths:
-            shutil.copy2(path, temp_path / path.name)
+            shutil.copy2(path, image_dir / path.name)
             sidecar = path.with_suffix(".json")
-            shutil.copy2(sidecar, temp_path / sidecar.name)
+            shutil.copy2(sidecar, image_dir / sidecar.name)
         QtCore.QSettings.setDefaultFormat(QtCore.QSettings.IniFormat)
         for scope in (QtCore.QSettings.UserScope, QtCore.QSettings.SystemScope):
             QtCore.QSettings.setPath(QtCore.QSettings.IniFormat, scope, str(temp_path))
@@ -411,7 +413,7 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
                 from dlcv_core.image_json import read_image_json
                 before = copied.read_bytes()
                 win.setClean()
-                win.importDirImages(str(temp_path), load=False)
+                win.importDirImages(str(image_dir), load=False)
                 win.loadFile(str(copied))
                 if read_image_json(copied) is not None:
                     raise RuntimeError("只读保存校验需要没有内嵌标注的原图片")
@@ -445,7 +447,6 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
                     json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
                 if not result["success"]:
                     raise RuntimeError("只读保存校验失败，详见只读保存验证.json")
-                win.statusBar().showMessage("只读图片标注已保存至外部 JSON，重新打开符合预期")
                 app.processEvents()
 
             if clear_group:
