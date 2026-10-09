@@ -699,6 +699,7 @@ def test_sidecar_failure_keeps_successful_embedded_updates(tmp_path, monkeypatch
 def test_auto_save_failure_preserves_dirty_edits_and_saves_backup(
     tmp_path, monkeypatch, save_external_json, caplog
 ):
+    """2026-10-09：保存异常仅弹窗；检查失败保留编辑并写入完整日志。"""
     from types import SimpleNamespace
     from qtpy import QtCore
     from labelme.dlcv import label_file as module

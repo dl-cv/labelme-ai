@@ -111,6 +111,7 @@ def test_offscreen_capture_clears_two_image_group(tmp_path):
 
 
 def test_offscreen_readonly_save_verifies_real_window_and_reopen(tmp_path):
+    """2026-10-09：只读图片保存误报；用正式主窗保存和重开确认修改有效。"""
     if os.name != "nt":
         import pytest
         pytest.skip("使用 Windows 只读文件属性")

@@ -268,7 +268,10 @@ def main():
 
 
 def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save=False, native=False):
-    """使用正式主窗离屏绘制隔离数据，不启动外部服务。"""
+    """2026-10-09：只读图片保存误报，需要实际主窗验证而不只检查写入函数。
+    在临时副本上修改、保存、重开并核查图片属性与内容，防止同类故障再次出现；
+    保留正式界面和原有显示，不启动外部服务。
+    """
     import json
     import shutil
     import stat
