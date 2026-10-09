@@ -45,7 +45,7 @@ def main():
     )
     parser.add_argument(
         "--screenshot-readonly-save", action="store_true",
-        help="在临时只读图片上验证保存与重新加载（需要 --screenshot-output）",
+        help="在临时只读图片上验证失败与编辑保留（需要 --screenshot-output）",
     )
     parser.add_argument(
         "--screenshot-native", action="store_true",
@@ -268,8 +268,8 @@ def main():
 
 
 def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save=False, native=False):
-    """2026-10-09：只读图片保存误报，需要实际主窗验证而不只检查写入函数。
-    在临时副本上修改、保存、重开并核查图片属性与内容，防止同类故障再次出现；
+    """2026-10-09：保存失败没有日志，需要实际主窗检查失败与编辑保留。
+    在临时只读副本上验证内嵌失败不能被外部备份判作成功，避免改变保存规则；
     保留正式界面和原有显示，不启动外部服务。
     """
     import json
@@ -418,38 +418,32 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
                 win.setClean()
                 win.importDirImages(str(image_dir), load=False)
                 win.loadFile(str(copied))
-                if read_image_json(copied) is not None:
-                    raise RuntimeError("只读保存校验需要没有内嵌标注的原图片")
-                win.canvas.shapes[0].label = "保存验证"
+                win.canvas.shapes[0].label = "未保存验证"
                 win.setDirty()
-                if not win.saveFile() or win.dirty:
-                    raise RuntimeError("只读图片标注保存失败")
-                if not win.loadFile(str(copied)):
-                    raise RuntimeError("保存后重新打开失败")
-                # 加载会沿用原有逻辑标为待保存，再保存一次验证连续操作。
-                if not win.saveFile() or win.dirty:
-                    raise RuntimeError("重新打开后再次保存失败")
-                items = win.fileListWidget.findItems(str(copied))
+                errors = []
+                # 非交互检查保留失败信息，不等待弹窗输入。
+                win.errorMessage = lambda title, message: errors.append(str(message))
+                save_result = win.saveFile()
                 result = {
                     "window_title": win.windowTitle(),
-                    "saved_label": win.canvas.shapes[0].label,
-                    "annotation_source": Path(win.labelFile.filename).suffix,
+                    "save_returned": save_result,
+                    "edited_label": win.canvas.shapes[0].label,
                     "image_unchanged": copied.read_bytes() == before,
-                    "file_tree_checked": bool(items) and all(
-                        item.checkState(0) == QtCore.Qt.Checked for item in items),
                     "image_readonly": not bool(copied.stat().st_mode & stat.S_IWRITE),
+                    "embedded_annotation": read_image_json(copied),
                     "dirty": win.dirty,
+                    "errors": errors,
                 }
                 result["success"] = all((
-                    result["saved_label"] == "保存验证",
-                    result["annotation_source"] == ".json",
-                    result["image_unchanged"], result["file_tree_checked"],
-                    result["image_readonly"], not result["dirty"],
+                    not save_result, win.dirty, bool(errors),
+                    result["edited_label"] == "未保存验证",
+                    result["image_unchanged"], result["image_readonly"],
+                    result["embedded_annotation"] is None,
                 ))
                 (output_dir / "只读保存验证.json").write_text(
                     json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
                 if not result["success"]:
-                    raise RuntimeError("只读保存校验失败，详见只读保存验证.json")
+                    raise RuntimeError("只读保存失败处理检查未通过")
                 app.processEvents()
 
             if clear_group:

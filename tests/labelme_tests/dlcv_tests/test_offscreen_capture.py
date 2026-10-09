@@ -110,8 +110,8 @@ def test_offscreen_capture_clears_two_image_group(tmp_path):
             assert image.getbbox() is not None
 
 
-def test_offscreen_readonly_save_verifies_real_window_and_reopen(tmp_path):
-    """2026-10-09：只读图片保存误报；用正式主窗保存和重开确认修改有效。"""
+def test_offscreen_readonly_save_keeps_failure_and_dirty_edits(tmp_path):
+    """2026-10-09：内嵌写入失败必须保留失败及编辑，实际主窗不误报成功。"""
     if os.name != "nt":
         import pytest
         pytest.skip("使用 Windows 只读文件属性")
@@ -130,7 +130,10 @@ def test_offscreen_readonly_save_verifies_real_window_and_reopen(tmp_path):
     report = json.loads((output / "只读保存验证.json").read_text(encoding="utf-8"))
     assert report["success"] is True
     assert report["window_title"].startswith("智能标注 - ")
-    assert report["saved_label"] == "保存验证" and report["annotation_source"] == ".json"
+    assert report["save_returned"] is False
+    assert report["edited_label"] == "未保存验证"
+    assert report["embedded_annotation"] is None
     assert report["image_unchanged"] and report["image_readonly"]
-    assert report["file_tree_checked"] and not report["dirty"]
+    assert report["dirty"] is True
+    assert report["errors"] and "Permission denied" in report["errors"][0]
     assert sample.read_bytes() == original

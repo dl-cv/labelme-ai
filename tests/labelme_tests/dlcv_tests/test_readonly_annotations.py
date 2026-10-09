@@ -1,5 +1,5 @@
-"""2026-10-09：只读或读取占用触发图片写入拒绝，外部标注已保存仍报错。
-以下用真实文件属性和系统文件句柄检查保存、重开及数据保留，防止误报再次出现。
+"""2026-10-09：图片内嵌写入被拒绝，外部备份不能代替保存成功。
+使用真实文件属性和系统句柄检查失败、备份及原始异常，保持原有保存规则。
 """
 
 import json
@@ -11,7 +11,7 @@ import pytest
 from PIL import Image
 from dlcv_core.image_json import read_image_json
 
-from labelme.dlcv.label_file import LabelFile, LabelFileError, select_annotation_source
+from labelme.dlcv.label_file import LabelFile, LabelFileError
 
 pytestmark = pytest.mark.skipif(os.name != "nt", reason="使用 Windows 只读文件属性")
 
@@ -40,43 +40,40 @@ def readonly_file(path):
 
 @pytest.mark.parametrize("extension", [".jpg", ".png"])
 @pytest.mark.parametrize("save_external_json", [False, True])
-def test_readonly_image_saves_and_reopens_latest_external_annotations(
-    tmp_path, extension, save_external_json, caplog
+def test_readonly_image_save_reports_failure_despite_external_backup(
+    tmp_path, extension, save_external_json
 ):
-    """2026-10-09：只读图片外部保存曾误报；用连续保存和重开确认最新标注可读。"""
+    """2026-10-09：外部文件写入不能代替内嵌成功；检查失败及原图保留。"""
     image = tmp_path / ("只读图片" + extension)
     Image.new("RGB", (24, 16), (20, 80, 160)).save(image)
     original = image.read_bytes()
     with readonly_file(image):
         for label in ("首次标注", "最新标注"):
-            saved = save_annotation(image, label, save_external_json=save_external_json)
+            with pytest.raises(LabelFileError, match="已更新 0 张图片") as error:
+                save_annotation(image, label, save_external_json=save_external_json)
+            assert isinstance(error.value.__cause__.__cause__, PermissionError)
             sidecar = image.with_suffix(".json")
-            assert saved.filename == str(sidecar)
-            assert select_annotation_source(image, sidecar) == sidecar
-            assert LabelFile(str(image)).shapes[0]["label"] == label
-            assert LabelFile(str(sidecar)).shapes[0]["label"] == label
             assert json.loads(sidecar.read_text(encoding="utf-8"))["shapes"][0]["label"] == label
             assert image.read_bytes() == original
             assert image.stat().st_file_attributes & stat.FILE_ATTRIBUTE_READONLY
             assert read_image_json(image) is None
-    assert "外部 JSON" in caplog.text
 
 
-def test_readonly_existing_embedded_annotation_can_save_without_changes(tmp_path):
-    """2026-10-09：只读图片重复写入被拒绝；确认已有相同内嵌数据无需重写。"""
+def test_readonly_existing_identical_embedded_annotation_still_reports_failure(tmp_path):
+    """2026-10-09：即使内容相同，实际内嵌写入失败也不能改判成功。"""
     image = tmp_path / "sample.jpg"
     Image.new("RGB", (24, 16), (20, 80, 160)).save(image)
     save_annotation(image, "原标注")
     original = image.read_bytes()
     with readonly_file(image):
-        saved = save_annotation(image, "原标注")
-        assert saved.filename == str(image)
+        with pytest.raises(LabelFileError, match="Permission denied"):
+            save_annotation(image, "原标注")
         assert image.read_bytes() == original
         assert LabelFile(str(image)).shapes[0]["label"] == "原标注"
 
 
 def test_readonly_stale_embedded_annotation_still_reports_failure(tmp_path):
-    """2026-10-09：处理写入拒绝时须保留真实失败；防止旧内嵌数据被误判为最新。"""
+    """2026-10-09：图片无法更新时仍报告失败，最新修改仅保存为外部备份。"""
     image = tmp_path / "sample.jpg"
     Image.new("RGB", (24, 16), (20, 80, 160)).save(image)
     save_annotation(image, "旧标注")
@@ -89,7 +86,7 @@ def test_readonly_stale_embedded_annotation_still_reports_failure(tmp_path):
 
 
 def test_readonly_sidecar_write_failure_is_not_treated_as_saved(tmp_path):
-    """2026-10-09：外部保存是判定依据；文件也不可写时必须继续报告失败。"""
+    """2026-10-09：内嵌和外部备份都不可写时报告失败，不修改原文件。"""
     image = tmp_path / "sample.jpg"
     Image.new("RGB", (24, 16), (20, 80, 160)).save(image)
     sidecar = image.with_suffix(".json")
@@ -101,20 +98,21 @@ def test_readonly_sidecar_write_failure_is_not_treated_as_saved(tmp_path):
     assert read_image_json(image) is None
 
 
-def test_group_with_readonly_unembedded_image_saves_each_annotation(tmp_path):
-    """2026-10-09：组保存共用受限写入流程；确认可写图片与外部标注均保存最新内容。"""
+def test_group_with_readonly_image_reports_partial_failure(tmp_path):
+    """2026-10-09：组保存按各图内嵌结果报告；保留其他图片已经写入的内容。"""
     first, second = tmp_path / "first.jpg", tmp_path / "second.jpg"
     for image in (first, second):
         Image.new("RGB", (24, 16), (20, 80, 160)).save(image)
     with readonly_file(first):
-        save_annotation(first, "最新标注", otherData={"img_name_list": [first.name, second.name]})
-        assert LabelFile(str(first)).shapes[0]["label"] == "最新标注"
+        with pytest.raises(LabelFileError, match="已更新 1 张图片"):
+            save_annotation(first, "最新标注", otherData={"img_name_list": [first.name, second.name]})
+        assert json.loads(first.with_suffix(".json").read_text(encoding="utf-8"))["shapes"][0]["label"] == "最新标注"
         assert read_image_json(first) is None
         assert read_image_json(second)["shapes"][0]["label"] == "最新标注"
 
 
-def test_image_opened_without_write_sharing_saves_external_json(tmp_path):
-    """2026-10-09：读取占用可触发同类拒绝；用真实系统句柄确认外部标注仍可保存。"""
+def test_image_opened_without_write_sharing_reports_failure(tmp_path):
+    """2026-10-09：真实读取占用禁止写入时保留失败，释放后仍保存内嵌标注。"""
     import ctypes
     from ctypes import wintypes
 
@@ -131,9 +129,11 @@ def test_image_opened_without_write_sharing_saves_external_json(tmp_path):
     handle = kernel.CreateFileW(str(image), 0x80000000, 1, None, 3, 128, None)
     assert handle != wintypes.HANDLE(-1).value, ctypes.WinError(ctypes.get_last_error())
     try:
-        save_annotation(image, "保存后标注")
-        assert LabelFile(str(image)).shapes[0]["label"] == "保存后标注"
+        with pytest.raises(LabelFileError, match="Permission denied"):
+            save_annotation(image, "保存后标注")
         assert read_image_json(image) is None
         assert image.read_bytes() == original
     finally:
         assert kernel.CloseHandle(handle)
+    save_annotation(image, "保存后标注")
+    assert read_image_json(image)["shapes"][0]["label"] == "保存后标注"

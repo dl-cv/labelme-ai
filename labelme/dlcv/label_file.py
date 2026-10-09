@@ -129,48 +129,31 @@ def _rebase_embedded_data(data, primary_image, image_path):
 
 
 def write_embedded_group(image_paths, data, primary_image):
-    """2026-10-09：图片拒绝写入后，外部标注已保存却仍提示保存失败。
-    现场拒绝写入的具体原因待确认，已用真实只读文件和读取占用复现。
-    共享保存入口必须区分可安全重读的来源：无旧内嵌时使用外部 JSON，
-    内容相同时不重写，不同时保留失败，防止重开后读取旧标注。
+    """2026-10-09：图片内嵌写入被拒绝，原现场的系统原因待确认。
+    此共享入口按实际内嵌写入结果报告单图及组图失败，外部备份不替代成功；
+    保留原有保存规则，避免图片未更新却清除未保存状态。
     """
     saved_paths = []
-    external_paths = []
+    unsupported_paths = []
     failures = []
     for image_path in image_paths:
         if image_path.suffix.lower() not in SUPPORTED_IMAGE_EXTENSIONS:
-            external_paths.append(image_path)
+            unsupported_paths.append(image_path)
             continue
-        embedded_data = _rebase_embedded_data(data, primary_image, image_path)
         try:
             write_image_json(
                 image_path,
-                embedded_data,
+                _rebase_embedded_data(data, primary_image, image_path),
                 ensure_ascii=False,
                 indent=2,
             )
         except UnsupportedImageFormatError:
-            external_paths.append(image_path)
-        except PermissionError as exc:
-            try:
-                embedded = _read_embedded(image_path)
-            except Exception as read_error:
-                failures.append((image_path, read_error))
-            else:
-                if embedded is None:
-                    # 无旧内嵌数据时，外部标注仍能被正常重读。
-                    external_paths.append(image_path)
-                    logger.warning(f"图片不可写，改用外部 JSON：{image_path}；{exc}")
-                elif embedded == embedded_data:
-                    saved_paths.append(image_path)
-                else:
-                    # 旧内嵌数据仍有读取优先权，不能将外部备份当作保存成功。
-                    failures.append((image_path, exc))
+            unsupported_paths.append(image_path)
         except Exception as exc:
             failures.append((image_path, exc))
         else:
             saved_paths.append(image_path)
-    return saved_paths, external_paths, failures
+    return saved_paths, unsupported_paths, failures
 
 
 def remove_image_annotations(image_paths, sidecar_path, default_sidecar_path=None):
@@ -489,9 +472,9 @@ class LabelFile(LabelFile):
         *,
         save_external_json=True,
     ):
-        """2026-10-09：图片写入受限后，成功的外部保存曾被判为整次失败。
-        此入口按实际保存来源返回结果，强制保留可重读的外部文件；
-        真正失败时保留原始异常，避免遗漏写入位置和堆栈。
+        """2026-10-09 16:43：图片写入被拒绝，错误日志未保留原始写入位置。
+        此入口保持内嵌保存、外部备份及失败判定不变，汇总异常保留原始原因，
+        便于界面日志定位最初失败的位置；现场系统限制仍待确认。
         """
         # 添加处理旋转框的方向属性
         shapes = self.saveRotationBox(shapes)
@@ -522,12 +505,12 @@ class LabelFile(LabelFile):
         try:
             primary_image = Path(os.path.abspath(sidecar_path.parent / imagePath))
             image_paths = _collect_image_paths(primary_image, otherData)
-            saved_paths, external_paths, failures = write_embedded_group(
+            saved_paths, unsupported_paths, failures = write_embedded_group(
                 image_paths, data, primary_image
             )
             # 外部文件默认共存；关闭设置后，内嵌失败仍保存外部备份。
             backup_saved = False
-            if save_external_json or external_paths or failures:
+            if save_external_json or unsupported_paths or failures:
                 try:
                     _write_sidecar(sidecar_path, data)
                     backup_saved = True
