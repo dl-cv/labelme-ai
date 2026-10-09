@@ -62,8 +62,11 @@ logger.addHandler(stream_handler)
 
 # windows 平台
 if os.name == "nt":
+    appdata_dir = os.environ.get("APPDATA") or os.path.join(
+        os.path.expanduser("~"), "AppData", "Roaming"
+    )
     log_dir = os.environ.get(
-        "LABELME_LOG_DIR", r"C:\dlcv\Lib\site-packages\dlcv_labelme_ai"
+        "LABELME_LOG_DIR", os.path.join(appdata_dir, "dlcv")
     )
     log_path = os.path.join(log_dir, "LabelmeAI.log")
 
@@ -75,7 +78,8 @@ if os.name == "nt":
 
     file_handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
     file_handler.setFormatter(logging.Formatter(
-        "%(asctime)s [%(levelname)-7s] %(module)s:%(funcName)s:%(lineno)d- %(message)s"
+        "%(asctime)s [%(levelname)-7s] %(module)s:%(funcName)s:%(lineno)d"
+        "- %(message)s"
     ))
     logger.addHandler(file_handler)
 
