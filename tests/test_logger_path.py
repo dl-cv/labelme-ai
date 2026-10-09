@@ -1,4 +1,4 @@
-"""Windows 日志使用用户目录，并保留自定义目录及追加写入。"""
+"""Windows 日志使用用户目录，以 UTF-8 追加且不包含控制台颜色码。"""
 
 import os
 import subprocess
@@ -15,7 +15,11 @@ def test_windows_log_directory(tmp_path, mode):
     env.pop("LABELME_LOG_DIR", None)
     env["APPDATA"] = str(tmp_path / "应用数据")
     env["USERPROFILE"] = str(tmp_path / "用户目录")
-    env["PYTHONUTF8"] = "1"
+    env["PYTHONUTF8"] = "0"
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["FORCE_COLOR"] = "1"
+    env.pop("NO_COLOR", None)
+    env.pop("ANSI_COLORS_DISABLED", None)
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     expected_dir = Path(env["APPDATA"]) / "dlcv"
     if mode == "override":
@@ -30,14 +34,15 @@ def test_windows_log_directory(tmp_path, mode):
 
     expected_log = expected_dir / "LabelmeAI.log"
     assert not expected_dir.exists()
+    message = "日志编码检查：保存标签，中文目录，🙂"
     code = (
         "import logging; from labelme.logger import file_handler, logger; "
-        "print(file_handler.baseFilename); "
-        "logger.info('log-path-check'); logging.shutdown()"
+        "print(file_handler.baseFilename); print(file_handler.encoding); "
+        f"logger.info('%s', {message!r}); logging.shutdown()"
     )
     for _ in range(2):
         result = subprocess.run(
-            [sys.executable, "-X", "utf8", "-c", code],
+            [sys.executable, "-X", "utf8=0", "-c", code],
             cwd=Path(__file__).resolve().parents[1],
             env=env,
             capture_output=True,
@@ -46,5 +51,9 @@ def test_windows_log_directory(tmp_path, mode):
             timeout=30,
             check=True,
         )
-        assert str(expected_log) in result.stdout.splitlines()
-    assert expected_log.read_text(encoding="utf-8").count("log-path-check") == 2
+        assert result.stdout.splitlines() == [str(expected_log), "utf-8"]
+    data = expected_log.read_bytes()
+    assert b"\x1b[" not in data
+    text = data.decode("utf-8")
+    assert text.count(message) == 2
+    assert "\ufffd" not in text

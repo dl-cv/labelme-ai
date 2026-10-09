@@ -77,8 +77,11 @@ if os.name == "nt":
         if os.path.getsize(log_path) > 500 * 1024 * 1024:
             os.remove(log_path)
 
-    file_handler = logging.FileHandler(log_path, mode="a")
-    file_handler.setFormatter(handler_format)
+    file_handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
+    file_handler.setFormatter(logging.Formatter(
+        "%(asctime)s [%(levelname)-7s] %(module)s:%(funcName)s:%(lineno)d"
+        "- %(message)s"
+    ))
     logger.addHandler(file_handler)
 
 
