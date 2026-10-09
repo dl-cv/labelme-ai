@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 def test_file_log_keeps_name_and_formats_arguments_as_plain_utf8(tmp_path):
-    """2026-10-09：保存报错没有日志；检查实际文件能够记录异常和完整堆栈。"""
+    """实际文件日志保留异常堆栈和中文内容。"""
     if os.name != "nt":
         pytest.skip("Windows 文件日志")
     from labelme.logger import logger

@@ -268,10 +268,7 @@ def main():
 
 
 def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save=False, native=False):
-    """2026-10-09：保存失败没有日志，需要实际主窗检查失败与编辑保留。
-    在临时只读副本上验证内嵌失败不能被外部备份判作成功，避免改变保存规则；
-    保留正式界面和原有显示，不启动外部服务。
-    """
+    """通过正式主窗检查隔离副本，不启动外部服务。"""
     import json
     import shutil
     import stat

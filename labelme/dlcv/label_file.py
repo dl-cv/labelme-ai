@@ -128,11 +128,8 @@ def _rebase_embedded_data(data, primary_image, image_path):
     return embedded
 
 
-def write_embedded_group(image_paths, data, primary_image):
-    """2026-10-09：图片内嵌写入被拒绝，原现场的系统原因待确认。
-    此共享入口按实际内嵌写入结果报告单图及组图失败，外部备份不替代成功；
-    保留原有保存规则，避免图片未更新却清除未保存状态。
-    """
+def _write_embedded_group(image_paths, data, primary_image):
+    """逐图保存内嵌标注，单张失败不撤回其他图片的最新数据。"""
     saved_paths = []
     unsupported_paths = []
     failures = []
@@ -472,10 +469,6 @@ class LabelFile(LabelFile):
         *,
         save_external_json=True,
     ):
-        """2026-10-09 16:43：图片写入被拒绝，错误日志未保留原始写入位置。
-        此入口保持内嵌保存、外部备份及失败判定不变，汇总异常保留原始原因，
-        便于界面日志定位最初失败的位置；现场系统限制仍待确认。
-        """
         # 添加处理旋转框的方向属性
         shapes = self.saveRotationBox(shapes)
         
@@ -505,7 +498,7 @@ class LabelFile(LabelFile):
         try:
             primary_image = Path(os.path.abspath(sidecar_path.parent / imagePath))
             image_paths = _collect_image_paths(primary_image, otherData)
-            saved_paths, unsupported_paths, failures = write_embedded_group(
+            saved_paths, unsupported_paths, failures = _write_embedded_group(
                 image_paths, data, primary_image
             )
             # 外部文件默认共存；关闭设置后，内嵌失败仍保存外部备份。

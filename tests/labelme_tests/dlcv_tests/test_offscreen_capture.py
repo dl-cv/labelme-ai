@@ -111,7 +111,7 @@ def test_offscreen_capture_clears_two_image_group(tmp_path):
 
 
 def test_offscreen_readonly_save_keeps_failure_and_dirty_edits(tmp_path):
-    """2026-10-09：内嵌写入失败必须保留失败及编辑，实际主窗不误报成功。"""
+    """正式主窗内嵌写入失败时保留编辑，外部备份不能改判成功。"""
     if os.name != "nt":
         import pytest
         pytest.skip("使用 Windows 只读文件属性")

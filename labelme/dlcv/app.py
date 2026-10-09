@@ -913,11 +913,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
     # https://bbs.dlcv.ai/t/topic/99
     # 保存 json 的函数： 自动保存标签
     def saveLabels(self, filename: str):
-        """2026-10-09 16:43：保存标注报错只弹窗，日志没有相关异常。
-        保存异常被捕获后未记录，导致无法从日志定位失败文件和调用位置；
-        本入口记录保存、清空失败的路径及完整堆栈，保留原有失败状态。
-        filename 为 JSON 文件路径。
-        """
+        """filename: json 文件路径"""
         # extra 保存 3d 或 2.5d json
         if self.is_3d or self.is_2_5d:
             filename = self.getLabelFile()
@@ -981,7 +977,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
                     image_paths, label_file, default_sidecar_path=self.getLabelFile()
                 )
             except LabelFileError as e:
-                logger.exception(f"清理标注失败：{label_file}")
+                logger.error(f"清理标注失败：{label_file}", exc_info=True)
                 self.errorMessage(
                     self.tr("Error saving label data"),
                     self.tr("<b>%s</b>") % e,
@@ -1081,7 +1077,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
             self.actions.save.setEnabled(False)
             return True
         except LabelFileError as e:
-            logger.exception(f"保存标注失败：{filename}")
+            logger.error(f"保存标注失败：{filename}", exc_info=True)
             self.errorMessage(
                 self.tr("Error saving label data"), self.tr("<b>%s</b>") % e
             )
