@@ -108,3 +108,28 @@ def test_offscreen_capture_clears_two_image_group(tmp_path):
         with Image.open(output / name) as image:
             assert image.size == (1920, 1080)
             assert image.getbbox() is not None
+
+
+def test_offscreen_readonly_save_verifies_real_window_and_reopen(tmp_path):
+    if os.name != "nt":
+        import pytest
+        pytest.skip("使用 Windows 只读文件属性")
+    repository = Path(__file__).resolve().parents[3]
+    sample = repository / "examples/instance_segmentation/data_annotated/2011_000003.jpg"
+    original = sample.read_bytes()
+    output = tmp_path / "screenshots"
+    output.mkdir()
+    result = subprocess.run(
+        [sys.executable, "-m", "labelme", "--screenshot-output", str(output),
+         "--screenshot-readonly-save", str(sample)],
+        cwd=repository, env=os.environ.copy(), capture_output=True, text=True,
+        encoding="utf-8", timeout=90,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = json.loads((output / "只读保存验证.json").read_text(encoding="utf-8"))
+    assert report["success"] is True
+    assert report["window_title"].startswith("智能标注 - ")
+    assert report["saved_label"] == "保存验证" and report["annotation_source"] == ".json"
+    assert report["image_unchanged"] and report["image_readonly"]
+    assert report["file_tree_checked"] and not report["dirty"]
+    assert sample.read_bytes() == original

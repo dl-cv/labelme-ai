@@ -10,7 +10,6 @@ if os.name == "nt":  # Windows
 
     colorama.init()
 
-from . import __appname__
 
 COLORS = {
     "WARNING": "yellow",
@@ -39,7 +38,7 @@ class ColoredFormatter(logging.Formatter):
                 )
 
             record.levelname2 = colored("{:<7}".format(record.levelname))
-            record.message2 = colored(record.msg)
+            record.message2 = colored(record.getMessage())
 
             asctime2 = datetime.datetime.fromtimestamp(record.created)
             record.asctime2 = termcolor.colored(asctime2, color="green")
@@ -50,7 +49,7 @@ class ColoredFormatter(logging.Formatter):
         return logging.Formatter.format(self, record)
 
 
-logger = logging.getLogger(__appname__)
+logger = logging.getLogger("LabelmeAI")
 logger.setLevel(logging.INFO)
 
 stream_handler = logging.StreamHandler(sys.stderr)
@@ -66,7 +65,7 @@ if os.name == "nt":
     log_dir = os.environ.get(
         "LABELME_LOG_DIR", r"C:\dlcv\Lib\site-packages\dlcv_labelme_ai"
     )
-    log_path = os.path.join(log_dir, f"{__appname__}.log")
+    log_path = os.path.join(log_dir, "LabelmeAI.log")
 
     # 大于500MB
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
@@ -74,8 +73,10 @@ if os.name == "nt":
         if os.path.getsize(log_path) > 500 * 1024 * 1024:
             os.remove(log_path)
 
-    file_handler = logging.FileHandler(log_path, mode="a")
-    file_handler.setFormatter(handler_format)
+    file_handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
+    file_handler.setFormatter(logging.Formatter(
+        "%(asctime)s [%(levelname)-7s] %(module)s:%(funcName)s:%(lineno)d- %(message)s"
+    ))
     logger.addHandler(file_handler)
 
 

@@ -131,26 +131,42 @@ def _rebase_embedded_data(data, primary_image, image_path):
 def _write_embedded_group(image_paths, data, primary_image):
     """逐图保存内嵌标注，单张失败不撤回其他图片的最新数据。"""
     saved_paths = []
-    unsupported_paths = []
+    external_paths = []
     failures = []
     for image_path in image_paths:
         if image_path.suffix.lower() not in SUPPORTED_IMAGE_EXTENSIONS:
-            unsupported_paths.append(image_path)
+            external_paths.append(image_path)
             continue
+        embedded_data = _rebase_embedded_data(data, primary_image, image_path)
         try:
             write_image_json(
                 image_path,
-                _rebase_embedded_data(data, primary_image, image_path),
+                embedded_data,
                 ensure_ascii=False,
                 indent=2,
             )
         except UnsupportedImageFormatError:
-            unsupported_paths.append(image_path)
+            external_paths.append(image_path)
+        except PermissionError as exc:
+            try:
+                embedded = _read_embedded(image_path)
+            except Exception as read_error:
+                failures.append((image_path, read_error))
+            else:
+                if embedded is None:
+                    # 无旧内嵌数据时，外部标注仍能被正常重读。
+                    external_paths.append(image_path)
+                    logger.warning(f"图片不可写，改用外部 JSON：{image_path}；{exc}")
+                elif embedded == embedded_data:
+                    saved_paths.append(image_path)
+                else:
+                    # 旧内嵌数据仍有读取优先权，不能将外部备份当作保存成功。
+                    failures.append((image_path, exc))
         except Exception as exc:
             failures.append((image_path, exc))
         else:
             saved_paths.append(image_path)
-    return saved_paths, unsupported_paths, failures
+    return saved_paths, external_paths, failures
 
 
 def remove_image_annotations(image_paths, sidecar_path, default_sidecar_path=None):
@@ -498,12 +514,12 @@ class LabelFile(LabelFile):
         try:
             primary_image = Path(os.path.abspath(sidecar_path.parent / imagePath))
             image_paths = _collect_image_paths(primary_image, otherData)
-            saved_paths, unsupported_paths, failures = _write_embedded_group(
+            saved_paths, external_paths, failures = _write_embedded_group(
                 image_paths, data, primary_image
             )
             # 外部文件默认共存；关闭设置后，内嵌失败仍保存外部备份。
             backup_saved = False
-            if save_external_json or unsupported_paths or failures:
+            if save_external_json or external_paths or failures:
                 try:
                     _write_sidecar(sidecar_path, data)
                     backup_saved = True
@@ -520,7 +536,7 @@ class LabelFile(LabelFile):
                 raise LabelFileError(
                     f"标注保存未全部完成，已更新 {len(saved_paths)} 张图片。"
                     f"{backup_message}失败文件：{failed_details}"
-                )
+                ) from failures[0][1]
             self.sidecar_path = str(sidecar_path)
             self.filename = str(
                 primary_image if primary_image in saved_paths else sidecar_path

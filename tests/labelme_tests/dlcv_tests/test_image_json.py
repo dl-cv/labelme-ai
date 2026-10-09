@@ -697,7 +697,7 @@ def test_sidecar_failure_keeps_successful_embedded_updates(tmp_path, monkeypatch
 
 @pytest.mark.parametrize("save_external_json", [False, True])
 def test_auto_save_failure_preserves_dirty_edits_and_saves_backup(
-    tmp_path, monkeypatch, save_external_json
+    tmp_path, monkeypatch, save_external_json, caplog
 ):
     from types import SimpleNamespace
     from qtpy import QtCore
@@ -726,6 +726,9 @@ def test_auto_save_failure_preserves_dirty_edits_and_saves_backup(
     assert window.dirty is True
     assert window.labelFile is original_label_file
     assert errors and "最新标注已保存至外部 JSON" in errors[0][1]
+    assert "保存标注失败" in caplog.text
+    assert "Traceback" in caplog.text
+    assert str(sidecar) in caplog.text
     assert json.loads(sidecar.read_text(encoding="utf-8"))["flags"] == {"最新标记": True}
 
 
