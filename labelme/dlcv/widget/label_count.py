@@ -77,9 +77,18 @@ class LabelCountDock(QtWidgets.QDockWidget):
                 default_sidecar = resolve_sidecar_path(
                     current_image, parent, use_loaded=False
                 )
-                annotation_paths.pop(
-                    os.path.normcase(os.path.abspath(default_sidecar)), None
+                default_key = os.path.normcase(os.path.abspath(default_sidecar))
+                # 默认 JSON 仍供其他实际图片读取时，目录统计必须保留。
+                used_by_other_image = any(
+                    Path(image).is_file()
+                    and Path(image).resolve() != Path(current_image).resolve()
+                    and os.path.normcase(os.path.abspath(
+                        resolve_sidecar_path(image, parent)
+                    )) == default_key
+                    for image in parent.scanAllImages(dir_path)
                 )
+                if not used_by_other_image:
+                    annotation_paths.pop(default_key, None)
                 loaded_sidecar = Path(loaded_sidecar)
                 if loaded_sidecar.is_file():
                     key = os.path.normcase(os.path.abspath(loaded_sidecar))

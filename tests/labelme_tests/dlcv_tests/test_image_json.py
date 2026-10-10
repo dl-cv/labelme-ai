@@ -1434,3 +1434,163 @@ def test_selected_json_after_discard_import_stays_current_but_is_not_reused_for_
         assert window.labelFile is None
     assert all(path.read_bytes() == content for path, content in originals.items())
     assert not window.capture_errors
+
+@pytest.mark.parametrize("default_usage", ["independent_jpg", "shadow_only", "shared_jpg_group"])
+def test_same_basename_folder_count_keeps_other_default_consumers(
+    tmp_path, annotation_window, monkeypatch, default_usage
+):
+    from qtpy import QtCore, QtWidgets
+    from labelme.dlcv.label_file import resolve_sidecar_path
+
+    first = tmp_path / "sample.png"
+    other = tmp_path / ("other.jpg" if default_usage == "shadow_only" else "sample.jpg")
+    images = [first, other]
+    if default_usage == "shared_jpg_group":
+        images.append(tmp_path / "sample.tif")
+    for image in images:
+        save_image(image)
+    selected, default = tmp_path / "selected.json", tmp_path / "sample.json"
+    selected_data = {"version": "5.5.0", "imagePath": first.name,
+        "imageWidth": 24, "imageHeight": 16, "imageData": None,
+        "shapes": [annotation_shape("PNG选定类")],
+        "flags": {"PNG已复核": True, "PNG需复查": False}}
+    uses_default = default_usage != "shadow_only"
+    default_data = {**selected_data, "imagePath": other.name if uses_default else first.name,
+        "shapes": [annotation_shape("JPG实际类" if uses_default else "PNG默认旧类")],
+        "flags": {"JPG已复核" if uses_default else "PNG默认旧标记": True, "需复查": False}}
+    if default_usage == "shared_jpg_group":
+        default_data["img_name_list"] = [image.name for image in images[1:]]
+        default_data["image_path_list"] = [image.name for image in images[1:]]
+    for source, data in ((selected, selected_data), (default, default_data)):
+        source.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    originals = {path: path.read_bytes() for path in (*images, selected, default)}
+    window = annotation_window()
+    assert window.loadFile(str(selected)) is not False
+    assert [shape.label for shape in window.canvas.shapes] == ["PNG选定类"]
+    questions = []
+    def discard(parent, title, message, buttons, initial):
+        assert parent is window
+        assert buttons == QtWidgets.QMessageBox.Save | QtWidgets.QMessageBox.Discard | QtWidgets.QMessageBox.Cancel
+        assert initial == QtWidgets.QMessageBox.Save
+        questions.append(message)
+        return QtWidgets.QMessageBox.Discard
+    monkeypatch.setattr(QtWidgets.QMessageBox, "question", discard)
+    assert window.dirty is True
+    window.importDirImages(str(tmp_path), load=False)
+    assert len(questions) == 1
+    assert window.filename is None
+    assert Path(window.imagePath).resolve() == first
+    assert Path(window.labelFile.sidecar_path).resolve() == selected
+    assert [shape.label for shape in window.canvas.shapes] == ["PNG选定类"]
+    assert resolve_sidecar_path(first, window).resolve() == selected
+    assert [[point.x(), point.y()] for point in window.canvas.shapes[0].points] == [
+        [1, 1], [12, 1], [12, 10], [1, 10]
+    ]
+    assert window.labelFile.flags == {"PNG已复核": True, "PNG需复查": False}
+    for image in images:
+        expected_source = selected if image == first else default if uses_default else image.with_suffix(".json")
+        actual_source = resolve_sidecar_path(image, window).resolve()
+        assert actual_source == expected_source
+        if image != first and not uses_default:
+            assert not actual_source.exists()
+            continue
+        loaded = LabelFile(str(actual_source))
+        assert [shape["label"] for shape in loaded.shapes] == [
+            "PNG选定类" if image == first else "JPG实际类"
+        ]
+        assert loaded.shapes[0]["points"] == [[1, 1], [12, 1], [12, 10], [1, 10]]
+        assert loaded.flags == ({"PNG已复核": True, "PNG需复查": False} if image == first
+            else {"JPG已复核": True, "需复查": False})
+        assert (actual_source.parent / loaded.imagePath).resolve() == (first if image == first else other)
+    tree = window.fileListWidget.tree_widget
+    tree.update_state()
+    assert set(tree._file_items) == {image.as_posix() for image in images}
+    for image in images:
+        item = tree._file_items[image.as_posix()]
+        assert item.checkState(0) == (QtCore.Qt.Checked if image == first or uses_default else QtCore.Qt.Unchecked)
+    tree.apply_filters(show_annotated=True, show_unannotated=False)
+    for image in images:
+        assert tree._file_items[image.as_posix()].isHidden() == (image != first and not uses_default)
+    window.label_count_dock.count_labels_in_dir()
+    text = window.label_count_dock.label_count_text.toPlainText()
+    assert "PNG选定类: 1" in text and "PNG已复核: 1" in text
+    assert ("JPG实际类: 1" in text) == uses_default
+    assert ("JPG已复核: 1" in text) == uses_default
+    assert "PNG默认旧类" not in text and "PNG默认旧标记" not in text
+    assert "需复查:" not in text and "读取失败" not in text
+    expected_count = 2 if uses_default else 1
+    assert f"共扫描 {expected_count} 份标注" in text
+    assert f"文本标记总数: {expected_count}" in text
+    assert f"标签总数: {expected_count}" in text
+    assert f"总数: {expected_count * 2}" in text
+    assert all(path.read_bytes() == content for path, content in originals.items())
+    assert not window.capture_errors
+
+
+def test_folder_count_keeps_default_used_by_unexpanded_child(tmp_path, annotation_window, monkeypatch):
+    from qtpy import QtCore, QtWidgets
+    from labelme.dlcv import file_tree_widget
+    from labelme.dlcv.label_file import resolve_sidecar_path
+
+    images, labels = tmp_path / "images", tmp_path / "labels"
+    child_dir = images / "sub"
+    child_dir.mkdir(parents=True)
+    labels.mkdir()
+    first, child = images / "sample.png", child_dir / "sample.jpg"
+    for image in (first, child):
+        save_image(image)
+    selected, default = labels / "selected.json", labels / "sample.json"
+    selected_data = {"version": "5.5.0", "imagePath": "../images/sample.png",
+        "imageWidth": 24, "imageHeight": 16, "imageData": None,
+        "shapes": [annotation_shape("PNG选定类")],
+        "flags": {"PNG已复核": True, "PNG需复查": False}}
+    default_data = {**selected_data, "imagePath": "../images/sub/sample.jpg",
+        "shapes": [annotation_shape("子目录JPG类")],
+        "flags": {"子目录JPG已复核": True, "需复查": False}}
+    for source, data in ((selected, selected_data), (default, default_data)):
+        source.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    originals = {path: path.read_bytes() for path in (first, child, selected, default)}
+    window = annotation_window(output_dir=str(labels))
+    assert window.loadFile(str(selected)) is not False
+    questions = []
+    def discard(parent, title, message, buttons, initial):
+        assert parent is window
+        assert buttons == QtWidgets.QMessageBox.Save | QtWidgets.QMessageBox.Discard | QtWidgets.QMessageBox.Cancel
+        assert initial == QtWidgets.QMessageBox.Save
+        questions.append(message)
+        return QtWidgets.QMessageBox.Discard
+    monkeypatch.setattr(QtWidgets.QMessageBox, "question", discard)
+    assert window.dirty is True
+    window.importDirImages(str(images), load=False)
+    assert len(questions) == 1
+    assert window.filename is None
+    assert [shape.label for shape in window.canvas.shapes] == ["PNG选定类"]
+    assert Path(window.labelFile.sidecar_path).resolve() == selected
+    tree = window.fileListWidget.tree_widget
+    folder_item = next(tree.topLevelItem(index) for index in range(tree.topLevelItemCount())
+        if tree.topLevelItem(index).data(0, QtCore.Qt.UserRole) == child_dir.as_posix())
+    assert not folder_item.isExpanded()
+    assert tuple(window.imageList) == (first.as_posix(),)
+    assert set(tree._file_items) == {first.as_posix()}
+    assert Path(window.proj_manager.get_json_path(str(child))).resolve() == child.with_suffix(".json")
+    assert resolve_sidecar_path(first, window).resolve() == selected
+    assert file_tree_widget.resolve_sidecar_path(child, window).resolve() == default
+    loaded = LabelFile(str(default))
+    assert (default.parent / loaded.imagePath).resolve() == child
+    assert len(loaded.shapes) == 1
+    assert {key: loaded.shapes[0][key] for key in default_data["shapes"][0]} == default_data["shapes"][0]
+    assert loaded.flags == {"子目录JPG已复核": True, "需复查": False}
+    tree.update_state()
+    assert tree._file_items[first.as_posix()].checkState(0) == QtCore.Qt.Checked
+    window.label_count_dock.count_labels_in_dir()
+    text = window.label_count_dock.label_count_text.toPlainText()
+    assert "PNG选定类: 1" in text and "子目录JPG类: 1" in text
+    assert "PNG已复核: 1" in text and "子目录JPG已复核: 1" in text
+    assert "共扫描 2 份标注" in text
+    assert "标签总数: 2" in text and "文本标记总数: 2" in text and "总数: 4" in text
+    assert "需复查:" not in text and "读取失败" not in text
+    assert not folder_item.isExpanded()
+    assert tuple(window.imageList) == (first.as_posix(),)
+    assert set(tree._file_items) == {first.as_posix()}
+    assert all(path.read_bytes() == content for path, content in originals.items())
+    assert not window.capture_errors
