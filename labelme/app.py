@@ -957,10 +957,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.actions.undo.setEnabled(self.canvas.isShapeRestorable)
 
         if self._config["auto_save"] or self.actions.saveAuto.isChecked():
-            label_file = osp.splitext(self.imagePath)[0] + ".json"
-            if self.output_dir:
-                label_file_without_path = osp.basename(label_file)
-                label_file = osp.join(self.output_dir, label_file_without_path)
+            label_file = getattr(
+                getattr(self, "labelFile", None), "sidecar_path", None
+            )
+            if not label_file:
+                label_file = self.getLabelFile()
+                if self.output_dir:
+                    label_file = osp.join(self.output_dir, osp.basename(label_file))
             self.saveLabels(label_file)
             return
         self.dirty = True
@@ -1821,7 +1824,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if self.labelFile.flags is not None:
                 flags.update(self.labelFile.flags)
         self.loadFlags(flags)
-        if self._config["keep_prev"] and self.noShapes():
+        if self._config["keep_prev"] and self.labelFile is None and self.noShapes():
             self.loadShapes(prev_shapes, replace=False)
             self.setDirty()
         else:

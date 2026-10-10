@@ -1,30 +1,26 @@
 import os
 from pathlib import Path
 
-from dlcv_core.image_json import ImageJsonError, UnsupportedImageFormatError
-
 import natsort
 from ordered_set import OrderedSet
 from qtpy import QtCore, QtWidgets, QtGui
 from qtpy.QtCore import Qt
 
 from labelme.dlcv.dlcv_translator import dlcv_tr
-from labelme.dlcv.label_file import has_image_json
+from labelme.dlcv.label_file import resolve_sidecar_path
 from labelme.dlcv.store import STORE
 
-
-def _has_embedded_annotation(image_path):
-    try:
-        return has_image_json(image_path)
-    except UnsupportedImageFormatError:
-        return False
-    except (ImageJsonError, OSError) as exc:
-        from labelme.dlcv.utils_func import notification, ToastPreset
-
-        notification(
-            dlcv_tr("读取标注失败"), f"{image_path}: {exc}", ToastPreset.ERROR
-        )
-        return False
+def directory_file_names(dir_path, cache):
+    key = os.path.normcase(os.path.abspath(dir_path))
+    if key not in cache:
+        try:
+            cache[key] = {
+                entry.name.lower() for entry in os.scandir(dir_path)
+                if entry.is_file()
+            }
+        except OSError:
+            cache[key] = set()
+    return cache[key]
 
 
 class FileTreeItem(QtWidgets.QTreeWidgetItem):
@@ -154,12 +150,9 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         except OSError:
             return
 
-        # 同目录内 json 是否存在：用文件名集合判断，避免每张图 os.path.exists
-        # （2D/3D/2.5D 的 get_json_path 结果都在图片同目录）
-        name_set_lower = {e.name.lower() for e in entries}
-
+        directory_cache = {}
         extensions = self.extensions
-        proj_manager = STORE.main_window.proj_manager
+        window = STORE.main_window
         dir_base = str(Path(dir_path).absolute().as_posix()).rstrip("/")
 
         for entry in entries:
@@ -182,10 +175,10 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             if not is_file or not item_name.lower().endswith(extensions):
                 continue
 
-            # 仍走项目 get_json_path（2D/3D/2.5D 规则不同），仅存在性用 name_set
-            json_path = proj_manager.get_json_path(item_path)
-            json_name = os.path.basename(json_path).lower()
-            checked = json_name in name_set_lower or _has_embedded_annotation(item_path)
+            json_path = resolve_sidecar_path(item_path, window)
+            checked = json_path.name.lower() in directory_file_names(
+                json_path.parent, directory_cache
+            )
             file_items.append([item_name, item_path, checked])
 
         # 对收集的项目进行自然排序
@@ -280,25 +273,14 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         """更新所有文件项的勾选状态"""
         # 按目录缓存一次 scandir 文件名，避免每张图 exists 打网盘
         dir_name_cache = {}
-        proj_manager = STORE.main_window.proj_manager
-
-        def _names_lower(dir_path: str):
-            if dir_path not in dir_name_cache:
-                try:
-                    dir_name_cache[dir_path] = {
-                        e.name.lower()
-                        for e in os.scandir(dir_path)
-                    }
-                except OSError:
-                    dir_name_cache[dir_path] = set()
-            return dir_name_cache[dir_path]
+        window = STORE.main_window
 
         for img_path, file_item in self._file_items.items():
             img_path = file_item.get_path()
-            json_path = proj_manager.get_json_path(img_path)
-            json_dir = os.path.dirname(json_path)
-            json_name = os.path.basename(json_path).lower()
-            checked = json_name in _names_lower(json_dir) or _has_embedded_annotation(img_path)
+            json_path = resolve_sidecar_path(img_path, window)
+            checked = json_path.name.lower() in directory_file_names(
+                json_path.parent, dir_name_cache
+            )
             file_item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
 
     def delete_item(self, items: list[FileTreeItem]):
@@ -446,8 +428,8 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         if show_annotated == show_unannotated:
             return True
 
-        json_path = STORE.main_window.proj_manager.get_json_path(img_path)
-        is_annotated = os.path.exists(json_path) or _has_embedded_annotation(img_path)
+        json_path = resolve_sidecar_path(img_path, STORE.main_window)
+        is_annotated = json_path.is_file()
 
         # 只勾了已标注
         if show_annotated and not show_unannotated:
