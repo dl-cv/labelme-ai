@@ -67,16 +67,16 @@ def main():
         sample = source / "examples/bbox_detection/data_annotated"
         for suffix in ("jpg", "json"):
             shutil.copy2(sample / f"2011_000003.{suffix}", root / "data" / f"2011_000003.{suffix}")
-        # 同一真实样例内嵌两项原标注，外部文件保留不同旧数据，验证来源优先级。
+        # 同一图片保留不同内嵌数据，验证正常业务采用外部标注。
         from dlcv_core.image_json import write_image_json
 
         image_path = root / "data" / "2011_000003.jpg"
         annotation_path = image_path.with_suffix(".json")
         annotation = json.loads(annotation_path.read_text(encoding="utf-8"))
-        expected_labels = [shape["label"] for shape in annotation["shapes"]]
         write_image_json(image_path, annotation)
         stale = {**annotation, "shapes": [{**annotation["shapes"][0], "label": "外部旧标注"}]}
         annotation_path.write_text(json.dumps(stale, ensure_ascii=False), encoding="utf-8")
+        expected_labels = [shape["label"] for shape in stale["shapes"]]
         os.chdir(root / "data")
         window = MainWindow(config=get_config(), filename="2011_000003.jpg")
         window.show()
@@ -140,12 +140,15 @@ def main():
                     "loaded_shape_labels": [shape.label for shape in window.canvas.shapes],
                     "expected_shape_labels": expected_labels,
                     "loaded_annotation_source": Path(window.labelFile.filename).suffix,
+                    "loaded_shape_points": [[[point.x(), point.y()] for point in shape.points] for shape in window.canvas.shapes],
                     "image_size_px": [window.image.width(), window.image.height()],
                 }
                 errors = []
                 if args.verify:
-                    if result["loaded_shape_labels"] != expected_labels or result["loaded_annotation_source"] != ".jpg":
-                        errors.append("未优先加载内嵌两项标注")
+                    if result["loaded_shape_labels"] != expected_labels or result["loaded_annotation_source"] != ".json":
+                        errors.append("未采用外部 JSON 标注")
+                    if result["loaded_shape_points"] != [shape["points"] for shape in stale["shapes"]]:
+                        errors.append("外部标注坐标未生效")
                     if result["image_size_px"] != [annotation["imageWidth"], annotation["imageHeight"]]:
                         errors.append("图片尺寸与样例不符")
                     if result["active_theme"] != ("modern" if args.theme == "default" else args.theme):
