@@ -920,7 +920,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
 
         if Path(filename).suffix.lower() != ".json":
             label_file = getattr(self, "labelFile", None)
-            filename = getattr(label_file, "sidecar_path", None)
+            filename = getattr(label_file, "external_json_path", None)
             if not filename:
                 filename = self.getLabelFile()
                 if getattr(self, "output_dir", None):
@@ -974,7 +974,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
                 image_paths.append(Path(self.filename).parent / image_name)
             try:
                 removed_paths = remove_image_annotations(
-                    image_paths, label_file, default_sidecar_path=self.getLabelFile()
+                    image_paths, label_file, default_external_json_path=self.getLabelFile()
                 )
             except LabelFileError as e:
                 logger.error(f"清理标注失败：{label_file}", exc_info=True)
@@ -1510,7 +1510,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
             try:
                 # 图片内 JSON 优先，外部 JSON 只用于无内嵌标注或不支持容器。
                 self.labelFile = LabelFile(str(annotation_source))
-                self.labelFile.sidecar_path = str(label_file)
+                self.labelFile.external_json_path = str(label_file)
             except LabelFileError as e:
                 self.errorMessage(
                     self.tr("Error opening file"),

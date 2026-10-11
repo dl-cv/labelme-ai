@@ -308,8 +308,8 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
         for path in image_paths:
             if path.parent != source.parent:
                 raise ValueError("清空校验只接受同目录组图片")
-            sidecar = path.with_suffix(".json").resolve(strict=True)
-            if sidecar.parent != source.parent:
+            external_json = path.with_suffix(".json").resolve(strict=True)
+            if external_json.parent != source.parent:
                 raise ValueError("清空校验只接受同目录 JSON")
             member = LabelFile(str(path))
             if Path(member.imagePath).is_absolute() or any(
@@ -351,8 +351,8 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
         copied = image_dir / source.name
         for path in image_paths:
             shutil.copy2(path, image_dir / path.name)
-            sidecar = path.with_suffix(".json")
-            shutil.copy2(sidecar, image_dir / sidecar.name)
+            external_json = path.with_suffix(".json")
+            shutil.copy2(external_json, image_dir / external_json.name)
         QtCore.QSettings.setDefaultFormat(QtCore.QSettings.IniFormat)
         for scope in (QtCore.QSettings.UserScope, QtCore.QSettings.SystemScope):
             QtCore.QSettings.setPath(QtCore.QSettings.IniFormat, scope, str(temp_path))
