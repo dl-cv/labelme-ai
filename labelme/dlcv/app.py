@@ -148,7 +148,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
     def __init__(
         self, config=None, filename=None, output=None, output_file=None, output_dir=None
     ):
-        self.settings = QtCore.QSettings("labelme", "labelme")
+        self.settings = self.createSettings("labelme", "labelme")
         # extra 额外属性
         self.action_refresh = None
         # 2.5D管理器
@@ -158,7 +158,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
             self.canvas_offsets = {}
 
         Toast.setPositionRelativeToWidget(self)  # 通知控件
-        self.dev_setting = QtCore.QSettings("baiduyun_dev", "ai")
+        self.dev_setting = self.createSettings("baiduyun_dev", "ai")
         self.canvas.shapeMoved.connect(self._on_canvas_shape_moved)
         
         # 移除 [ImageData] 功能, 默认自动保存
@@ -2165,7 +2165,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
 
         # XXX: Could be completely declarative.
         # Restore application settings.
-        self.settings = QtCore.QSettings("labelme", "labelme")
+        self.settings = self.createSettings("labelme", "labelme")
         size = self.settings.value("window/size", QtCore.QSize(1200, 800))
         position = self.settings.value("window/position", QtCore.QPoint(0, 0))
         state = self.settings.value("window/state", QtCore.QByteArray())
