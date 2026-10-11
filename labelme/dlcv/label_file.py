@@ -17,7 +17,7 @@ from dlcv_core.image_json import remove_image_json
 from dlcv_core.image_json import write_image_json
 
 
-def _read_sidecar(path):
+def read_json_annotation(path):
     raw = path.read_bytes()
     try:
         text = raw.decode("utf-8-sig")
@@ -26,7 +26,7 @@ def _read_sidecar(path):
     return json.loads(text)
 
 
-def _read_embedded(path):
+def read_embedded_annotation(path):
     try:
         data = read_image_json(path)
         if data is None and not has_image_json(path):
@@ -38,22 +38,13 @@ def _read_embedded(path):
         return None
 
 
-def select_annotation_source(image_path, sidecar_path):
-    """选择实际标注来源，受支持容器的读取错误直接向上报告。"""
-    image_path = Path(image_path)
-    sidecar_path = Path(sidecar_path)
-    if image_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
-        try:
-            if has_image_json(image_path):
-                return image_path
-        except UnsupportedImageFormatError:
-            pass
-    if sidecar_path.is_file():
-        return sidecar_path
-    return None
+def select_annotation_source(image_path, json_annotation_path):
+    """正常业务只读取外部 JSON，缺失时不使用图片内标注。"""
+    json_annotation_path = Path(json_annotation_path)
+    return json_annotation_path if json_annotation_path.is_file() else None
 
 
-def _write_buffer(path, buffer):
+def write_buffer(path, buffer):
     original = path.read_bytes() if path.exists() else None
     opened = False
     try:
@@ -81,18 +72,18 @@ def _write_buffer(path, buffer):
         raise
 
 
-def _write_sidecar(path, data):
+def write_json_annotation(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(data, ensure_ascii=False, indent=2)
     with BytesIO(text.encode("utf-8")) as buffer:
-        _write_buffer(path, buffer)
+        write_buffer(path, buffer)
 
 
-def _path_key(path):
+def path_key(path):
     return os.path.normcase(os.path.abspath(os.fspath(path)))
 
 
-def _group_image_names(other_data):
+def group_image_names(other_data):
     names = []
     for key in ("img_name_list", "image_path_list"):
         value = (other_data or {}).get(key)
@@ -102,18 +93,18 @@ def _group_image_names(other_data):
     return names
 
 
-def _collect_image_paths(primary_image, other_data):
+def collect_image_paths(primary_image, other_data):
     candidates = [primary_image]
     candidates.extend(
-        primary_image.parent / name for name in _group_image_names(other_data)
+        primary_image.parent / name for name in group_image_names(other_data)
     )
     image_paths = {}
     for path in candidates:
-        image_paths.setdefault(_path_key(path), Path(path))
+        image_paths.setdefault(path_key(path), Path(path))
     return list(image_paths.values())
 
 
-def _rebase_embedded_data(data, primary_image, image_path):
+def rebase_embedded_data(data, primary_image, image_path):
     embedded = dict(data)
     embedded["imagePath"] = image_path.name
     for key in ("img_name_list", "image_path_list"):
@@ -128,7 +119,7 @@ def _rebase_embedded_data(data, primary_image, image_path):
     return embedded
 
 
-def _write_embedded_group(image_paths, data, primary_image):
+def write_embedded_group(image_paths, data, primary_image):
     """逐图保存内嵌标注，单张失败不撤回其他图片的最新数据。"""
     saved_paths = []
     unsupported_paths = []
@@ -140,7 +131,7 @@ def _write_embedded_group(image_paths, data, primary_image):
         try:
             write_image_json(
                 image_path,
-                _rebase_embedded_data(data, primary_image, image_path),
+                rebase_embedded_data(data, primary_image, image_path),
                 ensure_ascii=False,
                 indent=2,
             )
@@ -153,19 +144,19 @@ def _write_embedded_group(image_paths, data, primary_image):
     return saved_paths, unsupported_paths, failures
 
 
-def remove_image_annotations(image_paths, sidecar_path, default_sidecar_path=None):
+def remove_image_annotations(image_paths, json_annotation_path, default_json_annotation_path=None):
     """只清理已知标注位置；清理失败时恢复已修改内容。"""
-    sidecar_paths = {_path_key(sidecar_path): Path(sidecar_path)}
-    if default_sidecar_path is not None:
-        sidecar_paths.setdefault(_path_key(default_sidecar_path), Path(default_sidecar_path))
+    json_annotation_paths = {path_key(json_annotation_path): Path(json_annotation_path)}
+    if default_json_annotation_path is not None:
+        json_annotation_paths.setdefault(path_key(default_json_annotation_path), Path(default_json_annotation_path))
     originals = {}
     changed_paths = []
     unique_paths = {}
     for image_path in image_paths:
         image_path = Path(image_path)
-        unique_paths.setdefault(_path_key(image_path), image_path)
-        image_sidecar = image_path.with_suffix(".json")
-        sidecar_paths.setdefault(_path_key(image_sidecar), image_sidecar)
+        unique_paths.setdefault(path_key(image_path), image_path)
+        image_json_annotation_path = image_path.with_suffix(".json")
+        json_annotation_paths.setdefault(path_key(image_json_annotation_path), image_json_annotation_path)
 
     try:
         for image_path in unique_paths.values():
@@ -181,16 +172,16 @@ def remove_image_annotations(image_paths, sidecar_path, default_sidecar_path=Non
         for image_path in originals:
             changed_paths.append(image_path)
             remove_image_json(image_path)
-        for sidecar_path in sidecar_paths.values():
-            if sidecar_path.exists():
-                originals[sidecar_path] = BytesIO(sidecar_path.read_bytes())
-                sidecar_path.unlink()
-                changed_paths.append(sidecar_path)
+        for json_annotation_path in json_annotation_paths.values():
+            if json_annotation_path.exists():
+                originals[json_annotation_path] = BytesIO(json_annotation_path.read_bytes())
+                json_annotation_path.unlink()
+                changed_paths.append(json_annotation_path)
     except Exception as exc:
         restore_errors = []
         for image_path in reversed(changed_paths):
             try:
-                _write_buffer(image_path, originals[image_path])
+                write_buffer(image_path, originals[image_path])
             except Exception as restore_exc:
                 restore_errors.append(f"{image_path}: {restore_exc}")
         if restore_errors:
@@ -229,31 +220,24 @@ class LabelFile(LabelFile):
         try:
             source_path = Path(filename)
             if source_path.suffix.lower() == ".json":
-                self.sidecar_path = str(source_path)
+                self.json_annotation_path = str(source_path)
             elif (
-                not getattr(self, "sidecar_path", None)
-                or _path_key(source_path) != _path_key(
+                not getattr(self, "json_annotation_path", None)
+                or path_key(source_path) != path_key(
                     getattr(self, "filename", None) or source_path
                 )
             ):
-                self.sidecar_path = str(source_path.with_suffix(".json"))
+                self.json_annotation_path = str(source_path.with_suffix(".json"))
             embedded_source = False
             if source_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
-                data = _read_embedded(source_path)
+                data = read_embedded_annotation(source_path)
                 embedded_source = data is not None
                 if data is None:
-                    sidecar = source_path.with_suffix(".json")
-                    data = _read_sidecar(sidecar)
-                    source_path = sidecar
+                    json_path = source_path.with_suffix(".json")
+                    data = read_json_annotation(json_path)
+                    source_path = json_path
             else:
-                data = _read_sidecar(source_path)
-                image_path = source_path.parent / data.get("imagePath", "")
-                if image_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
-                    embedded = _read_embedded(image_path)
-                    if embedded is not None:
-                        data = embedded
-                        source_path = image_path
-                        embedded_source = True
+                data = read_json_annotation(source_path)
             if not isinstance(data, dict):
                 raise LabelFileError(f"标注不是 JSON 对象：{filename}")
 
@@ -475,12 +459,12 @@ class LabelFile(LabelFile):
         # 标注保存入口可能收到上次加载的图片路径，不能直接按文本写入。
         input_path = Path(filename)
         if input_path.suffix.lower() == ".json":
-            sidecar_path = input_path
+            json_annotation_path = input_path
         else:
-            sidecar_path = Path(
-                getattr(self, "sidecar_path", None) or input_path.with_suffix(".json")
+            json_annotation_path = Path(
+                getattr(self, "json_annotation_path", None) or input_path.with_suffix(".json")
             )
-            imagePath = os.path.relpath(input_path, sidecar_path.parent)
+            imagePath = os.path.relpath(input_path, json_annotation_path.parent)
         if imageData is not None:
             imageData = base64.b64encode(imageData).decode("utf-8")
             imageHeight, imageWidth = self._check_image_height_and_width(
@@ -496,34 +480,33 @@ class LabelFile(LabelFile):
                 raise LabelFileError(f"重复的标注字段：{key}")
             data[key] = value
         try:
-            primary_image = Path(os.path.abspath(sidecar_path.parent / imagePath))
-            image_paths = _collect_image_paths(primary_image, otherData)
-            saved_paths, unsupported_paths, failures = _write_embedded_group(
+            primary_image = Path(os.path.abspath(json_annotation_path.parent / imagePath))
+            image_paths = collect_image_paths(primary_image, otherData)
+            saved_paths, _, failures = write_embedded_group(
                 image_paths, data, primary_image
             )
-            # 外部文件默认共存；关闭设置后，内嵌失败仍保存外部备份。
+            # 旧调用仍可传入保存开关，但外部 JSON 始终更新。
             backup_saved = False
-            if save_external_json or unsupported_paths or failures:
-                try:
-                    _write_sidecar(sidecar_path, data)
-                    backup_saved = True
-                except Exception as exc:
-                    failures.append((sidecar_path, exc))
+            try:
+                write_json_annotation(json_annotation_path, data)
+                backup_saved = True
+            except Exception as exc:
+                failures.append((json_annotation_path, exc))
             if failures:
                 failed_details = "; ".join(
                     f"{path}: {error}" for path, error in failures
                 )
                 backup_message = (
-                    f"最新标注已保存至外部 JSON：{sidecar_path}。"
+                    f"最新标注已保存至外部 JSON：{json_annotation_path}。"
                     if backup_saved else "外部 JSON 备份未完成。"
                 )
                 raise LabelFileError(
                     f"标注保存未全部完成，已更新 {len(saved_paths)} 张图片。"
                     f"{backup_message}失败文件：{failed_details}"
                 ) from failures[0][1]
-            self.sidecar_path = str(sidecar_path)
+            self.json_annotation_path = str(json_annotation_path)
             self.filename = str(
-                primary_image if primary_image in saved_paths else sidecar_path
+                primary_image if primary_image in saved_paths else json_annotation_path
             )
         except Exception as exc:
             raise LabelFileError(exc) from exc

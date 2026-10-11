@@ -185,7 +185,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             # 仍走项目 get_json_path（2D/3D/2.5D 规则不同），仅存在性用 name_set
             json_path = proj_manager.get_json_path(item_path)
             json_name = os.path.basename(json_path).lower()
-            checked = json_name in name_set_lower or _has_embedded_annotation(item_path)
+            checked = json_name in name_set_lower
             file_items.append([item_name, item_path, checked])
 
         # 对收集的项目进行自然排序
@@ -298,7 +298,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             json_path = proj_manager.get_json_path(img_path)
             json_dir = os.path.dirname(json_path)
             json_name = os.path.basename(json_path).lower()
-            checked = json_name in _names_lower(json_dir) or _has_embedded_annotation(img_path)
+            checked = json_name in _names_lower(json_dir)
             file_item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
 
     def delete_item(self, items: list[FileTreeItem]):
@@ -447,7 +447,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             return True
 
         json_path = STORE.main_window.proj_manager.get_json_path(img_path)
-        is_annotated = os.path.exists(json_path) or _has_embedded_annotation(img_path)
+        is_annotated = os.path.exists(json_path)
 
         # 只勾了已标注
         if show_annotated and not show_unannotated:

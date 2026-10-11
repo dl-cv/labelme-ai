@@ -61,7 +61,7 @@ from labelme.dlcv.widget.setting_dock import (
 )
 from labelme.dlcv.canvas import CURSOR_DRAW
 from labelme.dlcv.label_file import (
-    _collect_image_paths,
+    collect_image_paths,
     remove_image_annotations,
     select_annotation_source,
 )
@@ -148,7 +148,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
     def __init__(
         self, config=None, filename=None, output=None, output_file=None, output_dir=None
     ):
-        self.settings = QtCore.QSettings("labelme", "labelme")
+        self.settings = self.createSettings("labelme", "labelme")
         # extra 额外属性
         self.action_refresh = None
         # 2.5D管理器
@@ -158,7 +158,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
             self.canvas_offsets = {}
 
         Toast.setPositionRelativeToWidget(self)  # 通知控件
-        self.dev_setting = QtCore.QSettings("baiduyun_dev", "ai")
+        self.dev_setting = self.createSettings("baiduyun_dev", "ai")
         self.canvas.shapeMoved.connect(self._on_canvas_shape_moved)
         
         # 移除 [ImageData] 功能, 默认自动保存
@@ -920,7 +920,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
 
         if Path(filename).suffix.lower() != ".json":
             label_file = getattr(self, "labelFile", None)
-            filename = getattr(label_file, "sidecar_path", None)
+            filename = getattr(label_file, "json_annotation_path", None)
             if not filename:
                 filename = self.getLabelFile()
                 if getattr(self, "output_dir", None):
@@ -969,12 +969,12 @@ class MainWindow(CopyPasteMixin, MainWindow):
         # 空标注时同时清理图片内 JSON 和旧的外部 JSON。
         if not shapes and not any(flags.values()):
             label_file = filename
-            image_paths = _collect_image_paths(Path(self.filename), self.otherData)
+            image_paths = collect_image_paths(Path(self.filename), self.otherData)
             for image_name in self.proj_manager.get_img_name_list(self.filename):
                 image_paths.append(Path(self.filename).parent / image_name)
             try:
                 removed_paths = remove_image_annotations(
-                    image_paths, label_file, default_sidecar_path=self.getLabelFile()
+                    image_paths, label_file, default_json_annotation_path=self.getLabelFile()
                 )
             except LabelFileError as e:
                 logger.error(f"清理标注失败：{label_file}", exc_info=True)
@@ -1024,7 +1024,6 @@ class MainWindow(CopyPasteMixin, MainWindow):
                 imageWidth=self.image.width(),
                 otherData=self.otherData,
                 flags=flags,
-                save_external_json=self._config.get("save_external_json", True),
             )
             self.labelFile = lf
             # 直接按保存入口返回的实际来源重新读取，避免错误时改读旧文件。
@@ -1294,12 +1293,10 @@ class MainWindow(CopyPasteMixin, MainWindow):
             raise Exception(dlcv_tr("获取标签文件失败"))
 
     def hasLabelFile(self):
-        """图片内标注和外部 JSON 均视为已有标注文件。"""
+        """只有外部 JSON 视为已有标注文件。"""
         if self.filename is None:
             return False
-        from labelme.dlcv.file_tree_widget import _has_embedded_annotation
-
-        return _has_embedded_annotation(self.filename) or osp.exists(self.getLabelFile())
+        return osp.exists(self.getLabelFile())
 
     def get_vertical_scrollbar(self):
         return self.scrollBars[Qt.Vertical]
@@ -1508,9 +1505,8 @@ class MainWindow(CopyPasteMixin, MainWindow):
         )
         if annotation_source is not None:
             try:
-                # 图片内 JSON 优先，外部 JSON 只用于无内嵌标注或不支持容器。
                 self.labelFile = LabelFile(str(annotation_source))
-                self.labelFile.sidecar_path = str(label_file)
+                self.labelFile.json_annotation_path = str(label_file)
             except LabelFileError as e:
                 self.errorMessage(
                     self.tr("Error opening file"),
@@ -2168,7 +2164,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
 
         # XXX: Could be completely declarative.
         # Restore application settings.
-        self.settings = QtCore.QSettings("labelme", "labelme")
+        self.settings = self.createSettings("labelme", "labelme")
         size = self.settings.value("window/size", QtCore.QSize(1200, 800))
         position = self.settings.value("window/position", QtCore.QPoint(0, 0))
         state = self.settings.value("window/state", QtCore.QByteArray())

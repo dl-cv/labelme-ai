@@ -122,17 +122,11 @@ def _create_sample_annotation(tmp_path, label_file_class):
         save_external_json=True,
     )
 
-    external_data = json.loads(external_json_path.read_text(encoding="utf-8"))
-    external_data["shapes"] = [
-        {
-            **shapes[0],
-            "label": "外部旧数据",
-        }
-    ]
-    external_json_path.write_text(
-        json.dumps(external_data, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    from dlcv_core.image_json import write_image_json
+
+    embedded_data = json.loads(external_json_path.read_text(encoding="utf-8"))
+    embedded_data["shapes"] = [{**shapes[0], "label": "图片内旧数据"}]
+    write_image_json(image_path, embedded_data)
     return image_path, external_json_path, shapes
 
 
@@ -226,7 +220,7 @@ def _save_settings_panel_crop(full_image, window, path):
 
 
 def test_annotation_storage_setting_main_window_render(monkeypatch, tmp_path, qapp):
-    """实际 MainWindow 保存、恢复并渲染新存储设置。"""
+    """实际 MainWindow 不再显示或恢复外部 JSON 保存开关。"""
     isolated_paths, settings_path, previous_format = _configure_isolated_environment(
         monkeypatch,
         tmp_path,
@@ -251,7 +245,7 @@ def test_annotation_storage_setting_main_window_render(monkeypatch, tmp_path, qa
 
         dlcv_tr.set_lang("zh_CN")
         default_config = get_config()
-        assert default_config["save_external_json"] is True
+        assert "save_external_json" not in default_config
 
         settings = QtCore.QSettings("labelme", "labelme")
         settings.clear()
@@ -268,45 +262,31 @@ def test_annotation_storage_setting_main_window_render(monkeypatch, tmp_path, qa
         assert external_json_path.is_file()
         embedded_data = read_image_json(image_path)
         external_data = json.loads(external_json_path.read_text(encoding="utf-8"))
-        assert [shape["label"] for shape in external_data["shapes"]] == ["外部旧数据"]
-        assert [shape["label"] for shape in embedded_data["shapes"]] == [
-            shape["label"] for shape in expected_shapes
-        ]
+        assert [shape["label"] for shape in external_data["shapes"]] == [shape["label"] for shape in expected_shapes]
+        assert [shape["label"] for shape in embedded_data["shapes"]] == ["图片内旧数据"]
 
         first_window = MainWindow(config=get_config(), filename=str(image_path))
         first_window.resize(FULL_IMAGE_SIZE)
         first_window.show()
         _process_events(app)
         assert len(first_window.canvas.shapes) == 2
-        restored_parameter = first_window.setting_dock.parameter.child(
-            "proj_setting",
-            "save_external_json",
-        )
-        assert restored_parameter.value() is False
-        initial_restored_value = restored_parameter.value()
-        assert first_window._config["save_external_json"] is False
-
-        restored_parameter.setValue(True)
-        assert first_window._config["save_external_json"] is True
+        assert [child.name() for child in first_window.setting_dock.parameter.child("proj_setting").children()] == ["proj_type"]
+        assert "save_external_json" not in first_window._config
         _close_window(app, first_window)
         first_window = None
 
         persisted_settings = QtCore.QSettings("labelme", "labelme")
         persisted_store = persisted_settings.value("setting_store")
         assert isinstance(persisted_store, dict)
-        assert persisted_store["save_external_json"] is True
+        assert "save_external_json" not in persisted_store
 
         evidence_window = MainWindow(config=get_config(), filename=str(image_path))
         evidence_window.resize(FULL_IMAGE_SIZE)
         evidence_window.show()
         _process_events(app)
-        setting_parameter = evidence_window.setting_dock.parameter.child(
-            "proj_setting",
-            "save_external_json",
-        )
-        assert setting_parameter.opts["title"] == "同时保存外部 JSON"
-        assert setting_parameter.value() is True
-        assert evidence_window._config["save_external_json"] is True
+        project_setting_names = [child.name() for child in evidence_window.setting_dock.parameter.child("proj_setting").children()]
+        assert project_setting_names == ["proj_type"]
+        assert "save_external_json" not in evidence_window._config
         assert len(evidence_window.canvas.shapes) == 2
         assert [shape.label for shape in evidence_window.canvas.shapes] == [
             "缺陷-A",
@@ -325,11 +305,9 @@ def test_annotation_storage_setting_main_window_render(monkeypatch, tmp_path, qa
         setting_items = [
             item
             for item in evidence_window.setting_dock.parameter_tree.listAllItems()
-            if getattr(item, "param", None) is setting_parameter
+            if item.text(0) == "同时保存外部 JSON"
         ]
-        assert len(setting_items) == 1
-        assert setting_items[0].text(0) == "同时保存外部 JSON"
-        assert not setting_items[0].isHidden()
+        assert setting_items == []
 
         artifact_dir = Path(os.environ.get("DLCV_UI_ARTIFACT_DIR", tmp_path))
         artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -352,15 +330,12 @@ def test_annotation_storage_setting_main_window_render(monkeypatch, tmp_path, qa
                 f"{type(evidence_window.setting_dock).__module__}."
                 f"{type(evidence_window.setting_dock).__name__}"
             ),
-            "setting_title": setting_parameter.opts["title"],
-            "default_save_external_json": default_config["save_external_json"],
-            "initial_restored_save_external_json": initial_restored_value,
-            "final_restored_save_external_json": setting_parameter.value(),
-            "persisted_save_external_json": persisted_store["save_external_json"],
+            "project_settings": project_setting_names,
+            "legacy_external_json_setting_removed": "save_external_json" not in persisted_store,
             "external_json_exists": external_json_path.is_file(),
             "external_labels": [shape["label"] for shape in external_data["shapes"]],
             "embedded_labels": [shape["label"] for shape in embedded_data["shapes"]],
-            "loaded_annotation_source": "embedded",
+            "loaded_annotation_source": Path(evidence_window.labelFile.filename).suffix,
             "loaded_labels": [shape.label for shape in evidence_window.canvas.shapes],
             "loaded_label_count": len(evidence_window.canvas.shapes),
             "label_count_text": count_text,
@@ -413,7 +388,7 @@ def annotation_window(monkeypatch, tmp_path, qapp):
         settings.sync()
         image_dir = tmp_path / "images"
         image_dir.mkdir()
-        image_path, sidecar_path, _ = _create_sample_annotation(image_dir, LabelFile)
+        image_path, external_json_path, _ = _create_sample_annotation(image_dir, LabelFile)
         other_path = image_dir / "unannotated.png"
         Image.new("RGB", (1280, 720), (60, 70, 80)).save(other_path)
         config = get_config()
@@ -426,7 +401,7 @@ def annotation_window(monkeypatch, tmp_path, qapp):
         window.show()
         _process_events(app)
         assert len(window.canvas.shapes) == 2
-        yield app, window, image_path, sidecar_path, other_path
+        yield app, window, image_path, external_json_path, other_path
     finally:
         if window is not None:
             window.setClean()
@@ -434,17 +409,14 @@ def annotation_window(monkeypatch, tmp_path, qapp):
         QtCore.QSettings.setDefaultFormat(previous_format)
 
 
-@pytest.mark.parametrize("save_external", [True, False])
-def test_main_window_edit_save_switch_and_reopen(annotation_window, save_external):
+@pytest.mark.parametrize("legacy_save_external", [True, False])
+def test_main_window_edit_save_switch_and_reopen(annotation_window, legacy_save_external):
     from dlcv_core.image_json import read_image_json
 
-    app, window, image_path, sidecar_path, other_path = annotation_window
-    parameter = window.setting_dock.parameter.child(
-        "proj_setting", "save_external_json"
-    )
-    parameter.setValue(save_external)
-    if not save_external:
-        sidecar_path.unlink()
+    app, window, image_path, external_json_path, other_path = annotation_window
+    window._config["save_external_json"] = legacy_save_external
+    if not legacy_save_external:
+        external_json_path.unlink()
     expected_points = [
         [[175, 145], [530, 130], [530, 460], [150, 460]],
         [[680, 190], [1080, 190], [1080, 570], [680, 570]],
@@ -462,15 +434,15 @@ def test_main_window_edit_save_switch_and_reopen(annotation_window, save_externa
     assert (embedded["imageWidth"], embedded["imageHeight"]) == (1280, 720)
     assert embedded["imagePath"] == image_path.name
     assert (image_path.parent / embedded["imagePath"]).resolve() == image_path.resolve()
-    assert sidecar_path.exists() is save_external
-    if save_external:
-        external = json.loads(sidecar_path.read_text(encoding="utf-8"))
-        assert external["shapes"][0]["label"] == "编辑后的标注"
-        assert [shape["points"] for shape in external["shapes"]] == expected_points
-        assert (external["imageWidth"], external["imageHeight"]) == (1280, 720)
-        assert (
-            sidecar_path.parent / external["imagePath"]
-        ).resolve() == image_path.resolve()
+    assert external_json_path.exists()
+    external = json.loads(external_json_path.read_text(encoding="utf-8"))
+    assert external == embedded
+    assert external["shapes"][0]["label"] == "编辑后的标注"
+    assert [shape["points"] for shape in external["shapes"]] == expected_points
+    assert (external["imageWidth"], external["imageHeight"]) == (1280, 720)
+    assert (
+        external_json_path.parent / external["imagePath"]
+    ).resolve() == image_path.resolve()
     window.loadFile(str(other_path))
     _process_events(app)
     assert window.filename == str(other_path)
@@ -505,20 +477,18 @@ def test_main_window_edit_save_switch_and_reopen(annotation_window, save_externa
     assert saved["imagePath"] == image_path.name
 
 
-@pytest.mark.parametrize("save_external", [True, False])
-def test_main_window_annotation_filter_and_clear(annotation_window, save_external):
+@pytest.mark.parametrize("legacy_save_external", [True, False])
+def test_main_window_annotation_filter_and_clear(annotation_window, legacy_save_external):
     from dlcv_core.image_json import read_image_json
 
-    app, window, image_path, sidecar_path, other_path = annotation_window
-    window.setting_dock.parameter.child("proj_setting", "save_external_json").setValue(
-        save_external
-    )
-    if not save_external:
-        sidecar_path.unlink()
+    app, window, image_path, external_json_path, other_path = annotation_window
+    window._config["save_external_json"] = legacy_save_external
+    if not legacy_save_external:
+        external_json_path.unlink()
     window.canvas.shapes[0].label = "已保存标注"
     window.setDirty()
     window.saveFile()
-    assert sidecar_path.exists() is save_external
+    assert external_json_path.exists()
     tree = window.fileListWidget
     image_item = tree.findItems(str(image_path))[0]
     other_item = tree.findItems(str(other_path))[0]
@@ -534,7 +504,7 @@ def test_main_window_annotation_filter_and_clear(annotation_window, save_externa
     window.saveFile()
     _process_events(app)
     assert read_image_json(image_path) is None
-    assert not sidecar_path.exists()
+    assert not external_json_path.exists()
     assert window.canvas.shapes == []
     assert image_item.checkState(0) == QtCore.Qt.Unchecked
     assert image_item.isHidden()
@@ -549,23 +519,21 @@ def test_main_window_annotation_filter_and_clear(annotation_window, save_externa
     assert window.canvas.shapes == []
 
 
-@pytest.mark.parametrize("save_external", [True, False])
+@pytest.mark.parametrize("legacy_save_external", [True, False])
 def test_main_window_readonly_save_keeps_edits(
-    annotation_window, monkeypatch, save_external
+    annotation_window, monkeypatch, legacy_save_external
 ):
     """图片实际只读时保留当前编辑，恢复写权限后可继续保存。"""
     import stat
 
     from dlcv_core.image_json import read_image_json
 
-    app, window, image_path, sidecar_path, _ = annotation_window
+    app, window, image_path, external_json_path, _ = annotation_window
     errors = []
     monkeypatch.setattr(
         window, "errorMessage", lambda title, text: errors.append((title, text))
     )
-    window.setting_dock.parameter.child("proj_setting", "save_external_json").setValue(
-        save_external
-    )
+    window._config["save_external_json"] = legacy_save_external
     before = image_path.read_bytes()
     window.canvas.shapes[0].label = "未保存的编辑"
     window.setDirty()
@@ -581,7 +549,7 @@ def test_main_window_readonly_save_keeps_edits(
         assert window.canvas.shapes[0].label == "未保存的编辑"
         assert image_path.read_bytes() == before
         assert (
-            json.loads(sidecar_path.read_text(encoding="utf-8"))["shapes"][0]["label"]
+            json.loads(external_json_path.read_text(encoding="utf-8"))["shapes"][0]["label"]
             == "未保存的编辑"
         )
     finally:
@@ -598,18 +566,18 @@ def test_main_window_external_only_and_corrupt_embedded(
     from dlcv_core.image_json import remove_image_json
     from dlcv_core.image_json import write_image_json
 
-    app, window, image_path, sidecar_path, other_path = annotation_window
+    app, window, image_path, external_json_path, other_path = annotation_window
     remove_image_json(image_path)
     window.loadFile(str(other_path))
     window.loadFile(str(image_path))
     _process_events(app)
-    assert [shape.label for shape in window.canvas.shapes] == ["外部旧数据"]
-    assert window.labelFile.filename == str(sidecar_path)
+    assert [shape.label for shape in window.canvas.shapes] == ["缺陷-A", "缺陷-B"]
+    assert window.labelFile.filename == str(external_json_path)
     window.canvas.shapes[0].label = "外部文件编辑"
     window.setDirty()
     window.saveFile()
     assert (
-        json.loads(sidecar_path.read_text(encoding="utf-8"))["shapes"][0]["label"]
+        json.loads(external_json_path.read_text(encoding="utf-8"))["shapes"][0]["label"]
         == "外部文件编辑"
     )
     window.loadFile(str(other_path))
@@ -618,16 +586,17 @@ def test_main_window_external_only_and_corrupt_embedded(
         window, "errorMessage", lambda title, text: errors.append((title, text))
     )
     write_image_json(image_path, malformed)
-    assert window.loadFile(str(image_path)) is False
-    assert errors
-    assert window.canvas.shapes == []
+    assert window.loadFile(str(image_path)) is True
+    assert errors == []
+    assert [shape.label for shape in window.canvas.shapes] == ["外部文件编辑", "缺陷-B"]
+    assert window.labelFile.filename == str(external_json_path)
     assert window.filename == str(image_path)
 
 
-def test_main_window_manual_save_keeps_custom_sidecar(annotation_window):
+def test_main_window_manual_save_keeps_custom_external_json(annotation_window):
     from dlcv_core.image_json import read_image_json
 
-    app, window, image_path, sidecar_path, other_path = annotation_window
+    app, window, image_path, external_json_path, other_path = annotation_window
     custom_path = image_path.parent / "labels" / "custom.json"
     expected_points = [
         [[150, 130], [530, 130], [530, 460], [150, 460]],
@@ -636,7 +605,7 @@ def test_main_window_manual_save_keeps_custom_sidecar(annotation_window):
     window.canvas.shapes[0].label = "另存数据"
     window.setDirty()
     window._saveFile(str(custom_path))
-    first_default = sidecar_path.read_bytes()
+    first_default = external_json_path.read_bytes()
     window.canvas.shapes[0].label = "后续保存"
     window.setDirty()
     window.saveFile()
@@ -649,7 +618,7 @@ def test_main_window_manual_save_keeps_custom_sidecar(annotation_window):
     ).resolve() == image_path.resolve()
     assert [shape["points"] for shape in external["shapes"]] == expected_points
     assert (external["imageWidth"], external["imageHeight"]) == (1280, 720)
-    assert sidecar_path.read_bytes() == first_default
+    assert external_json_path.read_bytes() == first_default
     embedded = read_image_json(image_path)
     assert embedded["shapes"][0]["label"] == "后续保存"
     assert embedded["imagePath"] == image_path.name
@@ -658,7 +627,8 @@ def test_main_window_manual_save_keeps_custom_sidecar(annotation_window):
     window.loadFile(str(other_path))
     window.loadFile(str(image_path))
     _process_events(app)
-    assert window.canvas.shapes[0].label == "后续保存"
+    assert window.canvas.shapes[0].label == "缺陷-A"
+    assert window.labelFile.filename == str(external_json_path)
     assert Path(window.imagePath).resolve() == image_path.resolve()
     assert (window.image.width(), window.image.height()) == (1280, 720)
     assert [
@@ -749,8 +719,8 @@ def test_main_window_failed_save_prevents_switch_and_close(
         assert not window.isVisible()
 
 
-@pytest.mark.parametrize("save_external", [True, False])
-def test_main_window_clear_default_and_custom_sidecars(annotation_window, save_external):
+@pytest.mark.parametrize("legacy_save_external", [True, False])
+def test_main_window_clear_default_and_custom_external_json_files(annotation_window, legacy_save_external):
     from dlcv_core.image_json import has_image_json
 
     app, window, image_path, default_path, other_path = annotation_window
@@ -759,9 +729,7 @@ def test_main_window_clear_default_and_custom_sidecars(annotation_window, save_e
     window.setDirty()
     assert window._saveFile(str(custom_path))
     assert custom_path.exists() and default_path.exists()
-    window.setting_dock.parameter.child("proj_setting", "save_external_json").setValue(
-        save_external
-    )
+    window._config["save_external_json"] = legacy_save_external
     tree = window.fileListWidget
     item = tree.findItems(str(image_path))[0]
     tree.show_annotated_checkbox.setChecked(True)
@@ -784,18 +752,16 @@ def test_main_window_clear_default_and_custom_sidecars(annotation_window, save_e
 
 
 @pytest.mark.parametrize("group_field", ["img_name_list", "image_path_list"])
-@pytest.mark.parametrize("save_external", [True, False])
+@pytest.mark.parametrize("legacy_save_external", [True, False])
 def test_main_window_clear_stored_image_group(
-    annotation_window, group_field, save_external
+    annotation_window, group_field, legacy_save_external
 ):
     from dlcv_core.image_json import has_image_json, read_image_json
     from labelme.dlcv.label_file import LabelFile
 
     app, window, image_path, _, other_path = annotation_window
     images = (image_path, other_path)
-    window.setting_dock.parameter.child("proj_setting", "save_external_json").setValue(
-        save_external
-    )
+    window._config["save_external_json"] = legacy_save_external
     data = read_image_json(image_path)
     for path in images:
         LabelFile().save(
@@ -803,7 +769,7 @@ def test_main_window_clear_stored_image_group(
             shapes=data["shapes"], imagePath=path.name,
             imageHeight=data["imageHeight"], imageWidth=data["imageWidth"],
             flags={}, otherData={group_field: [image.name for image in images]},
-            save_external_json=save_external,
+            save_external_json=legacy_save_external,
         )
     window.loadFile(str(image_path))
     assert window.otherData[group_field] == [image.name for image in images]
@@ -829,10 +795,10 @@ def test_main_window_and_file_tree_report_annotation_read_failure(
     from labelme.dlcv import utils_func
     from labelme.dlcv.file_tree_widget import _has_embedded_annotation
 
-    app, window, image_path, sidecar_path, _ = annotation_window
+    app, window, image_path, external_json_path, _ = annotation_window
     errors = []
     monkeypatch.setattr(utils_func, "notification", lambda *args: errors.append(args))
-    sidecar_path.unlink()
+    external_json_path.unlink()
     original = image_path.read_bytes()
     try:
         if failure == "corrupt":
@@ -841,7 +807,7 @@ def test_main_window_and_file_tree_report_annotation_read_failure(
             image_path.unlink()
         assert not window.hasLabelFile()
         assert not _has_embedded_annotation(image_path)
-        assert len(errors) == 2
+        assert len(errors) == 1
         assert all(str(image_path) in str(args[1]) for args in errors)
         assert all(args[2] == utils_func.ToastPreset.ERROR for args in errors)
     finally:
@@ -873,7 +839,7 @@ def test_main_window_item_change_filters_only_changed_file(annotation_window, mo
     assert other_path.resolve() not in calls
 
 
-def test_main_window_clear_failure_keeps_both_sidecars_and_edits(
+def test_main_window_clear_failure_keeps_both_external_json_files_and_edits(
     annotation_window, monkeypatch
 ):
     import stat

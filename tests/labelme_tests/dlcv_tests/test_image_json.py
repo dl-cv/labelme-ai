@@ -32,14 +32,14 @@ def _shape(label):
     }
 
 
-def test_save_writes_image_json_and_keeps_sidecar(tmp_path):
+def test_save_writes_image_json_and_keeps_external_json(tmp_path):
     image_path = tmp_path / "sample.png"
-    sidecar_path = tmp_path / "sample.json"
+    external_json_path = tmp_path / "sample.json"
     _save_image(image_path)
 
     label_file = LabelFile()
     label_file.save(
-        filename=str(sidecar_path),
+        filename=str(external_json_path),
         shapes=[_shape("embedded")],
         imagePath=image_path.name,
         imageHeight=16,
@@ -49,7 +49,7 @@ def test_save_writes_image_json_and_keeps_sidecar(tmp_path):
         flags={"ok": True},
     )
 
-    assert sidecar_path.exists()
+    assert external_json_path.exists()
     data = read_image_json(image_path)
     assert data["shapes"][0]["label"] == "embedded"
     loaded = LabelFile(str(image_path))
@@ -72,13 +72,13 @@ def test_renamed_embedded_image_uses_current_label_path(tmp_path):
     assert loaded.imagePath == image_path.name
 
 
-def test_embedded_json_has_priority_over_external_json(tmp_path):
+def test_external_json_has_priority_over_embedded_json(tmp_path):
     image_path = tmp_path / "sample.jpg"
-    sidecar_path = tmp_path / "sample.json"
+    external_json_path = tmp_path / "sample.json"
     _save_image(image_path)
     label_file = LabelFile()
     label_file.save(
-        filename=str(sidecar_path),
+        filename=str(external_json_path),
         shapes=[_shape("embedded")],
         imagePath=image_path.name,
         imageHeight=16,
@@ -87,12 +87,12 @@ def test_embedded_json_has_priority_over_external_json(tmp_path):
         otherData={},
         flags={},
     )
-    sidecar_path.write_text(
+    external_json_path.write_text(
         json.dumps(
             {
                 "version": "5.0.1",
-                "flags": {},
-                "shapes": [_shape("sidecar")],
+                "flags": {"已复核": True, "需复查": False},
+                "shapes": [{**_shape("external_json"), "flags": {"形状已复核": True, "形状需复查": False}, "points": [[4, 3], [18, 3], [18, 12], [4, 12]]}],
                 "imagePath": image_path.name,
                 "imageData": None,
                 "imageHeight": 16,
@@ -102,20 +102,25 @@ def test_embedded_json_has_priority_over_external_json(tmp_path):
         encoding="utf-8",
     )
 
-    loaded = LabelFile(str(sidecar_path))
+    loaded = LabelFile(str(external_json_path))
 
-    assert loaded.shapes[0]["label"] == "embedded"
+    assert loaded.shapes[0]["label"] == "external_json"
+    assert loaded.shapes[0]["points"] == [[4, 3], [18, 3], [18, 12], [4, 12]]
+    assert loaded.flags == {"已复核": True, "需复查": False}
+    assert loaded.shapes[0]["flags"] == {"形状已复核": True, "形状需复查": False}
+    assert LabelFile(str(image_path)).shapes[0]["label"] == "embedded"
+    assert read_image_json(image_path)["shapes"][0]["label"] == "embedded"
 
 
 def test_multi_image_annotation_is_written_to_each_image(tmp_path):
     first_image = tmp_path / "first.tif"
     second_image = tmp_path / "second.tif"
-    sidecar_path = tmp_path / "pair.json"
+    external_json_path = tmp_path / "pair.json"
     _save_image(first_image)
     _save_image(second_image)
 
     LabelFile().save(
-        filename=str(sidecar_path),
+        filename=str(external_json_path),
         shapes=[_shape("pair")],
         imagePath=first_image.name,
         imageHeight=16,
@@ -125,7 +130,7 @@ def test_multi_image_annotation_is_written_to_each_image(tmp_path):
         flags={},
     )
 
-    assert sidecar_path.exists()
+    assert external_json_path.exists()
     assert read_image_json(first_image)["shapes"][0]["label"] == "pair"
     assert read_image_json(second_image)["shapes"][0]["label"] == "pair"
 
@@ -133,12 +138,12 @@ def test_multi_image_annotation_is_written_to_each_image(tmp_path):
 
 def test_unsupported_image_format_keeps_external_json(tmp_path):
     image_path = tmp_path / "sample.gif"
-    sidecar_path = tmp_path / "sample.json"
+    external_json_path = tmp_path / "sample.json"
     _save_image(image_path)
 
     LabelFile().save(
-        filename=str(sidecar_path),
-        shapes=[_shape("sidecar")],
+        filename=str(external_json_path),
+        shapes=[_shape("external_json")],
         imagePath=image_path.name,
         imageHeight=16,
         imageWidth=24,
@@ -147,38 +152,53 @@ def test_unsupported_image_format_keeps_external_json(tmp_path):
         flags={},
     )
 
-    assert sidecar_path.exists()
+    assert external_json_path.exists()
 
 
 
-def test_file_tree_detects_embedded_annotation(tmp_path):
-    from labelme.dlcv.file_tree_widget import _has_embedded_annotation
+def test_file_tree_checks_external_json_only(qapp, tmp_path):
+    from types import SimpleNamespace
+    from qtpy import QtCore
+    from labelme.dlcv.file_tree_widget import _FileTreeWidget
+    from labelme.dlcv.store import STORE
 
     image_path = tmp_path / "sample.webp"
     _save_image(image_path)
-    assert not _has_embedded_annotation(image_path)
-    LabelFile().save(
-        filename=str(tmp_path / "sample.json"),
-        shapes=[_shape("embedded")],
-        imagePath=image_path.name,
-        imageHeight=16,
-        imageWidth=24,
-        imageData=None,
-        otherData={},
-        flags={},
-    )
-    assert _has_embedded_annotation(image_path)
+    external_json_path = image_path.with_suffix(".json")
+    write_image_json(image_path, {"imagePath": image_path.name, "shapes": [_shape("内嵌")], "flags": {}})
+    try:
+        previous = STORE.main_window
+    except AssertionError:
+        previous = None
+    STORE.register_main_window(SimpleNamespace(proj_manager=SimpleNamespace(
+        get_json_path=lambda path: str(Path(path).with_suffix(".json")))))
+    tree = _FileTreeWidget()
+    try:
+        tree.set_root_dir(str(tmp_path))
+        item = tree._file_items[image_path.as_posix()]
+        assert item.checkState(0) == QtCore.Qt.Unchecked
+        _save_label(LabelFile(), image_path, label="外部")
+        tree.update_state()
+        assert item.checkState(0) == QtCore.Qt.Checked
+        external_json_path.unlink()
+        tree.update_state()
+        assert item.checkState(0) == QtCore.Qt.Unchecked
+    finally:
+        tree.close()
+        tree.deleteLater()
+        qapp.processEvents()
+        STORE.register_main_window(previous)
 
-def test_main_window_treats_embedded_json_as_label_file(tmp_path):
+def test_main_window_requires_external_json_for_label_file(tmp_path):
     from types import SimpleNamespace
 
     from labelme.dlcv.app import MainWindow
 
     image_path = tmp_path / "sample.bmp"
-    sidecar_path = tmp_path / "sample.json"
+    external_json_path = tmp_path / "sample.json"
     _save_image(image_path)
     LabelFile().save(
-        filename=str(sidecar_path),
+        filename=str(external_json_path),
         shapes=[_shape("embedded")],
         imagePath=image_path.name,
         imageHeight=16,
@@ -189,10 +209,12 @@ def test_main_window_treats_embedded_json_as_label_file(tmp_path):
     )
     window = SimpleNamespace(
         filename=str(image_path),
-        getLabelFile=lambda: str(sidecar_path),
+        getLabelFile=lambda: str(external_json_path),
     )
 
     assert MainWindow.hasLabelFile(window)
+    external_json_path.unlink()
+    assert not MainWindow.hasLabelFile(window)
 
 
 def _save_label(
@@ -246,11 +268,11 @@ def test_legacy_windows_encoding_remains_readable(tmp_path, monkeypatch):
     import locale
     image_path = tmp_path / "legacy.png"
     _save_image(image_path)
-    sidecar = image_path.with_suffix(".json")
+    external_json = image_path.with_suffix(".json")
     data = {"imagePath": image_path.name, "shapes": [_shape("旧版中文")], "flags": {}}
-    sidecar.write_bytes(json.dumps(data, ensure_ascii=False).encode("cp936"))
+    external_json.write_bytes(json.dumps(data, ensure_ascii=False).encode("cp936"))
     monkeypatch.setattr(locale, "getencoding", lambda: "cp936")
-    assert LabelFile(str(sidecar)).shapes[0]["label"] == "旧版中文"
+    assert LabelFile(str(external_json)).shapes[0]["label"] == "旧版中文"
 
 
 def test_separate_output_directory_rebases_embedded_image_path(tmp_path):
@@ -274,10 +296,10 @@ def test_bigtiff_keeps_readable_external_json(tmp_path):
     image_path = tmp_path / "big.tif"
     tifffile.imwrite(image_path, np.zeros((16, 24), dtype=np.uint8), bigtiff=True)
     _save_label(LabelFile(), image_path)
-    sidecar = image_path.with_suffix(".json")
-    assert sidecar.is_file()
-    assert select_annotation_source(image_path, sidecar) == sidecar
-    assert LabelFile(str(sidecar)).shapes[0]["label"] == "中文缺陷"
+    external_json = image_path.with_suffix(".json")
+    assert external_json.is_file()
+    assert select_annotation_source(image_path, external_json) == external_json
+    assert LabelFile(str(external_json)).shapes[0]["label"] == "中文缺陷"
     assert LabelFile(str(image_path)).shapes[0]["label"] == "中文缺陷"
 
 
@@ -318,16 +340,16 @@ def test_failed_single_image_save_keeps_image_and_updates_external_backup(
     from labelme.dlcv import label_file as module
 
     image_path = tmp_path / "single.png"
-    sidecar_path = image_path.with_suffix(".json")
+    external_json_path = image_path.with_suffix(".json")
     _save_image(image_path)
     _save_label(LabelFile(), image_path, label="旧标注")
-    sidecar_data = {
+    external_json_data = {
         "imagePath": image_path.name,
         "shapes": [_shape("原外部标注")],
         "flags": {},
     }
-    sidecar_path.write_text(
-        json.dumps(sidecar_data, ensure_ascii=False), encoding="utf-8"
+    external_json_path.write_text(
+        json.dumps(external_json_data, ensure_ascii=False), encoding="utf-8"
     )
     original_image = image_path.read_bytes()
 
@@ -339,12 +361,12 @@ def test_failed_single_image_save_keeps_image_and_updates_external_backup(
         _save_label(
             LabelFile(),
             image_path,
-            filename=sidecar_path,
+            filename=external_json_path,
             label="新标注",
         )
 
     assert image_path.read_bytes() == original_image
-    assert json.loads(sidecar_path.read_text(encoding="utf-8"))["shapes"][0]["label"] == "新标注"
+    assert json.loads(external_json_path.read_text(encoding="utf-8"))["shapes"][0]["label"] == "新标注"
     assert read_image_json(image_path)["shapes"][0]["label"] == "旧标注"
     assert not [p for p in tmp_path.iterdir() if p.suffix in {".candidate", ".backup"}]
 
@@ -356,19 +378,19 @@ def test_failed_multi_image_save_keeps_successful_images_and_external_backup(
 
     first = tmp_path / "first.png"
     second = tmp_path / "second.png"
-    sidecar_path = tmp_path / "pair.json"
+    external_json_path = tmp_path / "pair.json"
     for image_path in [first, second]:
         _save_image(image_path)
     other_data = {"img_name_list": [first.name, second.name]}
     _save_label(LabelFile(), first, label="旧标注", other_data=other_data)
-    sidecar_data = {
+    external_json_data = {
         "imagePath": first.name,
         "shapes": [_shape("原外部标注")],
         "flags": {},
         **other_data,
     }
-    sidecar_path.write_text(
-        json.dumps(sidecar_data, ensure_ascii=False), encoding="utf-8"
+    external_json_path.write_text(
+        json.dumps(external_json_data, ensure_ascii=False), encoding="utf-8"
     )
     original_images = {path: path.read_bytes() for path in [first, second]}
     original_write = module.write_image_json
@@ -383,13 +405,13 @@ def test_failed_multi_image_save_keeps_successful_images_and_external_backup(
         _save_label(
             LabelFile(),
             first,
-            filename=sidecar_path,
+            filename=external_json_path,
             label="新标注",
             other_data=other_data,
         )
 
     assert second.read_bytes() == original_images[second]
-    assert json.loads(sidecar_path.read_text(encoding="utf-8"))["shapes"][0]["label"] == "新标注"
+    assert json.loads(external_json_path.read_text(encoding="utf-8"))["shapes"][0]["label"] == "新标注"
     assert read_image_json(first)["shapes"][0]["label"] == "新标注"
     assert read_image_json(second)["shapes"][0]["label"] == "旧标注"
     assert not [p for p in tmp_path.iterdir() if p.suffix in {".candidate", ".backup"}]
@@ -423,9 +445,9 @@ def test_image_path_list_is_rebased_for_separate_output_directory(tmp_path):
     assert (output_dir / "pair.json").exists()
 
 
-def test_corrupt_embedded_annotation_does_not_select_old_sidecar(tmp_path):
+def test_corrupt_embedded_annotation_does_not_replace_external_json(tmp_path):
     image_path = tmp_path / "corrupt.png"
-    sidecar_path = image_path.with_suffix(".json")
+    external_json_path = image_path.with_suffix(".json")
     _save_image(image_path)
     write_image_json(
         image_path,
@@ -435,7 +457,7 @@ def test_corrupt_embedded_annotation_does_not_select_old_sidecar(tmp_path):
             "flags": {},
         },
     )
-    sidecar_path.write_text(
+    external_json_path.write_text(
         json.dumps(
             {
                 "imagePath": image_path.name,
@@ -454,13 +476,15 @@ def test_corrupt_embedded_annotation_does_not_select_old_sidecar(tmp_path):
     image_data[chunk_type + 4 + chunk_length - 1] ^= 0x01
     image_path.write_bytes(image_data)
 
-    with pytest.raises(ImageJsonError, match="CRC"):
-        select_annotation_source(image_path, sidecar_path)
+    assert select_annotation_source(image_path, external_json_path) == external_json_path
+    assert LabelFile(str(external_json_path)).shapes[0]["label"] == "外部旧标注"
     with pytest.raises(LabelFileError, match="CRC"):
-        LabelFile(str(sidecar_path))
+        LabelFile(str(image_path))
+    with pytest.raises(ImageJsonError, match="CRC"):
+        read_image_json(image_path)
 
 
-def _empty_save_window(image_path, sidecar_path, image_names):
+def _empty_save_window(image_path, external_json_path, image_names):
     from types import SimpleNamespace
 
     errors = []
@@ -476,7 +500,7 @@ def _empty_save_window(image_path, sidecar_path, image_names):
         proj_manager=SimpleNamespace(
             get_img_name_list=lambda _filename: list(image_names)
         ),
-        getLabelFile=lambda: str(sidecar_path),
+        getLabelFile=lambda: str(external_json_path),
         fix_shape=lambda _shape: None,
         tr=lambda text: text,
         errorMessage=lambda title, message: errors.append((title, message)),
@@ -484,17 +508,17 @@ def _empty_save_window(image_path, sidecar_path, image_names):
     return window, errors
 
 
-def test_failed_single_image_clear_keeps_image_sidecar_and_temp_files_clean(
+def test_failed_single_image_clear_keeps_image_external_json_and_temp_files_clean(
     tmp_path, monkeypatch
 ):
     from labelme.dlcv import label_file as module
     from labelme.dlcv.app import MainWindow
 
     image_path = tmp_path / "single.png"
-    sidecar_path = image_path.with_suffix(".json")
+    external_json_path = image_path.with_suffix(".json")
     _save_image(image_path)
     _save_label(LabelFile(), image_path, label="图片内旧标注")
-    sidecar_path.write_text(
+    external_json_path.write_text(
         json.dumps(
             {
                 "imagePath": image_path.name,
@@ -506,25 +530,25 @@ def test_failed_single_image_clear_keeps_image_sidecar_and_temp_files_clean(
         encoding="utf-8",
     )
     original_image = image_path.read_bytes()
-    original_sidecar = sidecar_path.read_bytes()
+    original_external_json = external_json_path.read_bytes()
 
     original_unlink = module.Path.unlink
 
-    def fail_sidecar_unlink(path, *args, **kwargs):
-        if path == sidecar_path:
+    def fail_external_json_unlink(path, *args, **kwargs):
+        if path == external_json_path:
             raise OSError("模拟外部标注删除失败")
         return original_unlink(path, *args, **kwargs)
 
-    monkeypatch.setattr(module.Path, "unlink", fail_sidecar_unlink)
+    monkeypatch.setattr(module.Path, "unlink", fail_external_json_unlink)
     window, errors = _empty_save_window(
-        image_path, sidecar_path, [image_path.name]
+        image_path, external_json_path, [image_path.name]
     )
 
-    assert MainWindow.saveLabels(window, str(sidecar_path)) is False
+    assert MainWindow.saveLabels(window, str(external_json_path)) is False
     assert window.dirty is True
     assert errors and "模拟外部标注删除失败" in errors[0][1]
     assert image_path.read_bytes() == original_image
-    assert sidecar_path.read_bytes() == original_sidecar
+    assert external_json_path.read_bytes() == original_external_json
     assert read_image_json(image_path)["shapes"][0]["label"] == "图片内旧标注"
     assert not [
         path
@@ -533,7 +557,7 @@ def test_failed_single_image_clear_keeps_image_sidecar_and_temp_files_clean(
     ]
 
 
-def test_failed_multi_image_clear_rolls_back_images_and_keeps_sidecar(
+def test_failed_multi_image_clear_rolls_back_images_and_keeps_external_json(
     tmp_path, monkeypatch
 ):
     from labelme.dlcv import label_file as module
@@ -541,7 +565,7 @@ def test_failed_multi_image_clear_rolls_back_images_and_keeps_sidecar(
 
     first = tmp_path / "first.png"
     second = tmp_path / "second.png"
-    sidecar_path = tmp_path / "pair.json"
+    external_json_path = tmp_path / "pair.json"
     for image_path in [first, second]:
         _save_image(image_path)
     image_names = [first.name, second.name]
@@ -551,7 +575,7 @@ def test_failed_multi_image_clear_rolls_back_images_and_keeps_sidecar(
         label="图片内旧标注",
         other_data={"img_name_list": image_names},
     )
-    sidecar_path.write_text(
+    external_json_path.write_text(
         json.dumps(
             {
                 "imagePath": first.name,
@@ -564,7 +588,7 @@ def test_failed_multi_image_clear_rolls_back_images_and_keeps_sidecar(
         encoding="utf-8",
     )
     original_images = {path: path.read_bytes() for path in [first, second]}
-    original_sidecar = sidecar_path.read_bytes()
+    original_external_json = external_json_path.read_bytes()
     original_remove = module.remove_image_json
 
     def fail_second_image_clear(image_path, output_path=None):
@@ -573,13 +597,13 @@ def test_failed_multi_image_clear_rolls_back_images_and_keeps_sidecar(
         return original_remove(image_path, output_path=output_path)
 
     monkeypatch.setattr(module, "remove_image_json", fail_second_image_clear)
-    window, errors = _empty_save_window(first, sidecar_path, image_names)
+    window, errors = _empty_save_window(first, external_json_path, image_names)
 
-    assert MainWindow.saveLabels(window, str(sidecar_path)) is False
+    assert MainWindow.saveLabels(window, str(external_json_path)) is False
     assert window.dirty is True
     assert errors and "模拟第二张图片清理失败" in errors[0][1]
     assert {path: path.read_bytes() for path in [first, second]} == original_images
-    assert sidecar_path.read_bytes() == original_sidecar
+    assert external_json_path.read_bytes() == original_external_json
     assert read_image_json(first)["shapes"][0]["label"] == "图片内旧标注"
     assert read_image_json(second)["shapes"][0]["label"] == "图片内旧标注"
     assert not [
@@ -589,50 +613,52 @@ def test_failed_multi_image_clear_rolls_back_images_and_keeps_sidecar(
     ]
 
 
-def test_group_sidecar_clear_failure_restores_all_originals(tmp_path, monkeypatch):
+def test_group_external_json_clear_failure_restores_all_originals(tmp_path, monkeypatch):
     from labelme.dlcv import label_file as module
 
     images = [tmp_path / "first.png", tmp_path / "second.png"]
     for image in images:
         _save_image(image)
         _save_label(LabelFile(), image, label="原标注")
-    sidecars = [image.with_suffix(".json") for image in images]
-    originals = {path: path.read_bytes() for path in [*images, *sidecars]}
+    external_json_files = [image.with_suffix(".json") for image in images]
+    originals = {path: path.read_bytes() for path in [*images, *external_json_files]}
     original_unlink = module.Path.unlink
 
-    def fail_second_sidecar(path, *args, **kwargs):
-        if path == sidecars[1]:
+    def fail_second_external_json(path, *args, **kwargs):
+        if path == external_json_files[1]:
             raise PermissionError("第二张图片的外部标注不可删除")
         return original_unlink(path, *args, **kwargs)
 
-    monkeypatch.setattr(module.Path, "unlink", fail_second_sidecar)
+    monkeypatch.setattr(module.Path, "unlink", fail_second_external_json)
     with pytest.raises(LabelFileError, match="第二张图片"):
-        module.remove_image_annotations(images, sidecars[0])
+        module.remove_image_annotations(images, external_json_files[0])
     assert {path: path.read_bytes() for path in originals} == originals
 
 
-@pytest.mark.parametrize("existing_sidecar", [False, True])
-def test_external_json_setting_never_disables_embedding_or_deletes_existing_json(
-    tmp_path, existing_sidecar
+@pytest.mark.parametrize("existing_external_json", [False, True])
+@pytest.mark.parametrize("legacy_save_external_json", [False, True])
+def test_save_always_updates_embedded_and_external_json(
+    tmp_path, existing_external_json, legacy_save_external_json
 ):
     image = tmp_path / "sample.png"
-    sidecar = image.with_suffix(".json")
+    external_json = image.with_suffix(".json")
     _save_image(image)
-    if existing_sidecar:
+    if existing_external_json:
         _save_label(LabelFile(), image, label="旧标注")
-        original_sidecar = sidecar.read_bytes()
+    shape = {**_shape("新标注"), "points": [[4, 3], [18, 3], [18, 12], [4, 12]]}
     LabelFile().save(
-        str(sidecar), [_shape("新标注")], image.name, 16, 24,
-        save_external_json=False,
+        str(external_json), [shape], image.name, 16, 24,
+        save_external_json=legacy_save_external_json,
     )
-    assert read_image_json(image)["shapes"][0]["label"] == "新标注"
-    assert sidecar.exists() == existing_sidecar
-    if existing_sidecar:
-        assert sidecar.read_bytes() == original_sidecar
-        assert LabelFile(str(sidecar)).shapes[0]["label"] == "新标注"
+    external = json.loads(external_json.read_text(encoding="utf-8"))
+    assert external == read_image_json(image)
+    assert external["shapes"] == [shape]
+    loaded = LabelFile(str(external_json))
+    assert loaded.shapes[0]["label"] == "新标注"
+    assert loaded.shapes[0]["points"] == shape["points"]
 
 
-def test_failed_embedding_writes_backup_even_when_external_saving_is_disabled(
+def test_failed_embedding_writes_external_json_for_legacy_false_setting(
     tmp_path, monkeypatch
 ):
     from labelme.dlcv import label_file as module
@@ -682,14 +708,14 @@ def test_unsupported_group_member_keeps_supported_images_current(tmp_path):
     assert LabelFile(str(first.with_suffix(".json"))).shapes[0]["label"] == "最新标注"
 
 
-def test_sidecar_failure_keeps_successful_embedded_updates(tmp_path, monkeypatch):
+def test_external_json_failure_keeps_successful_embedded_updates(tmp_path, monkeypatch):
     from labelme.dlcv import label_file as module
 
     image = tmp_path / "sample.png"
     _save_image(image)
-    def fail_sidecar(*args, **kwargs):
+    def fail_external_json(*args, **kwargs):
         raise OSError("外部文件不可写")
-    monkeypatch.setattr(module, "_write_sidecar", fail_sidecar)
+    monkeypatch.setattr(module, "write_json_annotation", fail_external_json)
     with pytest.raises(LabelFileError, match="外部文件不可写"):
         _save_label(LabelFile(), image, label="最新标注")
     assert read_image_json(image)["shapes"][0]["label"] == "最新标注"
@@ -706,10 +732,10 @@ def test_auto_save_failure_preserves_dirty_edits_and_saves_backup(
     from labelme.dlcv.app import MainWindow
 
     image = tmp_path / "sample.png"
-    sidecar = image.with_suffix(".json")
+    external_json = image.with_suffix(".json")
     _save_image(image)
     _save_label(LabelFile(), image, label="旧标注")
-    window, errors = _empty_save_window(image, sidecar, [image.name])
+    window, errors = _empty_save_window(image, external_json, [image.name])
     flag = SimpleNamespace(text=lambda: "最新标记", checkState=lambda: QtCore.Qt.Checked)
     window.flag_widget = SimpleNamespace(count=lambda: 1, item=lambda index: flag)
     window._config = {"store_data": False, "save_external_json": save_external_json}
@@ -723,14 +749,14 @@ def test_auto_save_failure_preserves_dirty_edits_and_saves_backup(
         raise OSError("图片内写入失败")
     monkeypatch.setattr(module, "write_image_json", fail_write)
 
-    assert MainWindow.saveLabels(window, str(sidecar)) is False
+    assert MainWindow.saveLabels(window, str(external_json)) is False
     assert window.dirty is True
     assert window.labelFile is original_label_file
     assert errors and "最新标注已保存至外部 JSON" in errors[0][1]
     assert "保存标注失败" in caplog.text
     assert "Traceback" in caplog.text
-    assert str(sidecar) in caplog.text
-    assert json.loads(sidecar.read_text(encoding="utf-8"))["flags"] == {"最新标记": True}
+    assert str(external_json) in caplog.text
+    assert json.loads(external_json.read_text(encoding="utf-8"))["flags"] == {"最新标记": True}
 
 
 
@@ -748,11 +774,11 @@ def test_real_readonly_jpeg_failure_writes_complete_traceback(tmp_path, save_ext
     if os.name != "nt":
         pytest.skip("使用 Windows 只读属性")
     image = tmp_path / "只读图片.jpg"
-    sidecar = image.with_suffix(".json")
+    external_json = image.with_suffix(".json")
     _save_image(image)
     original = image.read_bytes()
     original_mode = image.stat().st_mode
-    window, errors = _empty_save_window(image, sidecar, [image.name])
+    window, errors = _empty_save_window(image, external_json, [image.name])
     flag = SimpleNamespace(text=lambda: "最新标记", checkState=lambda: QtCore.Qt.Checked)
     window.flag_widget = SimpleNamespace(count=lambda: 1, item=lambda index: flag)
     window._config = {"store_data": False, "save_external_json": save_external_json}
@@ -766,7 +792,7 @@ def test_real_readonly_jpeg_failure_writes_complete_traceback(tmp_path, save_ext
     offset = log_path.stat().st_size
     image.chmod(stat.S_IREAD)
     try:
-        assert MainWindow.saveLabels(window, str(sidecar)) is False
+        assert MainWindow.saveLabels(window, str(external_json)) is False
         assert window.dirty is True and errors
         assert image.read_bytes() == original
     finally:
@@ -792,7 +818,7 @@ def _folder_count_text(folder):
     return output[-1]
 
 
-def test_folder_count_prefers_embedded_and_keeps_external_only_annotations(tmp_path):
+def test_folder_count_prefers_external_and_keeps_external_only_annotations(tmp_path):
     embedded = tmp_path / "embedded.png"
     external = tmp_path / "external.png"
     for image in [embedded, external]:
@@ -805,25 +831,23 @@ def test_folder_count_prefers_embedded_and_keeps_external_only_annotations(tmp_p
         )
     text = _folder_count_text(tmp_path)
     assert "共扫描 2 份标注" in text
-    assert "内嵌标签: 1" in text
+    assert "旧外部标签: 1" in text
     assert "外部标签: 1" in text
-    assert "旧外部标签" not in text
+    assert "内嵌标签" not in text
     assert "总数: 2" in text
 
 
-def test_folder_count_reads_embedded_only_images(tmp_path):
+def test_folder_count_ignores_embedded_only_images(tmp_path):
     image = tmp_path / "embedded.png"
     _save_image(image)
-    LabelFile().save(
-        str(image.with_suffix(".json")), [_shape("内嵌标签")], image.name,
-        16, 24, save_external_json=False,
-    )
+    write_image_json(image, {"imagePath": image.name, "shapes": [_shape("内嵌标签")], "flags": {}})
     text = _folder_count_text(tmp_path)
-    assert "共扫描 1 份标注" in text
-    assert "内嵌标签: 1" in text
+    assert "未找到任何标注" in text
+    assert "内嵌标签" not in text
+    assert read_image_json(image)["shapes"][0]["label"] == "内嵌标签"
 
 
-def test_folder_count_counts_shared_images_and_sidecar_once(tmp_path):
+def test_folder_count_counts_shared_images_and_external_json_once(tmp_path):
     images = [tmp_path / "first.png", tmp_path / "second.png"]
     for image in images:
         _save_image(image)
@@ -836,15 +860,15 @@ def test_folder_count_counts_shared_images_and_sidecar_once(tmp_path):
     assert "分组标签: 1" in text
 
 
-def test_folder_count_reports_corrupt_embedded_image(tmp_path):
+def test_folder_count_ignores_corrupt_image_without_external_json(tmp_path):
     (tmp_path / "corrupt.png").write_bytes(b"\x89PNG\r\n\x1a\n")
     text = _folder_count_text(tmp_path)
-    assert "读取文件夹标注失败" in text
-    assert "未找到任何标注" not in text
+    assert "未找到任何标注" in text
+    assert "读取失败" not in text
 
 
 
-def test_folder_count_keeps_independent_sidecar_after_renaming_2d_image(tmp_path):
+def test_folder_count_keeps_independent_external_json_after_renaming_2d_image(tmp_path):
     from shutil import copy2
     from dlcv_core.image_json import remove_image_json
 
@@ -862,8 +886,8 @@ def test_folder_count_keeps_independent_sidecar_after_renaming_2d_image(tmp_path
         encoding="utf-8",
     )
     text = _folder_count_text(tmp_path)
-    assert "共扫描 2 份标注" in text
-    assert "内嵌副本: 1" in text
+    assert "共扫描 1 份标注" in text
+    assert "内嵌副本" not in text
     assert "独立外部标注: 1" in text
 
 
@@ -875,9 +899,9 @@ def test_manual_save_keeps_external_output_path(tmp_path, custom_name):
     from labelme.dlcv.app import MainWindow
 
     image_path = tmp_path / "sample.png"
-    sidecar_path = tmp_path / "labels" / custom_name
+    external_json_path = tmp_path / "labels" / custom_name
     _save_image(image_path)
-    window, errors = _empty_save_window(image_path, sidecar_path, [image_path.name])
+    window, errors = _empty_save_window(image_path, external_json_path, [image_path.name])
     current_flag = {"label": "第一次"}
     flag = SimpleNamespace(
         text=lambda: current_flag["label"], checkState=lambda: QtCore.Qt.Checked
@@ -888,22 +912,22 @@ def test_manual_save_keeps_external_output_path(tmp_path, custom_name):
     window.imageData = None
     window.image = SimpleNamespace(height=lambda: 16, width=lambda: 24, isNull=lambda: False)
     window.otherData = {}
-    window.output_dir = str(sidecar_path.parent)
+    window.output_dir = str(external_json_path.parent)
     window.getLabelFile = lambda: str(image_path.with_suffix(".json"))
     window.fileListWidget = SimpleNamespace(findItems=lambda *args: [])
     window._saveFile = lambda filename: MainWindow.saveLabels(window, filename)
 
-    assert MainWindow.saveLabels(window, str(sidecar_path))
+    assert MainWindow.saveLabels(window, str(external_json_path))
     current_flag["label"] = "第二次"
     BaseMainWindow.saveFile(window)
 
     assert not errors
-    assert json.loads(sidecar_path.read_text(encoding="utf-8"))["flags"] == {"第二次": True}
+    assert json.loads(external_json_path.read_text(encoding="utf-8"))["flags"] == {"第二次": True}
     assert read_image_json(image_path)["flags"] == {"第二次": True}
     assert not image_path.with_suffix(".json").exists()
 
 
-def test_label_file_keeps_sidecar_after_embedded_reload(tmp_path):
+def test_label_file_keeps_external_json_after_embedded_reload(tmp_path):
     image = tmp_path / "sample.png"
     output = tmp_path / "labels" / "custom.json"
     _save_image(image)
@@ -943,13 +967,13 @@ def test_save_and_clear_use_memory_buffers_for_long_names(tmp_path, monkeypatch)
 
 
 @pytest.mark.parametrize("existing", [False, True])
-def test_partial_sidecar_write_restores_previous_file(tmp_path, monkeypatch, existing):
-    from labelme.dlcv.label_file import _write_sidecar
+def test_partial_external_json_write_restores_previous_file(tmp_path, monkeypatch, existing):
+    from labelme.dlcv.label_file import write_json_annotation
 
-    sidecar = tmp_path / "sample.json"
+    external_json = tmp_path / "sample.json"
     original = b'{"flags":{"old":true}}'
     if existing:
-        sidecar.write_bytes(original)
+        external_json.write_bytes(original)
     original_open = Path.open
     failed = False
 
@@ -970,28 +994,102 @@ def test_partial_sidecar_write_restores_previous_file(tmp_path, monkeypatch, exi
     def fail_first_write(path, mode="r", *args, **kwargs):
         nonlocal failed
         file = original_open(path, mode, *args, **kwargs)
-        if path == sidecar and mode == "wb" and not failed:
+        if path == external_json and mode == "wb" and not failed:
             failed = True
             return FailedWriter(file)
         return file
 
     monkeypatch.setattr(Path, "open", fail_first_write)
     with pytest.raises(OSError, match="模拟写入中断"):
-        _write_sidecar(sidecar, {"flags": {"latest": True}})
+        write_json_annotation(external_json, {"flags": {"latest": True}})
     if existing:
-        assert sidecar.read_bytes() == original
+        assert external_json.read_bytes() == original
     else:
-        assert not sidecar.exists()
+        assert not external_json.exists()
 
 
 @pytest.mark.parametrize("embedded", [None, [], 42, False, '\"文本\"'])
-def test_non_object_embedded_annotation_never_loads_old_sidecar(tmp_path, embedded):
+def test_invalid_embedded_object_does_not_override_external_json(tmp_path, embedded):
     image_path = tmp_path / "invalid-annotation.png"
     _save_image(image_path)
-    _save_label(LabelFile(), image_path, label="外部旧数据")
+    _save_label(LabelFile(), image_path, label="外部数据")
     write_image_json(image_path, embedded)
-    sidecar_path = image_path.with_suffix(".json")
-    assert select_annotation_source(image_path, sidecar_path) == image_path
-    for source in (image_path, sidecar_path):
-        with pytest.raises(LabelFileError, match="标注不是 JSON 对象"):
+    external_json_path = image_path.with_suffix(".json")
+    assert select_annotation_source(image_path, external_json_path) == external_json_path
+    assert LabelFile(str(external_json_path)).shapes[0]["label"] == "外部数据"
+    with pytest.raises(LabelFileError, match="标注不是 JSON 对象"):
+        LabelFile(str(image_path))
+    assert read_image_json(image_path) == (json.loads(embedded) if isinstance(embedded, str) else embedded)
+
+@pytest.mark.parametrize("entrypoint", ["json", "image"])
+@pytest.mark.parametrize("content", ["empty", "broken", "missing"])
+def test_external_empty_broken_and_missing_never_read_old_embedded(tmp_path, entrypoint, content):
+    image = tmp_path / "sample.png"
+    _save_image(image)
+    embedded = {"imagePath": image.name, "shapes": [_shape("旧内嵌")], "flags": {"历史标记": True}}
+    write_image_json(image, embedded)
+    external_json = image.with_suffix(".json")
+    if content == "empty":
+        external_json.write_text(json.dumps({"imagePath": image.name, "shapes": [], "flags": {}}), encoding="utf-8")
+    elif content == "broken":
+        external_json.write_text("{", encoding="utf-8")
+    originals = {path: path.read_bytes() for path in tmp_path.iterdir()}
+    source = external_json if entrypoint == "json" else select_annotation_source(image, external_json)
+    if content == "missing":
+        assert select_annotation_source(image, external_json) is None
+        with pytest.raises(LabelFileError):
+            LabelFile(str(external_json))
+        assert "未找到任何标注" in _folder_count_text(tmp_path)
+    elif content == "empty":
+        assert source == external_json
+        loaded = LabelFile(str(source))
+        assert loaded.shapes == [] and loaded.flags == {}
+        assert "未统计到任何标签" in _folder_count_text(tmp_path)
+    else:
+        assert source == external_json
+        with pytest.raises(LabelFileError):
             LabelFile(str(source))
+        assert "读取失败: 1 份标注" in _folder_count_text(tmp_path)
+    assert read_image_json(image) == embedded
+    assert {path: path.read_bytes() for path in originals} == originals
+
+
+@pytest.mark.parametrize("entrypoint", ["image", "json"])
+def test_real_main_window_uses_selected_external_path_and_coordinates(qapp, tmp_path, entrypoint):
+    from labelme.config import get_config
+    from labelme.dlcv.app import MainWindow
+
+    image = tmp_path / "sample.png"
+    _save_image(image)
+    write_image_json(image, {"imagePath": image.name, "shapes": [_shape("旧内嵌")], "flags": {}})
+    labels = tmp_path / "labels"
+    labels.mkdir()
+    external_json = image.with_suffix(".json") if entrypoint == "image" else labels / "custom.json"
+    expected_points = [[4, 3], [18, 3], [18, 12], [4, 12]]
+    external_json.write_text(json.dumps({"imagePath": image.name if entrypoint == "image" else "../sample.png",
+        "imageWidth": 24, "imageHeight": 16,
+        "shapes": [{**_shape("外部修改"), "points": expected_points,
+            "flags": {"形状已复核": True, "形状需复查": False}}],
+        "flags": {"已复核": True, "需复查": False}}), encoding="utf-8")
+    originals = {path: path.read_bytes() for path in (image, external_json)}
+    config = get_config()
+    config.update(auto_save=False, keep_prev=False)
+    window = MainWindow(config=config)
+    errors = []
+    window.errorMessage = lambda title, message: errors.append((title, message))
+    try:
+        assert window.loadFile(str(image if entrypoint == "image" else external_json)) is not False
+        assert not errors
+        assert (window.image.width(), window.image.height()) == (24, 16)
+        assert Path(window.labelFile.filename).resolve() == external_json.resolve()
+        assert [item.label for item in window.canvas.shapes] == ["外部修改"]
+        assert [[[point.x(), point.y()] for point in item.points] for item in window.canvas.shapes] == [expected_points]
+        assert window.labelFile.flags == {"已复核": True, "需复查": False}
+        assert window.canvas.shapes[0].flags == {"形状已复核": True, "形状需复查": False}
+        assert window.hasLabelFile() is (entrypoint == "image")
+        assert {path: path.read_bytes() for path in originals} == originals
+    finally:
+        window.setClean()
+        window.close()
+        window.deleteLater()
+        qapp.processEvents()

@@ -47,7 +47,7 @@ class LabelCountDock(QtWidgets.QDockWidget):
 
     # 统计当前文件夹内的标签/标记数量
     def count_labels_in_dir(self):
-        """递归统计图片内嵌优先的标注，同一份标注只计数一次。"""
+        """递归统计外部 JSON 的标签和文本标记。"""
         parent = self.parent()
         dir_path = getattr(parent, "lastOpenDir", None)
         if not dir_path or not os.path.isdir(dir_path):

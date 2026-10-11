@@ -280,9 +280,8 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
     from labelme.dlcv.store import STORE
 
     source = Path(filename).resolve(strict=True)
-    annotation = source.with_suffix(".json")
-    if not annotation.is_file():
-        raise FileNotFoundError(annotation)
+    if source.suffix.lower() == ".json":
+        raise ValueError("截图模式不接受 JSON 入参，请提供图片路径")
     output_dir = Path(output_dir).resolve()
     if not output_dir.is_dir():
         raise NotADirectoryError(output_dir)
@@ -296,30 +295,30 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
     image_paths = [source]
     if clear_group:
         from dlcv_core.image_json import has_image_json
-        from labelme.dlcv.label_file import LabelFile, _collect_image_paths
+        from labelme.dlcv.label_file import LabelFile, collect_image_paths
 
         label_file = LabelFile(str(source))
         image_paths = [
             path.resolve(strict=True)
-            for path in _collect_image_paths(source, label_file.otherData)
+            for path in collect_image_paths(source, label_file.otherData)
         ]
         if len(image_paths) != 2 or len(set(image_paths)) != 2:
             raise ValueError("清空校验需要同一组中的两张图片")
         for path in image_paths:
             if path.parent != source.parent:
                 raise ValueError("清空校验只接受同目录组图片")
-            sidecar = path.with_suffix(".json").resolve(strict=True)
-            if sidecar.parent != source.parent:
+            json_path = path.with_suffix(".json").resolve(strict=True)
+            if json_path.parent != source.parent:
                 raise ValueError("清空校验只接受同目录 JSON")
             member = LabelFile(str(path))
             if Path(member.imagePath).is_absolute() or any(
                 item.parent != Path(".")
-                for item in _collect_image_paths(Path(path.name), member.otherData)
+                for item in collect_image_paths(Path(path.name), member.otherData)
             ):
                 raise ValueError("清空校验的组名单及图片路径必须使用同目录文件名")
             members = {
                 item.resolve(strict=True)
-                for item in _collect_image_paths(path, member.otherData)
+                for item in collect_image_paths(path, member.otherData)
             }
             if not members.issubset(image_paths) or (
                 path.parent / member.imagePath
@@ -332,16 +331,27 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
     class MainWindow(BaseMainWindow):
         def __init__(self, *args, **kwargs):
             # 基类创建菜单前，使用此主窗的隔离设置完成翻译懒加载。
-            self.settings = QtCore.QSettings("labelme", "labelme")
+            self.settings = self.createSettings("labelme", "labelme")
             STORE.register_main_window(self)
             dlcv_tr("设置面板")
             super().__init__(*args, **kwargs)
+
+        def createSettings(self, organization, application):
+            settings = QtCore.QSettings(
+                str(settings_dir / f"{organization}-{application}.ini"),
+                QtCore.QSettings.IniFormat,
+            )
+            screenshot_settings.append(settings)
+            return settings
 
         def _init_dlcv_ai_widget(self):
             pass
 
     with tempfile.TemporaryDirectory(prefix="labelme-ui-") as temp:
         temp_path = Path(temp)
+        settings_dir = temp_path / "settings"
+        settings_dir.mkdir()
+        screenshot_settings = []
         for key in (
             "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "XDG_CONFIG_HOME"
         ):
@@ -351,15 +361,11 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
         copied = image_dir / source.name
         for path in image_paths:
             shutil.copy2(path, image_dir / path.name)
-            sidecar = path.with_suffix(".json")
-            shutil.copy2(sidecar, image_dir / sidecar.name)
-        QtCore.QSettings.setDefaultFormat(QtCore.QSettings.IniFormat)
-        for scope in (QtCore.QSettings.UserScope, QtCore.QSettings.SystemScope):
-            QtCore.QSettings.setPath(QtCore.QSettings.IniFormat, scope, str(temp_path))
+            json_path = path.with_suffix(".json")
+            if json_path.is_file():
+                shutil.copy2(json_path, image_dir / json_path.name)
         config = get_config(str(temp_path / ".labelmerc"), {})
-        if clear_group or readonly_save:
-            # 验收副本从首次加载起禁用自动保存。
-            config["auto_save"] = False
+        config["auto_save"] = False
         language_file = temp_path / "dlcv" / "language.txt"
         language_file.parent.mkdir(parents=True, exist_ok=True)
         language_file.write_text("zh-Hans", encoding="utf-8")
@@ -380,8 +386,9 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
 
         if readonly_save:
             copied.chmod(stat.S_IREAD)
-        win = MainWindow(config=config, filename=str(copied))
+        win = None
         try:
+            win = MainWindow(config=config, filename=str(copied))
             win.resize(1920, 1080)
             win.show()  # offscreen 平台不创建桌面窗口
             if app.platformName() != "offscreen":
@@ -399,8 +406,10 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
                 or win.file_dock.windowTitle() != "文件列表"
             ):
                 raise RuntimeError("未通过设置完成中文翻译懒加载")
-            if win.filename != str(copied) or not win.canvas.shapes:
-                raise RuntimeError("图片或原有标注未能通过主窗口加载")
+            if win.filename != str(copied) or win.image.isNull():
+                raise RuntimeError("图片未能通过主窗口加载")
+            if (clear_group or readonly_save) and not win.canvas.shapes:
+                raise RuntimeError("保存验证需要原有非空标注")
 
             def capture(widget, name):
                 image = QtGui.QImage(widget.size(), QtGui.QImage.Format_ARGB32)
@@ -518,13 +527,22 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
             app.processEvents()
             capture(win.setting_dock, names[1])
         finally:
-            if readonly_save:
-                copied.chmod(stat.S_IREAD | stat.S_IWRITE)
-            if clear_group or readonly_save:
-                win.setClean()
-            win.close()
-            app.processEvents()
-            STORE.q_translator = None
+            try:
+                if readonly_save:
+                    copied.chmod(stat.S_IREAD | stat.S_IWRITE)
+                if win is not None:
+                    win.setClean()
+                    win.close()
+                    app.processEvents()
+            finally:
+                STORE.q_translator = None
+                settings_errors = []
+                for settings in screenshot_settings:
+                    settings.sync()
+                    if settings.status() != QtCore.QSettings.NoError:
+                        settings_errors.append(settings.fileName())
+                if settings_errors:
+                    raise RuntimeError(f"截图设置同步失败: {settings_errors}")
 
 
 def start_backend():
