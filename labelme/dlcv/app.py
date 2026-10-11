@@ -63,7 +63,6 @@ from labelme.dlcv.canvas import CURSOR_DRAW
 from labelme.dlcv.label_file import (
     _collect_image_paths,
     remove_image_annotations,
-    resolve_sidecar_path,
     select_annotation_source,
 )
 import os
@@ -915,9 +914,13 @@ class MainWindow(CopyPasteMixin, MainWindow):
     # 保存 json 的函数： 自动保存标签
     def saveLabels(self, filename: str):
         """filename: json 文件路径"""
+        # extra 保存 3d 或 2.5d json
+        if self.is_3d or self.is_2_5d:
+            filename = self.getLabelFile()
+
         if Path(filename).suffix.lower() != ".json":
             label_file = getattr(self, "labelFile", None)
-            filename = getattr(label_file, "sidecar_path", None)
+            filename = getattr(label_file, "json_annotation_path", None)
             if not filename:
                 filename = self.getLabelFile()
                 if getattr(self, "output_dir", None):
@@ -963,23 +966,15 @@ class MainWindow(CopyPasteMixin, MainWindow):
             flag = item.checkState() == Qt.Checked
             flags[key] = flag
 
-        # 未勾选的文本标记仍须保存，只有形状和标记均为空时清理。
-        if not shapes and not flags:
+        # 空标注时同时清理图片内 JSON 和旧的外部 JSON。
+        if not shapes and not any(flags.values()):
             label_file = filename
-            loaded_label = getattr(self, "labelFile", None)
-            source_sidecar = getattr(loaded_label, "sidecar_path", None) or filename
-            primary_image = (
-                Path(source_sidecar).parent / loaded_label.imagePath
-                if loaded_label else Path(self.filename)
-            )
-            image_paths = _collect_image_paths(
-                primary_image, self.otherData, source_sidecar
-            )
+            image_paths = _collect_image_paths(Path(self.filename), self.otherData)
             for image_name in self.proj_manager.get_img_name_list(self.filename):
                 image_paths.append(Path(self.filename).parent / image_name)
             try:
                 removed_paths = remove_image_annotations(
-                    image_paths, label_file, default_sidecar_path=self.getLabelFile()
+                    image_paths, label_file, default_json_annotation_path=self.getLabelFile()
                 )
             except LabelFileError as e:
                 logger.error(f"清理标注失败：{label_file}", exc_info=True)
@@ -989,7 +984,10 @@ class MainWindow(CopyPasteMixin, MainWindow):
                 )
                 return False
             if removed_paths:
-                self.fileListWidget.update_state()
+                for image_path in image_paths:
+                    items = self.fileListWidget.findItems(str(image_path), Qt.MatchExactly)
+                    for item in items:
+                        item.setCheckState(Qt.Unchecked)
                 logger.info(f"删除标注：{', '.join(removed_paths)}")
             # 实时更新统计信息
             if hasattr(self, "label_count_dock"):
@@ -998,6 +996,8 @@ class MainWindow(CopyPasteMixin, MainWindow):
             self.actions.save.setEnabled(False)
             return True
 
+        # 不需要保存 False 的 flag
+        flags = {k: v for k, v in flags.items() if v}
         # extra End
 
         try:
@@ -1012,8 +1012,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
                 # 确保otherData存在
                 if self.otherData is None:
                     self.otherData = {}
-                if "img_name_list" not in self.otherData:
-                    self.otherData["img_name_list"] = img_name_list
+                self.otherData["img_name_list"] = img_name_list
             # extra End
 
             lf.save(
@@ -1025,17 +1024,48 @@ class MainWindow(CopyPasteMixin, MainWindow):
                 imageWidth=self.image.width(),
                 otherData=self.otherData,
                 flags=flags,
-                source_sidecar_path=getattr(
-                    getattr(self, "labelFile", None), "sidecar_path", None
-                ),
+                save_external_json=self._config.get("save_external_json", True),
             )
             self.labelFile = lf
-            # 保存后重新读取外部 JSON，与正常打开使用相同来源。
+            # 直接按保存入口返回的实际来源重新读取，避免错误时改读旧文件。
             self.labelFile.load(lf.filename)
-            self.otherData = self.labelFile.otherData
             # extra End
 
-            self.fileListWidget.update_state()
+            # 保存标注时，设置文件列表的勾选状态
+            # extra 2.5D模式：需要更新所有使用该JSON的图片的勾选状态
+            if self.is_2_5d:
+                # 从otherData中获取图片列表
+                img_name_list = self.labelFile.otherData.get('img_name_list', [])
+                if img_name_list:
+                    # 从映射中查找完整路径
+                    json_name = os.path.basename(filename)
+                    json_dir = os.path.dirname(filename)  # 获取JSON文件所在目录
+                    proj_manager = self.proj_manager.o2_5d_manager
+                    # 只查找同一目录下使用该JSON的完整路径
+                    img_paths = [img_path for img_path, json_file in proj_manager._file_to_json.items()
+                                if json_file == json_name and os.path.dirname(img_path) == json_dir]
+                    for img_path in img_paths:
+                        # 标准化路径格式
+                        img_path = str(Path(img_path).absolute().as_posix())
+                        items = self.fileListWidget.findItems(img_path, Qt.MatchExactly)
+                        for item in items:
+                            item.setCheckState(Qt.Checked)
+                else:
+                    # 如果没有图片列表 使用当前图片
+                    items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
+                    if len(items) == 0:
+                        items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
+                    if len(items) > 0:
+                        for item in items:
+                            item.setCheckState(Qt.Unchecked)
+            else:
+                items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
+                if len(items) == 0:
+                    items = self.fileListWidget.findItems(self.filename, Qt.MatchExactly)
+                if len(items) > 0:
+                    for item in items:
+                        item.setCheckState(Qt.Checked)
+            # extra End
 
             # 实时更新统计信息
             if hasattr(self, "label_count_dock"):
@@ -1252,7 +1282,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
             assert self.filename is not None
 
             # 2.5D模式：使用公共前缀的JSON文件名来获取json路径
-            return str(resolve_sidecar_path(self.filename, self))
+            return self.proj_manager.get_json_path(self.filename)
         except:
             notification(
                 title=dlcv_tr("获取标签文件失败"),
@@ -1267,12 +1297,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
         """只有外部 JSON 视为已有标注文件。"""
         if self.filename is None:
             return False
-        label_file = getattr(getattr(self, "labelFile", None), "sidecar_path", None)
-        if not label_file:
-            label_file = self.getLabelFile()
-            if getattr(self, "output_dir", None):
-                label_file = osp.join(self.output_dir, osp.basename(label_file))
-        return osp.isfile(label_file)
+        return osp.exists(self.getLabelFile())
 
     def get_vertical_scrollbar(self):
         return self.scrollBars[Qt.Vertical]
@@ -1348,7 +1373,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
             )
             return False
 
-        # 直接打开 JSON 时，从所选外部标注解析图片路径。
+        # 直接打开 JSON 时，用实际标注来源解析原图，外部保存仍保留所选路径。
         label_file = None
         if LabelFile.is_label_file(filename):
             label_file = filename
@@ -1358,7 +1383,10 @@ class MainWindow(CopyPasteMixin, MainWindow):
                 self.errorMessage(self.tr("Error opening file"), str(e))
                 return False
             source_path = Path(selected_label.filename)
-            filename = str(source_path.parent / selected_label.imagePath)
+            filename = str(
+                source_path.parent / selected_label.imagePath
+                if source_path.suffix.lower() == ".json" else source_path
+            )
 
         # extra 修复加载 json 文件失败,会从文件列表【0】处重新加载
         self.filename = filename
@@ -1368,6 +1396,9 @@ class MainWindow(CopyPasteMixin, MainWindow):
         self.status(str(self.tr("Loading %s...")) % osp.basename(str(filename)))
 
         label_file = label_file or self.getLabelFile()
+        if self.output_dir:
+            label_file_without_path = osp.basename(label_file)
+            label_file = osp.join(self.output_dir, label_file_without_path)
 
         # https://bbs.dlcv.ai/t/topic/328
         # extra 弃用 self.imageData
@@ -1454,11 +1485,29 @@ class MainWindow(CopyPasteMixin, MainWindow):
         self.canvas.offset = QtCore.QPointF(0, 0)
         self.canvas.loadPixmap(QtGui.QPixmap.fromImage(image))
 
-        annotation_source = select_annotation_source(filename, label_file)
+        try:
+            annotation_source = select_annotation_source(filename, label_file)
+        except Exception as e:
+            logger.exception("读取图片内标注失败")
+            self.errorMessage(
+                self.tr("Error opening file"),
+                self.tr(
+                    "<p><b>%s</b></p>"
+                    "<p>Make sure <i>%s</i> is a valid label file."
+                )
+                % (e, filename),
+            )
+            self.status(self.tr("Error reading %s") % filename)
+            return False
+        embedded_label = (
+            annotation_source is not None
+            and os.path.normcase(os.path.abspath(os.fspath(annotation_source)))
+            == os.path.normcase(os.path.abspath(filename))
+        )
         if annotation_source is not None:
             try:
                 self.labelFile = LabelFile(str(annotation_source))
-                self.labelFile.sidecar_path = str(label_file)
+                self.labelFile.json_annotation_path = str(label_file)
             except LabelFileError as e:
                 self.errorMessage(
                     self.tr("Error opening file"),
@@ -1471,7 +1520,11 @@ class MainWindow(CopyPasteMixin, MainWindow):
                 self.status(self.tr("Error reading %s") % annotation_source)
                 return False
             self.imageData = self.labelFile.imageData
-            self.imagePath = osp.join(osp.dirname(label_file), self.labelFile.imagePath)
+            self.imagePath = (
+                filename
+                if embedded_label
+                else osp.join(osp.dirname(label_file), self.labelFile.imagePath)
+            )
 
             self.otherData = self.labelFile.otherData
         else:
@@ -1491,7 +1544,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
                 flags.update(self.labelFile.flags)
 
         self.loadFlags(flags)
-        if self._config["keep_prev"] and self.labelFile is None and self.noShapes():
+        if self._config["keep_prev"] and self.noShapes():
             self.loadShapes(prev_shapes, replace=False)
             self.setDirty()
         else:
@@ -1671,11 +1724,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
     def setDirty(self):
         super().setDirty()
 
-        if (
-            self.imagePath is not None
-            and osp.normcase(osp.abspath(self.imagePath))
-            != osp.normcase(osp.abspath(self.filename))
-        ):
+        if self.imagePath is not None and Path(self.imagePath) != Path(self.filename):
             if not self.is_2_5d and not self.is_3d:
                 notification(
                     dlcv_tr("Json 文件数据错误！"),
