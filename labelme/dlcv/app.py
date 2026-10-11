@@ -61,7 +61,7 @@ from labelme.dlcv.widget.setting_dock import (
 )
 from labelme.dlcv.canvas import CURSOR_DRAW
 from labelme.dlcv.label_file import (
-    _collect_image_paths,
+    collect_image_paths,
     remove_image_annotations,
     select_annotation_source,
 )
@@ -969,7 +969,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
         # 空标注时同时清理图片内 JSON 和旧的外部 JSON。
         if not shapes and not any(flags.values()):
             label_file = filename
-            image_paths = _collect_image_paths(Path(self.filename), self.otherData)
+            image_paths = collect_image_paths(Path(self.filename), self.otherData)
             for image_name in self.proj_manager.get_img_name_list(self.filename):
                 image_paths.append(Path(self.filename).parent / image_name)
             try:

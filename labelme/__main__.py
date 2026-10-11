@@ -295,12 +295,12 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
     image_paths = [source]
     if clear_group:
         from dlcv_core.image_json import has_image_json
-        from labelme.dlcv.label_file import LabelFile, _collect_image_paths
+        from labelme.dlcv.label_file import LabelFile, collect_image_paths
 
         label_file = LabelFile(str(source))
         image_paths = [
             path.resolve(strict=True)
-            for path in _collect_image_paths(source, label_file.otherData)
+            for path in collect_image_paths(source, label_file.otherData)
         ]
         if len(image_paths) != 2 or len(set(image_paths)) != 2:
             raise ValueError("清空校验需要同一组中的两张图片")
@@ -313,12 +313,12 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
             member = LabelFile(str(path))
             if Path(member.imagePath).is_absolute() or any(
                 item.parent != Path(".")
-                for item in _collect_image_paths(Path(path.name), member.otherData)
+                for item in collect_image_paths(Path(path.name), member.otherData)
             ):
                 raise ValueError("清空校验的组名单及图片路径必须使用同目录文件名")
             members = {
                 item.resolve(strict=True)
-                for item in _collect_image_paths(path, member.otherData)
+                for item in collect_image_paths(path, member.otherData)
             }
             if not members.issubset(image_paths) or (
                 path.parent / member.imagePath

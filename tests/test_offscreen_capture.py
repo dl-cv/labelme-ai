@@ -116,11 +116,11 @@ def test_png_capture_is_isolated_and_readonly(tmp_path, annotation):
     write_image_json(image_path, data)
     assert read_image_json(image_path)["shapes"] == [shape]
     if annotation != "missing":
-        sidecar = {**data, "flags": {"外部标志": True}, "shapes": []}
+        external_json = {**data, "flags": {"外部标志": True}, "shapes": []}
         if annotation == "annotated":
-            sidecar["shapes"] = [{**shape, "label": "外部标注"}]
+            external_json["shapes"] = [{**shape, "label": "外部标注"}]
         image_path.with_suffix(".json").write_text(
-            json.dumps(sidecar, ensure_ascii=False), encoding="utf-8",
+            json.dumps(external_json, ensure_ascii=False), encoding="utf-8",
         )
     originals = {path: path.read_bytes() for path in tmp_path.iterdir()}
     output = tmp_path / "screenshots"
