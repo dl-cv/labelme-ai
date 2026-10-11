@@ -482,17 +482,16 @@ class LabelFile(LabelFile):
         try:
             primary_image = Path(os.path.abspath(json_annotation_path.parent / imagePath))
             image_paths = collect_image_paths(primary_image, otherData)
-            saved_paths, unsupported_paths, failures = write_embedded_group(
+            saved_paths, _, failures = write_embedded_group(
                 image_paths, data, primary_image
             )
-            # 外部文件默认共存；关闭设置后，内嵌失败仍保存外部备份。
+            # 旧调用仍可传入保存开关，但外部 JSON 始终更新。
             backup_saved = False
-            if save_external_json or unsupported_paths or failures:
-                try:
-                    write_json_annotation(json_annotation_path, data)
-                    backup_saved = True
-                except Exception as exc:
-                    failures.append((json_annotation_path, exc))
+            try:
+                write_json_annotation(json_annotation_path, data)
+                backup_saved = True
+            except Exception as exc:
+                failures.append((json_annotation_path, exc))
             if failures:
                 failed_details = "; ".join(
                     f"{path}: {error}" for path, error in failures

@@ -636,27 +636,29 @@ def test_group_external_json_clear_failure_restores_all_originals(tmp_path, monk
 
 
 @pytest.mark.parametrize("existing_external_json", [False, True])
-def test_external_json_setting_never_disables_embedding_or_deletes_existing_json(
-    tmp_path, existing_external_json
+@pytest.mark.parametrize("legacy_save_external_json", [False, True])
+def test_save_always_updates_embedded_and_external_json(
+    tmp_path, existing_external_json, legacy_save_external_json
 ):
     image = tmp_path / "sample.png"
     external_json = image.with_suffix(".json")
     _save_image(image)
     if existing_external_json:
         _save_label(LabelFile(), image, label="旧标注")
-        original_external_json = external_json.read_bytes()
+    shape = {**_shape("新标注"), "points": [[4, 3], [18, 3], [18, 12], [4, 12]]}
     LabelFile().save(
-        str(external_json), [_shape("新标注")], image.name, 16, 24,
-        save_external_json=False,
+        str(external_json), [shape], image.name, 16, 24,
+        save_external_json=legacy_save_external_json,
     )
-    assert read_image_json(image)["shapes"][0]["label"] == "新标注"
-    assert external_json.exists() == existing_external_json
-    if existing_external_json:
-        assert external_json.read_bytes() == original_external_json
-        assert LabelFile(str(external_json)).shapes[0]["label"] == "新标注"
+    external = json.loads(external_json.read_text(encoding="utf-8"))
+    assert external == read_image_json(image)
+    assert external["shapes"] == [shape]
+    loaded = LabelFile(str(external_json))
+    assert loaded.shapes[0]["label"] == "新标注"
+    assert loaded.shapes[0]["points"] == shape["points"]
 
 
-def test_failed_embedding_writes_backup_even_when_external_saving_is_disabled(
+def test_failed_embedding_writes_external_json_for_legacy_false_setting(
     tmp_path, monkeypatch
 ):
     from labelme.dlcv import label_file as module

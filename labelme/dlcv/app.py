@@ -1024,7 +1024,6 @@ class MainWindow(CopyPasteMixin, MainWindow):
                 imageWidth=self.image.width(),
                 otherData=self.otherData,
                 flags=flags,
-                save_external_json=self._config.get("save_external_json", True),
             )
             self.labelFile = lf
             # 直接按保存入口返回的实际来源重新读取，避免错误时改读旧文件。
