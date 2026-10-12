@@ -34,7 +34,7 @@ class CaptureSettings(settings_class):
 
 QtCore.QSettings = CaptureSettings
 QtCore.QSettings.setDefaultFormat(settings_class.NativeFormat)
-from labelme import __main__ as entry
+from labelme.cli import screenshot as entry
 from dlcv_core.image_json import read_image_json
 
 calls = []
