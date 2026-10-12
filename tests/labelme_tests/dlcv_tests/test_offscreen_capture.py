@@ -9,6 +9,10 @@ from pathlib import Path
 from PIL import Image
 
 
+REPOSITORY = Path(__file__).resolve().parents[3]
+UI_CASES = REPOSITORY / "tests/ui/screenshot_cases.py"
+
+
 def test_offscreen_capture_uses_real_annotation(tmp_path):
     sample = (
         Path(__file__).resolve().parents[3]
@@ -24,7 +28,7 @@ def test_offscreen_capture_uses_real_annotation(tmp_path):
     env = os.environ.copy()
     env.pop("QT_QPA_PLATFORM", None)
     result = subprocess.run(
-        [sys.executable, "-m", "labelme", "--screenshot-output",
+        [sys.executable, "-m", "labelme", "--ui-test", str(UI_CASES), "--", "--screenshot-output",
          str(output), str(sample)],
         cwd=Path(__file__).resolve().parents[3],
         env=env,
@@ -83,7 +87,7 @@ def test_offscreen_capture_clears_two_image_group(tmp_path):
     env.update({"TEMP": str(runtime), "TMP": str(runtime),
                 "LABELME_LOG_DIR": str(runtime)})
     result = subprocess.run(
-        [sys.executable, "-m", "labelme", "--screenshot-output", str(output),
+        [sys.executable, "-m", "labelme", "--ui-test", str(UI_CASES), "--", "--screenshot-output", str(output),
          "--screenshot-clear-group", str(images[0])],
         cwd=repository, env=env, capture_output=True, text=True, timeout=90,
     )
@@ -121,7 +125,7 @@ def test_offscreen_readonly_save_keeps_failure_and_dirty_edits(tmp_path):
     output = tmp_path / "screenshots"
     output.mkdir()
     result = subprocess.run(
-        [sys.executable, "-m", "labelme", "--screenshot-output", str(output),
+        [sys.executable, "-m", "labelme", "--ui-test", str(UI_CASES), "--", "--screenshot-output", str(output),
          "--screenshot-readonly-save", str(sample)],
         cwd=repository, env=os.environ.copy(), capture_output=True, text=True,
         encoding="utf-8", timeout=90,

@@ -28,7 +28,7 @@ from labelme.utils import newIcon
 
 
 def main():
-    if any(arg.startswith("--screenshot-") for arg in sys.argv[1:]):
+    if any(arg == "--ui-test" or arg.startswith("--ui-test=") for arg in sys.argv[1:]):
         from labelme.cli.screenshot import main as screenshot_main
         return screenshot_main()
 
