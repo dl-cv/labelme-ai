@@ -52,6 +52,10 @@ def main():
         help="保留真实主窗口供隔离桌面采集（需要 --screenshot-output）",
     )
     parser.add_argument(
+        "--screenshot-refresh", action="store_true",
+        help="在临时目录验证刷新按钮读取新增文件夹（需要 --screenshot-output）",
+    )
+    parser.add_argument(
         "--logger-level",
         default="debug",
         choices=["debug", "info", "warning", "fatal", "error"],
@@ -136,8 +140,10 @@ def main():
     args = parser.parse_args()
     if args.screenshot_clear_group and args.screenshot_output is None:
         parser.error("--screenshot-clear-group 必须与 --screenshot-output 一起使用")
-    if (args.screenshot_readonly_save or args.screenshot_native) and args.screenshot_output is None:
+    if (args.screenshot_readonly_save or args.screenshot_native or args.screenshot_refresh) and args.screenshot_output is None:
         parser.error("截图验证参数需要 --screenshot-output")
+    if args.screenshot_refresh and (args.screenshot_readonly_save or args.screenshot_clear_group):
+        parser.error("刷新验证不能与保存或整组清空同时使用")
     if args.screenshot_readonly_save and args.screenshot_clear_group:
         parser.error("只读保存验证不能与整组清空同时使用")
     if args.screenshot_output is not None:
@@ -145,12 +151,13 @@ def main():
             parser.error(
                 "截图模式需要图片路径，且不能与 --output 或 --reset-config 一起使用"
             )
-        if args.screenshot_clear_group or args.screenshot_readonly_save:
+        if args.screenshot_clear_group or args.screenshot_readonly_save or args.screenshot_refresh:
             # 清空校验失败直接退出，不弹出等待交互的异常对话框。
             sys.excepthook = sys.__excepthook__
         render_screenshots(
             args.filename, args.screenshot_output, args.screenshot_clear_group,
             readonly_save=args.screenshot_readonly_save, native=args.screenshot_native,
+            refresh=args.screenshot_refresh,
         )
         return
 
@@ -184,6 +191,7 @@ def main():
     config_from_args = args.__dict__
     config_from_args.pop("version")
     config_from_args.pop("screenshot_clear_group")
+    config_from_args.pop("screenshot_refresh")
     reset_config = config_from_args.pop("reset_config")
 
     # extra 支持 dva 文件
@@ -267,7 +275,7 @@ def main():
     sys.exit()
 
 
-def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save=False, native=False):
+def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save=False, native=False, refresh=False):
     """通过正式主窗检查隔离副本，不启动外部服务。"""
     import json
     import shutil
@@ -289,6 +297,8 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
     extra_names = ("清空前主窗口.png", "清空验证.json") if clear_group else ()
     if readonly_save:
         extra_names += ("只读保存验证.json",)
+    if refresh:
+        extra_names += ("刷新验证.json",)
     if any((output_dir / name).exists() for name in names + extra_names):
         raise FileExistsError("截图文件已存在，请选择空目录")
 
@@ -356,7 +366,7 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
             "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "XDG_CONFIG_HOME"
         ):
             os.environ[key] = str(temp_path)
-        image_dir = temp_path / "images" if readonly_save else temp_path
+        image_dir = temp_path / "images" if readonly_save or refresh else temp_path
         image_dir.mkdir(exist_ok=True)
         copied = image_dir / source.name
         for path in image_paths:
@@ -389,6 +399,8 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
         win = None
         try:
             win = MainWindow(config=config, filename=str(copied))
+            if refresh:
+                win.ui_theme_manager.set_theme("modern", persist=False, notify=False)
             win.resize(1920, 1080)
             win.show()  # offscreen 平台不创建桌面窗口
             if app.platformName() != "offscreen":
@@ -514,6 +526,38 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
                 if not win.loadFile(str(copied)):
                     raise RuntimeError("清空后首图未能加载")
                 app.processEvents()
+
+            if refresh:
+                win.setClean()
+                win.importDirImages(str(image_dir), load=False)
+                tree = win.fileListWidget.tree_widget
+                tree.setCurrentRow(tree.image_list.index(copied.as_posix()))
+                win.loadFile(str(copied))
+                added_dir = image_dir / "新增文件夹"
+                added_dir.mkdir()
+                shutil.copy2(copied, added_dir / copied.name)
+                before_filename = win.filename
+                before_shapes = list(win.canvas.shapes)
+                win.action_refresh.trigger()
+                app.processEvents()
+                directory_names = [
+                    tree.topLevelItem(index).super_text(0)
+                    for index in range(tree.topLevelItemCount())
+                ]
+                result = {
+                    "directory_names": directory_names,
+                    "new_directory_visible": added_dir.name in directory_names,
+                    "current_image_preserved": win.filename == before_filename,
+                    "annotations_preserved": win.canvas.shapes == before_shapes,
+                    "shortcut": win.action_refresh.shortcut().toString(),
+                }
+                result["success"] = all((
+                    result["new_directory_visible"], result["current_image_preserved"],
+                    result["annotations_preserved"], result["shortcut"] == "F5",
+                ))
+                (output_dir / "刷新验证.json").write_text(
+                    json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+                win.setWindowTitle(win.windowTitle() + " · 刷新验证")
 
             if native:
                 QtCore.QTimer.singleShot(60000, app.quit)
