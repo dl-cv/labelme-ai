@@ -1,7 +1,6 @@
 import collections
 import threading
 
-import imgviz
 import numpy as np
 import skimage
 
@@ -36,6 +35,8 @@ class EfficientSam:
     def _compute_and_cache_image_embedding(self):
         with self._lock:
             logger.debug("Computing image embedding...")
+            import imgviz
+
             image = imgviz.rgba2rgb(self._image)
             batched_images = image.transpose(2, 0, 1)[None].astype(np.float32) / 255.0
             (self._image_embedding,) = self._encoder_session.run(
@@ -96,5 +97,7 @@ def _compute_mask_from_points(
     )
 
     if 0:
+        import imgviz
+
         imgviz.io.imsave("mask.jpg", imgviz.label2rgb(mask, imgviz.rgb2gray(image)))
     return mask

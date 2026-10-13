@@ -1,4 +1,3 @@
-import imgviz
 import numpy as np
 import skimage
 
@@ -27,6 +26,7 @@ def compute_polygon_from_mask(mask):
     polygon = polygon[:-1]  # drop last point that is duplicate of first point
 
     if 0:
+        import imgviz
         import PIL.Image
 
         image_pil = PIL.Image.fromarray(imgviz.gray2rgb(imgviz.bool2ubyte(mask)))

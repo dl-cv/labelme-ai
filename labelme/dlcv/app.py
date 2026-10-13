@@ -250,7 +250,8 @@ class MainWindow(CopyPasteMixin, MainWindow):
                 self.uniqLabelList.addItem(item)
             label_id = self.uniqLabelList.indexFromItem(item).row() + 1
             label_id += self._config["shift_auto_shape_color"]
-            rgb = LABEL_COLORMAP[label_id % len(LABEL_COLORMAP)]
+            colormap = get_label_colormap()
+            rgb = colormap[label_id % len(colormap)]
             color_role = self.uniqLabelList.ITEM_COLOR_ROLE
             if item.data(color_role) is None:
                 self.uniqLabelList.setItemLabel(item, label, rgb)

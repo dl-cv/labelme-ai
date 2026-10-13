@@ -3,7 +3,6 @@ from qtpy import QtCore
 from labelme.ai.efficient_sam import *
 from labelme.dlcv.dlcv_translator import DlcvTrObject
 from labelme.dlcv.utils_func import notification
-import pynvml
 
 # 通知防抖间隔 (ms): 连续触发时只在停止后弹一次通知
 _NOTIFY_DEBOUNCE_MS = 200
@@ -18,6 +17,7 @@ class EfficientSam(EfficientSam, DlcvTrObject, QtCore.QObject):
         # super().__init__(encoder_path, decoder_path)
 
         import onnxruntime
+        import pynvml
 
         # 查看显卡驱动版本
         support_gpu = False

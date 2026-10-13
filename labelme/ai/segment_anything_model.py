@@ -1,7 +1,6 @@
 import collections
 import threading
 
-import imgviz
 import numpy as np
 import skimage
 
@@ -84,6 +83,8 @@ def _compute_scale_to_resize_image(image_size, image):
 
 
 def _resize_image(image_size, image):
+    import imgviz
+
     scale, new_height, new_width = _compute_scale_to_resize_image(
         image_size=image_size, image=image
     )
@@ -97,6 +98,8 @@ def _resize_image(image_size, image):
 
 
 def _compute_image_embedding(image_size, encoder_session, image):
+    import imgviz
+
     image = imgviz.asrgb(image)
 
     scale, x = _resize_image(image_size, image)
@@ -162,5 +165,7 @@ def _compute_mask_from_points(
     )
 
     if 0:
+        import imgviz
+
         imgviz.io.imsave("mask.jpg", imgviz.label2rgb(mask, imgviz.rgb2gray(image)))
     return mask

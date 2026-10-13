@@ -1,4 +1,3 @@
-import imgviz
 from qtpy import QtCore
 from qtpy import QtGui
 from qtpy import QtWidgets
@@ -777,6 +776,8 @@ class Canvas(QtWidgets.QWidget):
                 points=[[point.x(), point.y()] for point in drawing_shape.points],
                 point_labels=drawing_shape.point_labels,
             )
+            import imgviz
+
             y1, x1, y2, x2 = imgviz.instances.masks_to_bboxes([mask])[0].astype(int)
             drawing_shape.setShapeRefined(
                 shape_type="mask",
@@ -827,6 +828,8 @@ class Canvas(QtWidgets.QWidget):
                 points=[[point.x(), point.y()] for point in self.current.points],
                 point_labels=self.current.point_labels,
             )
+            import imgviz
+
             y1, x1, y2, x2 = imgviz.instances.masks_to_bboxes([mask])[0].astype(int)
             self.current.setShapeRefined(
                 shape_type="mask",
