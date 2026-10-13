@@ -34,21 +34,156 @@ def main():
         "--screenshot-refresh", action="store_true",
         help="在临时目录验证刷新按钮读取新增文件夹（需要 --screenshot-output）",
     )
+    parser.add_argument(
+        "--screenshot-refresh-folders", action="store_true",
+        help="验证刷新后折叠目录与实际文件内容（需要 --screenshot-output）",
+    )
     parser.add_argument("filename", help="用于验收的图片路径")
     args = parser.parse_args()
     if args.screenshot_refresh and (args.screenshot_readonly_save or args.screenshot_clear_group):
         parser.error("刷新验证不能与保存或整组清空同时使用")
     if args.screenshot_readonly_save and args.screenshot_clear_group:
         parser.error("只读保存验证不能与整组清空同时使用")
+    if args.screenshot_refresh_folders and any((
+        args.screenshot_refresh, args.screenshot_readonly_save, args.screenshot_clear_group,
+    )):
+        parser.error("目录折叠验证不能与其他场景同时使用")
     sys.excepthook = sys.__excepthook__
     render_screenshots(
         args.filename, args.screenshot_output, args.screenshot_clear_group,
         readonly_save=args.screenshot_readonly_save, native=args.screenshot_native,
-        refresh=args.screenshot_refresh,
+        refresh=args.screenshot_refresh, refresh_folders=args.screenshot_refresh_folders,
     )
 
 
-def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save=False, native=False, refresh=False):
+def check_refresh_folders(win, app, root_dir, sample, output_dir, capture):
+    import json
+    from qtpy import QtGui
+
+    expected_contents = {
+        "balloon": ["OK", "train", "val"],
+        "balloon/OK": ["样例.jpg"],
+        "balloon/train": ["样例.jpg"],
+        "balloon/val": ["样例.jpg"],
+        "气球测试": ["子目录"],
+        "气球测试/子目录": ["样例.jpg"],
+        "元器件外观检测": ["1.jpg", "2.jpg"],
+    }
+    image = QtGui.QImage(str(sample))
+    if image.isNull():
+        raise RuntimeError("目录验收图片无法读取")
+    for directory, names in expected_contents.items():
+        for name in names:
+            if name.endswith(".jpg"):
+                path = root_dir / directory / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                if not image.save(str(path), "JPEG"):
+                    raise RuntimeError(f"目录验收图片无法保存: {directory}/{name}")
+
+    tree = win.fileListWidget.tree_widget
+    top_names = {"balloon", "气球测试", "元器件外观检测"}
+
+    def find_folder(relative_path):
+        path = (root_dir / relative_path).as_posix()
+        iterator = QtWidgets.QTreeWidgetItemIterator(tree)
+        while iterator.value():
+            item = iterator.value()
+            if item.data(0, QtCore.Qt.UserRole) == path:
+                return item
+            iterator += 1
+        return None
+
+    def snapshot():
+        current = tree.currentItem()
+        path = current.data(0, QtCore.Qt.UserRole) if current is not None else None
+        return {
+            "expanded": {
+                Path(item.data(0, QtCore.Qt.UserRole)).name: item.isExpanded()
+                for item in (tree.topLevelItem(index)
+                             for index in range(tree.topLevelItemCount()))
+            },
+            "has_current_item": current is not None,
+            "current_item_path": Path(path).relative_to(root_dir).as_posix() if path else None,
+            "selected_count": len(tree.selectedItems()),
+        }
+
+    def remains_collapsed(state):
+        return (
+            set(state["expanded"]) == top_names
+            and not any(state["expanded"].values())
+            and not state["has_current_item"]
+            and state["selected_count"] == 0
+        )
+
+    def inspect_directory(directory, expected, expand):
+        item = find_folder(directory)
+        actual = []
+        if item is not None:
+            if expand:
+                item.setExpanded(False)
+                item.setExpanded(True)
+                app.processEvents()
+            actual = [
+                Path(child.data(0, QtCore.Qt.UserRole)).name
+                if child.data(0, QtCore.Qt.UserRole) else ""
+                for child in (item.child(index) for index in range(item.childCount()))
+            ]
+        return {
+            "directory": directory, "expected": expected, "actual": actual,
+            "found": item is not None, "success": item is not None and actual == expected,
+        }
+
+    win.setClean()
+    win.importDirImages(str(root_dir), load=False)
+    tree.collapseAll()
+    tree.clearSelection()
+    tree.setCurrentItem(None)
+    app.processEvents()
+    before = snapshot()
+    capture(win, "文件夹刷新前.png")
+    win.action_refresh.trigger()
+    app.processEvents()
+    after = snapshot()
+    capture(win, "文件夹首次刷新.png")
+
+    checks = [inspect_directory(directory, expected, expand=True)
+              for directory, expected in expected_contents.items()]
+
+    tree.collapseAll()
+    tree.clearSelection()
+    tree.setCurrentItem(None)
+    win.action_refresh.trigger()
+    app.processEvents()
+    repeated = snapshot()
+    repeated_contents = [inspect_directory(directory, expected, expand=False)
+                         for directory, expected in expected_contents.items()]
+    result = {
+        "expected_top_directories": sorted(top_names),
+        "before": before, "after": after, "repeated": repeated,
+        "contents": checks, "repeated_contents": repeated_contents,
+        "first_refresh_success": remains_collapsed(before) and remains_collapsed(after),
+        "repeated_refresh_success": remains_collapsed(repeated),
+    }
+    result["success"] = all((
+        result["first_refresh_success"], result["repeated_refresh_success"],
+        all(check["success"] for check in checks),
+        all(check["success"] for check in repeated_contents),
+    ))
+    if result["success"]:
+        find_folder("balloon").setExpanded(True)
+    else:
+        win.importDirImages(str(root_dir), load=False)
+        tree.clearSelection()
+        tree.setCurrentItem(None)
+        win.action_refresh.trigger()
+    app.processEvents()
+    result["displayed"] = snapshot()
+    (output_dir / "文件夹刷新验证.json").write_text(
+        json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    win.setWindowTitle(win.windowTitle() + " · 文件夹刷新验收")
+
+
+def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save=False, native=False, refresh=False, refresh_folders=False):
     """通过正式主窗检查隔离副本，不启动外部服务。"""
     import json
     import shutil
@@ -72,6 +207,8 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
         extra_names += ("只读保存验证.json",)
     if refresh:
         extra_names += ("刷新验证.json",)
+    if refresh_folders:
+        extra_names += ("文件夹刷新前.png", "文件夹首次刷新.png", "文件夹刷新验证.json")
     if any((output_dir / name).exists() for name in names + extra_names):
         raise FileExistsError("截图文件已存在，请选择空目录")
 
@@ -139,7 +276,7 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
             "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "XDG_CONFIG_HOME"
         ):
             os.environ[key] = str(temp_path)
-        image_dir = temp_path / "images" if readonly_save or refresh else temp_path
+        image_dir = temp_path / "images" if readonly_save or refresh or refresh_folders else temp_path
         image_dir.mkdir(exist_ok=True)
         copied = image_dir / source.name
         for path in image_paths:
@@ -172,7 +309,7 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
         win = None
         try:
             win = MainWindow(config=config, filename=str(copied))
-            if refresh:
+            if refresh or refresh_folders:
                 win.ui_theme_manager.set_theme("modern", persist=False, notify=False)
             win.resize(1920, 1080)
             win.show()  # offscreen 平台不创建桌面窗口
@@ -331,6 +468,11 @@ def render_screenshots(filename, output_dir, clear_group=False, *, readonly_save
                 (output_dir / "刷新验证.json").write_text(
                     json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
                 win.setWindowTitle(win.windowTitle() + " · 刷新验证")
+
+            if refresh_folders:
+                check_refresh_folders(
+                    win, app, image_dir / "文件夹验收", copied, output_dir, capture,
+                )
 
             if native:
                 QtCore.QTimer.singleShot(60000, app.quit)

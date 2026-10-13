@@ -291,14 +291,17 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
                 for index in range(parent.childCount()):
                     item = parent.child(index)
                     path = item.data(0, Qt.UserRole)
+                    if path is None:
+                        continue
                     loaded, expanded = directory_states.get(path, (False, False))
                     if loaded or expanded:
                         self._on_item_expanded(item)
-                    item.setExpanded(expanded)
                     if path == current_path:
                         self.setCurrentItem(item, 0, QtCore.QItemSelectionModel.NoUpdate)
                     item.setSelected(path in selected_paths)
                     restore_items(item)
+                    # Qt 恢复当前子项时会展开父目录，最后再恢复目录状态。
+                    item.setExpanded(expanded)
 
             restore_items(self.invisibleRootItem())
         finally:

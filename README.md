@@ -84,7 +84,7 @@ labelme 设置中支持不显示标签名称，并设置了快捷键C
 python -m labelme --ui-test tests/ui/screenshot_cases.py -- --screenshot-output <输出目录> --screenshot-refresh <图片路径>
 ```
 
-其他场景将 `--screenshot-refresh` 替换为 `--screenshot-clear-group` 或 `--screenshot-readonly-save`；省略场景参数时导出基础界面。整组清空使用带有两张关联图片和对应 JSON 的材料。
+其他场景将 `--screenshot-refresh` 替换为 `--screenshot-refresh-folders`（目录展开和空白行）、`--screenshot-clear-group` 或 `--screenshot-readonly-save`；省略场景参数时导出基础界面。整组清空使用带有两张关联图片和对应 JSON 的材料。
 
 安装后的程序也可通过相同的 `--ui-test` 参数加载源码仓库中的用例。打包产物只包含通用入口，`tests` 不随软件打包；具体用例更新无需重新编译程序。原生窗口验收由隔离桌面采集工具启动，外层加 `--ui-native`，用例参数加 `--screenshot-native`。
 

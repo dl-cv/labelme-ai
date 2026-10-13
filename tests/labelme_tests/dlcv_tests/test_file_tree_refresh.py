@@ -191,3 +191,57 @@ def test_update_state_only_updates_existing_annotation_checks(file_tree, tmp_pat
     image.with_suffix(".json").unlink()
     file_tree.update_state()
     assert item.checkState(0) == QtCore.Qt.Unchecked
+
+
+def test_visible_refresh_does_not_select_empty_children_or_expand_folders(
+    file_tree, tmp_path, qapp,
+):
+    for folder in ("balloon", "气球测试", "元器件外观检测"):
+        for child in ("OK", "train", "val"):
+            write_image(tmp_path / folder / child / "sample.png")
+    file_tree.set_root_dir(str(tmp_path))
+    file_tree.resize(420, 700)
+    file_tree.show()
+    qapp.processEvents()
+    tree = file_tree.tree_widget
+    assert tree.currentItem() is None
+
+    for _ in range(3):
+        file_tree.refresh_directory()
+        qapp.processEvents()
+        assert tree.currentItem() is None
+        for index in range(tree.topLevelItemCount()):
+            folder = tree.topLevelItem(index)
+            assert not folder.isExpanded()
+            assert tree.visualItemRect(folder.child(0)).isEmpty()
+            folder.setExpanded(True)
+            qapp.processEvents()
+            assert [folder.child(i).super_text(0) for i in range(folder.childCount())] == [
+                "OK", "train", "val",
+            ]
+            assert all(not tree.visualItemRect(folder.child(i)).isEmpty()
+                       for i in range(folder.childCount()))
+            folder.setExpanded(False)
+        tree.setCurrentItem(None)
+
+
+def test_visible_refresh_preserves_collapsed_parent_of_current_image(file_tree, tmp_path, qapp):
+    image = tmp_path / "folder" / "sample.png"
+    write_image(image)
+    file_tree.set_root_dir(str(tmp_path))
+    file_tree.resize(420, 700)
+    file_tree.show()
+    qapp.processEvents()
+    tree = file_tree.tree_widget
+    folder = tree.topLevelItem(0)
+    folder.setExpanded(True)
+    tree.setCurrentItem(folder.child(0))
+    folder.setExpanded(False)
+    qapp.processEvents()
+
+    file_tree.refresh_directory()
+    qapp.processEvents()
+
+    assert tree.currentItem().get_path() == image.as_posix()
+    assert not tree.topLevelItem(0).isExpanded()
+    assert tree.visualItemRect(tree.currentItem()).isEmpty()
