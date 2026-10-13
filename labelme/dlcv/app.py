@@ -486,7 +486,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
         # https://bbs.dlcv.com.cn/t/topic/1050
         # 刷新功能
         def refresh():
-            self.fileListWidget.update_state()
+            self.fileListWidget.refresh_directory()
 
         self.action_refresh = utils.newAction(
             self,

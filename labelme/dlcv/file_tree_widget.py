@@ -263,6 +263,51 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         """获取当前根目录路径"""
         return self._root_dir
 
+    def refresh_directory(self):
+        if not self._root_dir or not os.path.isdir(self._root_dir):
+            return
+
+        directory_states = {}
+        selected_paths = {item.get_path() for item in self.selectedItems()}
+        current = self.currentItem()
+        current_path = current.get_path() if current else None
+        scroll_value = self.verticalScrollBar().value()
+        iterator = QtWidgets.QTreeWidgetItemIterator(self)
+        while iterator.value():
+            item = iterator.value()
+            path = item.data(0, Qt.UserRole)
+            if path and path not in self._file_items:
+                loaded = (item.childCount() == 0 or
+                          bool(item.child(0).data(0, Qt.UserRole)))
+                directory_states[path] = (loaded, item.isExpanded())
+            iterator += 1
+
+        # 重建时阻止选择变化触发图片重载，保留当前画布及未保存编辑。
+        blocker = QtCore.QSignalBlocker(self)
+        try:
+            self.set_root_dir(self._root_dir)
+
+            def restore_items(parent):
+                for index in range(parent.childCount()):
+                    item = parent.child(index)
+                    path = item.data(0, Qt.UserRole)
+                    if path is None:
+                        continue
+                    loaded, expanded = directory_states.get(path, (False, False))
+                    if loaded or expanded:
+                        self._on_item_expanded(item)
+                    if path == current_path:
+                        self.setCurrentItem(item, 0, QtCore.QItemSelectionModel.NoUpdate)
+                    item.setSelected(path in selected_paths)
+                    restore_items(item)
+                    # Qt 恢复当前子项时会展开父目录，最后再恢复目录状态。
+                    item.setExpanded(expanded)
+
+            restore_items(self.invisibleRootItem())
+        finally:
+            blocker.unblock()
+        self.verticalScrollBar().setValue(scroll_value)
+
     def clear(self):
         """清空文件树
 
@@ -659,6 +704,10 @@ class FileTreeWidget(QtWidgets.QWidget):
             self._on_filter_changed)
         self.show_unannotated_checkbox.stateChanged.connect(
             self._on_filter_changed)
+
+    def refresh_directory(self):
+        self.tree_widget.refresh_directory()
+        self._apply_filters()
 
     def _on_delete_requested(self, file_paths: list[str]):
         if not file_paths:

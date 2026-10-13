@@ -34,7 +34,10 @@ class CaptureSettings(settings_class):
 
 QtCore.QSettings = CaptureSettings
 QtCore.QSettings.setDefaultFormat(settings_class.NativeFormat)
-from labelme import __main__ as entry
+import importlib.util
+spec = importlib.util.spec_from_file_location("labelme_ui_cases", sys.argv[4])
+entry = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(entry)
 from dlcv_core.image_json import read_image_json
 
 calls = []
@@ -138,7 +141,7 @@ def test_png_capture_is_isolated_and_readonly(tmp_path, annotation):
     })
     result = subprocess.run(
         [sys.executable, "-B", "-c", CAPTURE_CHECK, str(image_path), str(output),
-         annotation], cwd=runtime, env=env, capture_output=True, text=True,
+         annotation, str(Path(__file__).resolve().parent / "ui/screenshot_cases.py")], cwd=runtime, env=env, capture_output=True, text=True,
         encoding="utf-8", timeout=90,
     )
     (tmp_path / "capture.log").write_text(

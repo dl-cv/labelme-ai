@@ -72,6 +72,26 @@ labelme 设置中支持不显示标签名称，并设置了快捷键C
 
 
 
+## 开发与界面验收
+
+- `labelme/__main__.py` 负责正常启动，只将 `--ui-test` 分派到通用入口。
+- `labelme/cli/screenshot.py` 只解析外部用例文件、选择离屏或原生窗口并执行用例，不包含具体功能的准备、操作或断言。仅在启动方式变化时修改。
+- `tests/ui/screenshot_cases.py` 保存截图、整组清空、只读保存和刷新等具体场景；`tests/test_offscreen_capture.py` 及 `tests/labelme_tests/dlcv_tests/` 验证其行为。新增或调整功能用例时修改 `tests`，不向程序入口添加测试分支。
+
+先创建输出目录，再从仓库根目录执行离屏验收。图片及其标注由用例复制到临时目录，原材料不会被修改：
+
+```text
+python -m labelme --ui-test tests/ui/screenshot_cases.py -- --screenshot-output <输出目录> --screenshot-refresh <图片路径>
+```
+
+其他场景将 `--screenshot-refresh` 替换为 `--screenshot-refresh-folders`（目录展开和空白行）、`--screenshot-clear-group` 或 `--screenshot-readonly-save`；省略场景参数时导出基础界面。整组清空使用带有两张关联图片和对应 JSON 的材料。
+
+安装后的程序也可通过相同的 `--ui-test` 参数加载源码仓库中的用例。打包产物只包含通用入口，`tests` 不随软件打包；具体用例更新无需重新编译程序。原生窗口验收由隔离桌面采集工具启动，外层加 `--ui-native`，用例参数加 `--screenshot-native`。
+
+```text
+python -m pytest tests/test_ui_test_entry.py tests/test_offscreen_capture.py tests/labelme_tests/dlcv_tests/test_offscreen_capture.py tests/labelme_tests/dlcv_tests/test_file_tree_refresh.py -q
+```
+
 # 🔗 更多详细操作详见
 ## https://bbs.dlcv.com.cn/t/topic/160  
 
