@@ -1820,6 +1820,8 @@ class Canvas(CustomCanvas):
                         for point in drawing_shape.points],
                 point_labels=drawing_shape.point_labels,
             )
+            import imgviz
+
             y1, x1, y2, x2 = imgviz.instances.masks_to_bboxes(
                 [mask])[0].astype(int)
             drawing_shape.setShapeRefined(

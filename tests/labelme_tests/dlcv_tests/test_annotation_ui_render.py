@@ -247,7 +247,7 @@ def test_annotation_storage_setting_main_window_render(monkeypatch, tmp_path, qa
         default_config = get_config()
         assert "save_external_json" not in default_config
 
-        settings = QtCore.QSettings("labelme", "labelme")
+        settings = MainWindow.createSettings(None, "labelme", "labelme")
         settings.clear()
         settings.setValue("ui/theme", "modern")
         settings.setValue("ui/language", "zh_CN")
@@ -275,7 +275,7 @@ def test_annotation_storage_setting_main_window_render(monkeypatch, tmp_path, qa
         _close_window(app, first_window)
         first_window = None
 
-        persisted_settings = QtCore.QSettings("labelme", "labelme")
+        persisted_settings = MainWindow.createSettings(None, "labelme", "labelme")
         persisted_store = persisted_settings.value("setting_store")
         assert isinstance(persisted_store, dict)
         assert "save_external_json" not in persisted_store
@@ -382,7 +382,7 @@ def annotation_window(monkeypatch, tmp_path, qapp):
         from labelme.dlcv.app import MainWindow
         from labelme.dlcv.label_file import LabelFile
 
-        settings = QtCore.QSettings("labelme", "labelme")
+        settings = MainWindow.createSettings(None, "labelme", "labelme")
         settings.clear()
         settings.setValue("ui/language", "zh_CN")
         settings.sync()

@@ -1,8 +1,6 @@
 import json
 import os.path as osp
 
-import imgviz
-
 import labelme.utils
 
 
@@ -17,6 +15,8 @@ def assert_labelfile_sanity(filename):
         parent_dir = osp.dirname(filename)
         img_file = osp.join(parent_dir, data["imagePath"])
         assert osp.exists(img_file)
+        import imgviz
+
         img = imgviz.io.imread(img_file)
     else:
         img = labelme.utils.img_b64_to_arr(imageData)

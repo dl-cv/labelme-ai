@@ -9,7 +9,6 @@ import os.path as osp
 import re
 import webbrowser
 
-import imgviz
 import natsort
 import numpy as np
 from qtpy import QtCore
@@ -49,8 +48,13 @@ keywords = keyword.kwlist + getattr(keyword, "softkwlist", [])
 # - Zoom is too "steppy".
 
 
-LABEL_COLORMAP = imgviz.label_colormap()
-np.random.shuffle(LABEL_COLORMAP)
+@functools.lru_cache(maxsize=1)
+def get_label_colormap():
+    import imgviz
+
+    colormap = imgviz.label_colormap()
+    np.random.shuffle(colormap)
+    return colormap
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -912,6 +916,12 @@ class MainWindow(QtWidgets.QMainWindow):
         #    QWhatsThis.enterWhatsThisMode()
 
     def createSettings(self, organization, application):
+        settings_dir = os.environ.get("LABELME_SETTINGS_DIR")
+        if settings_dir:
+            return QtCore.QSettings(
+                osp.join(settings_dir, f"{organization}-{application}.ini"),
+                QtCore.QSettings.IniFormat,
+            )
         return QtCore.QSettings(organization, application)
 
     def menu(self, title, actions=None):
@@ -1381,7 +1391,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.uniqLabelList.setItemLabel(item, label, rgb)
             label_id = self.uniqLabelList.indexFromItem(item).row() + 1
             label_id += self._config["shift_auto_shape_color"]
-            return LABEL_COLORMAP[label_id % len(LABEL_COLORMAP)]
+            colormap = get_label_colormap()
+            return colormap[label_id % len(colormap)]
         elif (
             self._config["shape_color"] == "manual"
             and self._config["label_colors"]

@@ -33,6 +33,7 @@ def isolated_user_settings(monkeypatch, tmp_path_factory):
         "LOCALAPPDATA",
         "XDG_CONFIG_HOME",
         "XDG_CACHE_HOME",
+        "LABELME_SETTINGS_DIR",
     ):
         path = tmp_path / name.lower()
         path.mkdir()

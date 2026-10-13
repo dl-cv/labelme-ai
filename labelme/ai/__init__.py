@@ -1,5 +1,3 @@
-import gdown
-
 from .efficient_sam import EfficientSam
 from .segment_anything_model import SegmentAnythingModel
 from .text_to_annotation import get_rectangles_from_texts  # NOQA: F401
@@ -11,6 +9,8 @@ class SegmentAnythingModelVitB(SegmentAnythingModel):
     name = "SegmentAnything (speed)"
 
     def __init__(self):
+        import gdown
+
         super().__init__(
             encoder_path=gdown.cached_download(
                 url="https://github.com/wkentaro/labelme/releases/download/sam-20230416/sam_vit_b_01ec64.quantized.encoder.onnx",  # NOQA
@@ -27,6 +27,8 @@ class SegmentAnythingModelVitL(SegmentAnythingModel):
     name = "SegmentAnything (balanced)"
 
     def __init__(self):
+        import gdown
+
         super().__init__(
             encoder_path=gdown.cached_download(
                 url="https://github.com/wkentaro/labelme/releases/download/sam-20230416/sam_vit_l_0b3195.quantized.encoder.onnx",  # NOQA
@@ -43,6 +45,8 @@ class SegmentAnythingModelVitH(SegmentAnythingModel):
     name = "SegmentAnything (accuracy)"
 
     def __init__(self):
+        import gdown
+
         super().__init__(
             encoder_path=gdown.cached_download(
                 url="https://github.com/wkentaro/labelme/releases/download/sam-20230416/sam_vit_h_4b8939.quantized.encoder.onnx",  # NOQA
@@ -59,6 +63,8 @@ class EfficientSamVitT(EfficientSam):
     name = "EfficientSam (speed)"
 
     def __init__(self):
+        import gdown
+
         super().__init__(
             encoder_path=gdown.cached_download(
                 url="https://github.com/labelmeai/efficient-sam/releases/download/onnx-models-20231225/efficient_sam_vitt_encoder.onnx",  # NOQA
@@ -75,6 +81,8 @@ class EfficientSamVitS(EfficientSam):
     name = "EfficientSam (accuracy)"
 
     def __init__(self):
+        import gdown
+
         super().__init__(
             encoder_path=gdown.cached_download(
                 url="https://github.com/labelmeai/efficient-sam/releases/download/onnx-models-20231225/efficient_sam_vits_encoder.onnx",  # NOQA
