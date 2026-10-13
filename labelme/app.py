@@ -916,12 +916,6 @@ class MainWindow(QtWidgets.QMainWindow):
         #    QWhatsThis.enterWhatsThisMode()
 
     def createSettings(self, organization, application):
-        settings_dir = os.environ.get("LABELME_SETTINGS_DIR")
-        if settings_dir:
-            return QtCore.QSettings(
-                osp.join(settings_dir, f"{organization}-{application}.ini"),
-                QtCore.QSettings.IniFormat,
-            )
         return QtCore.QSettings(organization, application)
 
     def menu(self, title, actions=None):

@@ -35,7 +35,6 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", "-V", action="store_true", help="show version")
     parser.add_argument("--reset-config", action="store_true", help="reset qt config")
-    parser.add_argument("--startup-report", type=Path, help="记录进程启动到主窗口首帧完成的时间（Windows）")
     parser.add_argument(
         "--screenshot-output", type=Path,
         help="在离屏模式下将真实界面绘制到指定目录（需要提供图片路径）",
@@ -135,14 +134,6 @@ def main():
         default=argparse.SUPPRESS,
     )
     args = parser.parse_args()
-    startup_report = args.startup_report
-    if startup_report is not None:
-        from labelme.startup import configure_startup_report
-
-        try:
-            startup_report = configure_startup_report(startup_report)
-        except (ValueError, OSError) as error:
-            parser.error(str(error))
     if args.screenshot_clear_group and args.screenshot_output is None:
         parser.error("--screenshot-clear-group 必须与 --screenshot-output 一起使用")
     if (args.screenshot_readonly_save or args.screenshot_native) and args.screenshot_output is None:
@@ -192,7 +183,6 @@ def main():
 
     config_from_args = args.__dict__
     config_from_args.pop("version")
-    config_from_args.pop("startup_report")
     config_from_args.pop("screenshot_clear_group")
     reset_config = config_from_args.pop("reset_config")
 
@@ -262,10 +252,6 @@ def main():
         win.settings.clear()
         sys.exit(0)
 
-    if startup_report is not None:
-        from labelme.startup import StartupReport
-
-        win.startup_report = StartupReport(win, startup_report)
     win.show()
     win.raise_()
 

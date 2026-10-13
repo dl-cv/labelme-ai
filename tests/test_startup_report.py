@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from labelme.startup import StartupReport, configure_startup_report
+from startup import StartupReport, configure_startup_report
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows 进程时间接口")
@@ -20,6 +20,7 @@ def test_report_after_real_window_paint(qtbot, tmp_path, with_image):
     config["auto_save"] = False
     image = Path(__file__).resolve().parents[1] / "examples/instance_segmentation/data_annotated/2011_000003.jpg"
     window = MainWindow(config=config, filename=str(image) if with_image else None)
+    assert Path(window.settings.fileName()).is_relative_to(Path(os.environ["HOME"]).parent)
     qtbot.addWidget(window)
     recorder = StartupReport(window, path)
     assert not path.exists()

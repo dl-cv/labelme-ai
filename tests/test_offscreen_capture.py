@@ -37,7 +37,6 @@ QtCore.QSettings.setDefaultFormat(settings_class.NativeFormat)
 from labelme import __main__ as entry
 from dlcv_core.image_json import read_image_json
 
-os.environ.pop("LABELME_SETTINGS_DIR", None)
 calls = []
 sentinel = object()
 def recorded_settings(*args):

@@ -33,7 +33,6 @@ def isolated_user_settings(monkeypatch, tmp_path_factory):
         "LOCALAPPDATA",
         "XDG_CONFIG_HOME",
         "XDG_CACHE_HOME",
-        "LABELME_SETTINGS_DIR",
     ):
         path = tmp_path / name.lower()
         path.mkdir()
@@ -42,6 +41,15 @@ def isolated_user_settings(monkeypatch, tmp_path_factory):
     QtCore.QSettings.setDefaultFormat(QtCore.QSettings.IniFormat)
     for scope in (QtCore.QSettings.UserScope, QtCore.QSettings.SystemScope):
         QtCore.QSettings.setPath(QtCore.QSettings.IniFormat, scope, str(tmp_path))
+
+    class IsolatedSettings(QtCore.QSettings):
+        def __init__(self, *args, **kwargs):
+            # Windows 的组织名构造方式仍访问注册表，测试统一使用临时 INI。
+            if len(args) == 2 and all(isinstance(value, str) for value in args):
+                args = (str(tmp_path / f"{args[0]}-{args[1]}.ini"), self.IniFormat)
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(QtCore, "QSettings", IsolatedSettings)
     yield
     Toast.reset()
     QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.DeferredDelete)
