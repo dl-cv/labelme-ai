@@ -143,7 +143,7 @@ def test_navigator_filters_label_list_rows(qtbot, tmp_path):
         navigator = window.label_navigator
         navigator.refresh()
 
-        assert navigator.category_combo.count() == 4  # 全部缺陷 + 3 类
+        assert navigator.category_combo.count() == 4  # 全部 + 3 类
         assert navigator.category_combo.itemData(0) is None
         assert len(window.labelList) == 4
         assert all(
@@ -170,7 +170,7 @@ def test_navigator_filters_label_list_rows(qtbot, tmp_path):
         assert states["stain"] == Qt.Unchecked
         assert states["dent"] == Qt.Unchecked
 
-        # 全部缺陷：恢复所有行和勾选。
+        # 全部：恢复所有行和勾选。
         navigator.category_combo.setCurrentIndex(0)
         assert all(
             not window.labelList.isRowHidden(row) for row in range(4)

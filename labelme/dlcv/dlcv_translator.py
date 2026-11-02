@@ -549,8 +549,8 @@ tr_map = {
         # ======缺陷巡检 / 断点续标======
         '类别':
         'Category',
-        '全部缺陷 ({count})':
-        'All defects ({count})',
+        '全部 ({count})':
+        'All ({count})',
         '上一个缺陷 (Alt+←)':
         'Previous defect (Alt+Left)',
         '下一个缺陷 (Alt+→)':

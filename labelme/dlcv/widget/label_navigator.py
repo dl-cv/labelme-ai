@@ -193,7 +193,7 @@ class LabelNavigatorBar(QtWidgets.QWidget):
         self.refresh()
 
     def on_folder_changed(self):
-        """切换到新文件夹时回到“全部缺陷”。"""
+        """切换到新文件夹时回到“全部”。"""
         self._category = None
 
     def _rebuild_categories(self, counts, total):
@@ -201,7 +201,7 @@ class LabelNavigatorBar(QtWidgets.QWidget):
         combo.blockSignals(True)
         try:
             combo.clear()
-            combo.addItem(dlcv_tr("全部缺陷 ({count})").format(count=total), None)
+            combo.addItem(dlcv_tr("全部 ({count})").format(count=total), None)
             for label, count in sorted(
                 counts.items(), key=lambda item: (-item[1], item[0])
             ):
@@ -237,7 +237,7 @@ class LabelNavigatorBar(QtWidgets.QWidget):
                     del blocker
 
     def _apply_category_visibility(self):
-        """切换类别后同步画布：全部缺陷显示全部，具体类别只显示该类。"""
+        """切换类别后同步画布：全部显示全部，具体类别只显示该类。"""
         if self._applying_visibility:
             return
         self._applying_visibility = True
