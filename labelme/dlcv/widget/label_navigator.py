@@ -1,7 +1,7 @@
 """多边形标签列表上方的缺陷导航条。
 
 把原来的“缺陷巡检”面板合并进「多边形标签」，不再维护第二份 shape 列表：
-类别筛选、上一个/下一个、只看当前类别、自动放大定位都直接作用于现有 labelList。
+类别筛选、上一个/下一个、只看当前类别、自动定位都直接作用于现有 labelList。
 """
 
 from __future__ import annotations
@@ -93,7 +93,7 @@ class LabelNavigatorBar(QtWidgets.QWidget):
         self.position_label.setAlignment(Qt.AlignCenter)
         self.position_label.setMinimumWidth(40)
         self.auto_zoom_checkbox = QtWidgets.QCheckBox(
-            dlcv_tr("自动放大定位"), self
+            dlcv_tr("自动定位"), self
         )
         self.auto_zoom_checkbox.setObjectName("labelNavigatorCheck")
         self.auto_zoom_checkbox.setChecked(self._initial_auto_zoom)

@@ -563,8 +563,8 @@ tr_map = {
         "Filter the current image's defects by category. Selecting a category jumps to its first defect.",
         '点击缺陷可放大定位；Alt+←/→ 逐个切换，到首尾自动翻图':
         'Click a defect to zoom to it. Alt+Left/Right steps through defects and automatically moves to the adjacent image at either end.',
-        '自动放大定位':
-        'Auto zoom to defect',
+        '自动定位':
+        'Auto locate',
         '跳转到缺陷时自动放大并居中显示；标签名称过大时按 C 隐藏':
         'Zoom in and center the canvas when jumping to a defect. Press C to hide oversized label names.',
         '已经是最后一张图片':
