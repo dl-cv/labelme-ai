@@ -128,16 +128,20 @@ def change_shape_color(main_window):
         # 1) 更新 shape 颜色
         update_shape_color_with_rgb(shape, rgb)
         # 2) 更新 labelList 对应 shape item 颜色
-        text = (
-            shape.label
-            if shape.group_id is None
-            else "{} ({})".format(shape.label, shape.group_id)
-        )
-        item.setText(
-            '{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
-                html.escape(text), *shape.fill_color.getRgb()[:3]
+        label_html = getattr(main_window, "_label_item_html", None)
+        if label_html is not None:
+            item.setText(label_html(shape))
+        else:
+            text = (
+                shape.label
+                if shape.group_id is None
+                else "{} ({})".format(shape.label, shape.group_id)
             )
-        )
+            item.setText(
+                '{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
+                    html.escape(text), *shape.fill_color.getRgb()[:3]
+                )
+            )
 
     for i in range(main_window.uniqLabelList.count()):
         item = main_window.uniqLabelList.item(i)

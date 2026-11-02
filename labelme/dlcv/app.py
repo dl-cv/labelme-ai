@@ -241,7 +241,42 @@ class MainWindow(CopyPasteMixin, MainWindow):
 
     def addLabel(self, shape):
         super().addLabel(shape)
+        if len(self.labelList):
+            item = self.labelList[len(self.labelList) - 1]
+            if item.shape() is shape:
+                item.setText(self._label_item_html(shape))
         self._sync_label_dialog_order_with_uniq_list()
+
+    def _label_item_html(self, shape):
+        """多边形标签列表的显示文本：名称 + 宽×高 + 颜色点。"""
+        text = html.escape(shape.label)
+        if shape.group_id is not None:
+            text = "{} ({})".format(text, html.escape(str(shape.group_id)))
+        try:
+            rect = shape.boundingRect()
+        except Exception:
+            rect = QtCore.QRectF()
+        width = max(0, int(round(rect.width())))
+        height = max(0, int(round(rect.height())))
+        r, g, b = shape.fill_color.getRgb()[:3]
+        return '{}  {}×{} px <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
+            text, width, height, r, g, b
+        )
+
+    def _refresh_label_item_text(self, shape):
+        if shape is None:
+            return
+        try:
+            item = self.labelList.findItemByShape(shape)
+        except ValueError:
+            return
+        item.setText(self._label_item_html(shape))
+
+    def _update_item(self, item, text, flags, group_id, description):
+        super()._update_item(item, text, flags, group_id, description)
+        shape = item.shape() if item is not None else None
+        if shape is not None:
+            item.setText(self._label_item_html(shape))
 
     def _get_rgb_by_label(self, label):
         if self._config["shape_color"] == "auto":
@@ -2833,6 +2868,8 @@ class MainWindow(CopyPasteMixin, MainWindow):
         return invalid_shapes, invalid_json
 
     def _on_canvas_shape_moved(self):
+        for shape in self.canvas.selectedShapes:
+            self._refresh_label_item_text(shape)
         self.refresh_invalid_polygon_state()
 
     def is_all_shapes_valid(self, log_invalid=False) -> bool:

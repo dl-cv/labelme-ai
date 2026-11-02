@@ -184,6 +184,24 @@ def test_navigator_filters_label_list_rows(qtbot, tmp_path):
 
 
 @pytest.mark.gui
+def test_label_list_shows_shape_size(qtbot, tmp_path):
+    window = _create_window(qtbot, tmp_path)
+    try:
+        window.loadLabels([_polygon("scratch", 20, 30, 8, 6)])
+        item = window.labelList[0]
+        assert "8×6 px" in item.text()
+
+        shape = window.canvas.shapes[0]
+        window.canvas.selectShapes([shape])
+        shape.points[1].setX(shape.points[1].x() + 4)
+        window.canvas.shapeMoved.emit()
+        assert "12×6 px" in item.text()
+    finally:
+        window.setClean()
+        window.close()
+
+
+@pytest.mark.gui
 def test_navigator_zooms_and_stepping(qtbot, tmp_path):
     window = _create_window(qtbot, tmp_path)
     try:
