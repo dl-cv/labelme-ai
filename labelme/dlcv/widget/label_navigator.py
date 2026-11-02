@@ -85,17 +85,6 @@ class LabelNavigatorBar(QtWidgets.QWidget):
         second_row = QtWidgets.QHBoxLayout()
         second_row.setContentsMargins(0, 0, 0, 0)
         second_row.setSpacing(10)
-        self.show_only_checkbox = QtWidgets.QCheckBox(
-            dlcv_tr("画布只看当前类别"), self
-        )
-        self.show_only_checkbox.setObjectName("labelNavigatorCheck")
-        self.show_only_checkbox.setChecked(False)
-        self.show_only_checkbox.setToolTip(
-            dlcv_tr(
-                "开启后画布只显示当前类别的标注，其他类别暂时隐藏；只影响显示，"
-                "不修改标注。适合放大复核某一类缺陷，需要对比其他类别时关闭。"
-            )
-        )
         self.auto_zoom_checkbox = QtWidgets.QCheckBox(
             dlcv_tr("自动放大定位"), self
         )
@@ -104,7 +93,6 @@ class LabelNavigatorBar(QtWidgets.QWidget):
         self.auto_zoom_checkbox.setToolTip(
             dlcv_tr("跳转到缺陷时自动放大并居中显示；标签名称过大时按 C 隐藏")
         )
-        second_row.addWidget(self.show_only_checkbox)
         second_row.addWidget(self.auto_zoom_checkbox)
         second_row.addStretch(1)
         layout.addLayout(second_row)
@@ -115,7 +103,6 @@ class LabelNavigatorBar(QtWidgets.QWidget):
         self.category_combo.currentIndexChanged.connect(self._on_category_changed)
         self.prev_btn.clicked.connect(lambda: self.step(-1))
         self.next_btn.clicked.connect(lambda: self.step(1))
-        self.show_only_checkbox.toggled.connect(self._on_show_only_toggled)
         self.auto_zoom_checkbox.toggled.connect(self._on_auto_zoom_toggled)
 
         window = self.main_window
@@ -169,13 +156,6 @@ class LabelNavigatorBar(QtWidgets.QWidget):
             for item in selected
             if item is not None and item.shape() is not None
         ]
-        if (
-            len(shapes) == 1
-            and self._category is None
-            and self.show_only_checkbox.isChecked()
-        ):
-            # 全部模式下，画布过滤类别跟随当前选中缺陷。
-            self._apply_visibility()
         if self._updating or self.main_window._noSelectionSlot:
             return
         if len(shapes) == 1 and self.auto_zoom_checkbox.isChecked():
@@ -208,7 +188,7 @@ class LabelNavigatorBar(QtWidgets.QWidget):
         try:
             self._rebuild_categories(counts, sum(counts.values()))
             self._apply_row_filter()
-            self._apply_visibility()
+            self._apply_category_visibility()
             self._rebuild_text_cache(items)
             self._update_controls()
         finally:
@@ -219,13 +199,8 @@ class LabelNavigatorBar(QtWidgets.QWidget):
         self.refresh()
 
     def on_folder_changed(self):
-        """切换到新文件夹时回到“全部缺陷”，并恢复全部显示。"""
+        """切换到新文件夹时回到“全部缺陷”。"""
         self._category = None
-        blocker = QtCore.QSignalBlocker(self.show_only_checkbox)
-        try:
-            self.show_only_checkbox.setChecked(False)
-        finally:
-            del blocker
 
     def _rebuild_categories(self, counts, total):
         combo = self.category_combo
@@ -267,43 +242,23 @@ class LabelNavigatorBar(QtWidgets.QWidget):
                 finally:
                     del blocker
 
-    def _apply_visibility(self):
-        """按当前类别隐藏/显示画布标注。"""
+    def _apply_category_visibility(self):
+        """切换类别后同步画布：全部缺陷显示全部，具体类别只显示该类。"""
         if self._applying_visibility:
-            return
-        active_category = self._current_visible_category()
-        if not self.show_only_checkbox.isChecked() or active_category is None:
             return
         self._applying_visibility = True
         try:
             for item in self.labelList:
                 shape = item.shape()
-                visible = shape is not None and shape.label == active_category
+                visible = self._category is None or (
+                    shape is not None and shape.label == self._category
+                )
                 state = Qt.Checked if visible else Qt.Unchecked
                 if item.checkState() != state:
                     item.setCheckState(state)
         finally:
             self._applying_visibility = False
         self.main_window.canvas.update()
-
-    def _restore_all_visible(self):
-        if self._applying_visibility:
-            return
-        self._applying_visibility = True
-        try:
-            for item in self.labelList:
-                if item.checkState() != Qt.Checked:
-                    item.setCheckState(Qt.Checked)
-        finally:
-            self._applying_visibility = False
-        self.main_window.canvas.update()
-
-    def _on_show_only_toggled(self, checked):
-        if checked:
-            self._apply_visibility()
-        else:
-            self._restore_all_visible()
-        self._update_controls()
 
     def _update_controls(self):
         visible_items = self._visible_items()
@@ -321,28 +276,6 @@ class LabelNavigatorBar(QtWidgets.QWidget):
         self.prev_btn.setEnabled(nav_enabled)
         self.next_btn.setEnabled(nav_enabled)
 
-        active_category = self._current_visible_category()
-        if active_category is None:
-            self.show_only_checkbox.setToolTip(
-                dlcv_tr(
-                    "全部缺陷默认显示全部；选中一条缺陷后勾选，可按该缺陷的类别过滤画布"
-                )
-            )
-        elif self._category is None:
-            self.show_only_checkbox.setToolTip(
-                dlcv_tr(
-                    "勾选后按当前选中缺陷的类别过滤画布；"
-                    "只影响显示，不修改标注"
-                )
-            )
-        else:
-            self.show_only_checkbox.setToolTip(
-                dlcv_tr(
-                    "开启后画布只显示当前类别的标注，其他类别暂时隐藏；只影响显示，"
-                    "不修改标注。适合放大复核某一类缺陷，需要对比其他类别时关闭。"
-                )
-            )
-
     def _rebuild_text_cache(self, items):
         self._item_text_cache = {item: item.text() for item in items}
     # endregion
@@ -354,20 +287,10 @@ class LabelNavigatorBar(QtWidgets.QWidget):
         self._category = (
             self.category_combo.itemData(index) if index >= 0 else None
         )
-        # “全部缺陷”就是全部显示；选中具体类别时默认只看该类。
-        blocker = QtCore.QSignalBlocker(self.show_only_checkbox)
-        try:
-            self.show_only_checkbox.setChecked(self._category is not None)
-        finally:
-            del blocker
-
         self._updating = True
         try:
             self._apply_row_filter()
-            if self._category is None:
-                self._restore_all_visible()
-            else:
-                self._apply_visibility()
+            self._apply_category_visibility()
             self._update_controls()
         finally:
             self._updating = False
@@ -394,14 +317,6 @@ class LabelNavigatorBar(QtWidgets.QWidget):
     def _row_of_item(self, item):
         index = self.labelList.model().indexFromItem(item)
         return index.row() if index.isValid() else -1
-
-    def _current_visible_category(self):
-        if self._category is not None:
-            return self._category
-        item = self._current_item()
-        if item is not None and item.shape() is not None:
-            return item.shape().label
-        return None
     # endregion
 
     # region 跳转

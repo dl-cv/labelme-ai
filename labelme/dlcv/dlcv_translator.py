@@ -559,14 +559,6 @@ tr_map = {
         'Previous defect',
         '下一个缺陷':
         'Next defect',
-        '画布只看当前类别':
-        'Only show current category on canvas',
-        '开启后画布只显示当前类别的标注，其他类别暂时隐藏；只影响显示，不修改标注。适合放大复核某一类缺陷，需要对比其他类别时关闭。':
-        'When enabled, the canvas only draws annotations of the current category and temporarily hides other categories. Display only; data is unchanged. Useful when zooming in to review one category; turn it off when comparing categories.',
-        '全部缺陷默认显示全部；选中一条缺陷后勾选，可按该缺陷的类别过滤画布':
-        'All defects are shown by default. After selecting a defect, enable this option to filter the canvas by that defect category.',
-        '勾选后按当前选中缺陷的类别过滤画布；只影响显示，不修改标注':
-        'Filters the canvas by the category of the selected defect. Display only; annotations are unchanged.',
         '按类别筛选当前图片的缺陷；选中后自动定位到该类第一个缺陷':
         "Filter the current image's defects by category. Selecting a category jumps to its first defect.",
         '点击缺陷可放大定位；Alt+←/→ 逐个切换，到首尾自动翻图':

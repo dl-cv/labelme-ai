@@ -162,8 +162,7 @@ def test_navigator_filters_label_list_rows(qtbot, tmp_path):
         for row, label in enumerate(labels):
             assert window.labelList.isRowHidden(row) == (label != "scratch")
 
-        # 选中具体类别时默认只看该类。
-        assert navigator.show_only_checkbox.isChecked() is True
+        # 选中具体类别时，画布同步只显示该类。
         states = {
             item.shape().label: item.checkState() for item in window.labelList
         }
@@ -179,7 +178,6 @@ def test_navigator_filters_label_list_rows(qtbot, tmp_path):
         assert all(
             item.checkState() == Qt.Checked for item in window.labelList
         )
-        assert navigator.show_only_checkbox.isChecked() is False
     finally:
         window.setClean()
         window.close()
@@ -245,47 +243,6 @@ def test_navigator_point_shape(qtbot, tmp_path):
         )
         assert window.zoomWidget.value() >= 2000
         assert [shape.label for shape in window.canvas.selectedShapes] == ["dust"]
-    finally:
-        window.setClean()
-        window.close()
-
-
-@pytest.mark.gui
-def test_navigator_show_only_follows_selected_defect_in_all_mode(qtbot, tmp_path):
-    window = _create_window(qtbot, tmp_path)
-    try:
-        _add_defects(window)
-        navigator = window.label_navigator
-        navigator.refresh()
-
-        assert navigator.show_only_checkbox.isEnabled() is True
-        assert navigator.show_only_checkbox.isChecked() is False
-
-        # 全部模式下未选中缺陷时勾选不影响显示。
-        navigator.show_only_checkbox.setChecked(True)
-        assert all(
-            item.checkState() == Qt.Checked for item in window.labelList
-        )
-
-        # 选中一条缺陷后按该缺陷的类别过滤画布。
-        visible = navigator._visible_items()
-        navigator._jump_to_item(visible[0])
-        states = {
-            item.shape().label: item.checkState() for item in window.labelList
-        }
-        assert states["scratch"] == Qt.Checked
-        assert states["stain"] == Qt.Unchecked
-        assert states["dent"] == Qt.Unchecked
-
-        stain_item = next(
-            item for item in visible if item.shape().label == "stain"
-        )
-        navigator._jump_to_item(stain_item)
-        states = {
-            item.shape().label: item.checkState() for item in window.labelList
-        }
-        assert states["stain"] == Qt.Checked
-        assert states["scratch"] == Qt.Unchecked
     finally:
         window.setClean()
         window.close()
