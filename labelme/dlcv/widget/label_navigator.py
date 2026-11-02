@@ -24,6 +24,8 @@ class LabelNavigatorBar(QtWidgets.QWidget):
     """挂在「多边形标签」列表上方的筛选/导航工具条。"""
 
     REFRESH_DELAY_MS = 30
+    AUTO_ZOOM_SETTINGS_KEY = "label_navigator/auto_zoom"
+    DEFAULT_AUTO_ZOOM = False
 
     def __init__(self, main_window, parent=None):
         super().__init__(parent)
@@ -32,6 +34,8 @@ class LabelNavigatorBar(QtWidgets.QWidget):
         self._updating = False
         self._applying_visibility = False
         self._item_text_cache = {}
+        self._settings = getattr(main_window, "settings", None)
+        self._initial_auto_zoom = self._load_auto_zoom()
 
         self._refresh_timer = QtCore.QTimer(self)
         self._refresh_timer.setSingleShot(True)
@@ -41,6 +45,21 @@ class LabelNavigatorBar(QtWidgets.QWidget):
         self._build_ui()
         self._connect_signals()
         self.refresh(reset_category=True)
+
+    def _load_auto_zoom(self):
+        if self._settings is None:
+            return self.DEFAULT_AUTO_ZOOM
+        try:
+            value = self._settings.value(
+                self.AUTO_ZOOM_SETTINGS_KEY, self.DEFAULT_AUTO_ZOOM, type=bool
+            )
+        except TypeError:
+            value = self._settings.value(
+                self.AUTO_ZOOM_SETTINGS_KEY, self.DEFAULT_AUTO_ZOOM
+            )
+        if isinstance(value, str):
+            return value.strip().lower() in ("1", "true", "yes", "on")
+        return bool(value)
 
     # region UI
     def _build_ui(self):
@@ -77,7 +96,7 @@ class LabelNavigatorBar(QtWidgets.QWidget):
             dlcv_tr("自动放大定位"), self
         )
         self.auto_zoom_checkbox.setObjectName("labelNavigatorCheck")
-        self.auto_zoom_checkbox.setChecked(True)
+        self.auto_zoom_checkbox.setChecked(self._initial_auto_zoom)
         self.auto_zoom_checkbox.setToolTip(
             dlcv_tr("跳转到缺陷时自动放大并居中显示；标签名称过大时按 C 隐藏")
         )
@@ -127,6 +146,8 @@ class LabelNavigatorBar(QtWidgets.QWidget):
             self.step(delta)
 
     def _on_auto_zoom_toggled(self, checked=False):
+        if self._settings is not None:
+            self._settings.setValue(self.AUTO_ZOOM_SETTINGS_KEY, bool(checked))
         if checked:
             item = self._current_item()
             if item is not None and item.shape() is not None:

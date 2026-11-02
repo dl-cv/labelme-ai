@@ -203,12 +203,42 @@ def test_label_list_shows_shape_size(qtbot, tmp_path):
 
 
 @pytest.mark.gui
+def test_auto_zoom_defaults_false_and_persists(qtbot, tmp_path):
+    window = _create_window(qtbot, tmp_path)
+    try:
+        navigator = window.label_navigator
+        assert navigator.auto_zoom_checkbox.isChecked() is False
+        navigator.auto_zoom_checkbox.setChecked(True)
+        window.settings.sync()
+    finally:
+        window.setClean()
+        window.close()
+
+    second = _create_window(qtbot, tmp_path)
+    try:
+        assert second.label_navigator.auto_zoom_checkbox.isChecked() is True
+        second.label_navigator.auto_zoom_checkbox.setChecked(False)
+        second.settings.sync()
+    finally:
+        second.setClean()
+        second.close()
+
+    third = _create_window(qtbot, tmp_path)
+    try:
+        assert third.label_navigator.auto_zoom_checkbox.isChecked() is False
+    finally:
+        third.setClean()
+        third.close()
+
+
+@pytest.mark.gui
 def test_navigator_zooms_and_stepping(qtbot, tmp_path):
     window = _create_window(qtbot, tmp_path)
     try:
         _add_defects(window)
         navigator = window.label_navigator
         navigator.refresh()
+        navigator.auto_zoom_checkbox.setChecked(True)
         navigator.category_combo.setCurrentIndex(
             navigator.category_combo.findData("scratch")
         )
@@ -257,6 +287,7 @@ def test_navigator_point_shape(qtbot, tmp_path):
         )
         navigator = window.label_navigator
         navigator.refresh()
+        navigator.auto_zoom_checkbox.setChecked(True)
         navigator.category_combo.setCurrentIndex(
             navigator.category_combo.findData("dust")
         )
