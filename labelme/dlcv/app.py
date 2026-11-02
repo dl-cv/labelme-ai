@@ -151,6 +151,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
         self.settings = self.createSettings("labelme", "labelme")
         # extra 额外属性
         self.action_refresh = None
+        self._resume_store = None
         # 2.5D管理器
         STORE.register_main_window(self)
         super().__init__(config, filename, output, output_file, output_dir)
@@ -780,6 +781,10 @@ class MainWindow(CopyPasteMixin, MainWindow):
     def closeEvent(self, event):
         super().closeEvent(event)
         self.settings.setValue("lastOpenDir", self.lastOpenDir)
+        try:
+            self._get_resume_store().persist()
+        except Exception:
+            logger.exception("保存断点续标位置失败")
 
         # extra 保存设置
         # 保存store里面的设置
@@ -1630,6 +1635,9 @@ class MainWindow(CopyPasteMixin, MainWindow):
         # extra load_file 之后自动保存一次,防止多个用户同时标注同一个文件夹不打钩
         self.setDirty()
         self._load_file_3d_callback()
+        self._remember_resume_position(self.filename)
+        if hasattr(self, "defect_inspector_dock"):
+            self.defect_inspector_dock.on_image_loaded()
         return True
 
     def loadFlags(self, flags):
@@ -1678,7 +1686,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
     def _openDirectory(self, directory, filename=None):
         self.resetState()
         self.canvas.loadPixmap(QtGui.QPixmap())
-        self.importDirImages(directory)
+        self.importDirImages(directory, restore=filename is None)
         if filename is not None:
             filename = str(Path(filename).absolute().as_posix())
             if filename in self.imageList:
@@ -1779,7 +1787,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
 
         self._config["keep_prev"] = keep_prev
 
-    def importDirImages(self, dirpath, pattern=None, load=True):
+    def importDirImages(self, dirpath, pattern=None, load=True, restore=True):
         self.actions.openNextImg.setEnabled(True)
         self.actions.openPrevImg.setEnabled(True)
 
@@ -1789,6 +1797,8 @@ class MainWindow(CopyPasteMixin, MainWindow):
         self.lastOpenDir = dirpath
         self.filename = None
         self.fileListWidget.clear()
+        if hasattr(self, "defect_inspector_dock"):
+            self.defect_inspector_dock.on_folder_changed()
 
         self.fileListWidget.set_root_dir(dirpath)
 
@@ -1808,6 +1818,124 @@ class MainWindow(CopyPasteMixin, MainWindow):
         if label_txt_path.exists():
             self._load_label_txt(label_txt_path)
         # End
+
+        if restore and not pattern:
+            self._restore_last_position(self.lastOpenDir)
+
+    # region 断点续标
+    def _get_resume_store(self):
+        """懒加载续标记录；设置对象在 UI 初始化时可能被重建一次。"""
+        from labelme.dlcv.controller.resume_position import ResumePositionStore
+
+        store = self._resume_store
+        if store is not None and store.settings is self.settings:
+            return store
+        if store is not None:
+            store.persist()
+        store = ResumePositionStore(self.settings)
+        self._resume_store = store
+        return store
+
+    def _remember_resume_position(self, filename):
+        if not filename or self.is_3d or self.is_2_5d:
+            return
+        try:
+            directory = self._current_dataset_dir(filename)
+            self._get_resume_store().remember(filename, directory)
+        except Exception:
+            logger.exception("记录断点续标位置失败")
+
+    def _current_dataset_dir(self, filename):
+        """优先把位置记录到当前打开的根目录，兼顾子文件夹图片。"""
+        if not self.lastOpenDir:
+            return None
+        try:
+            relative = Path(os.path.abspath(filename)).relative_to(
+                Path(os.path.abspath(self.lastOpenDir))
+            )
+        except (OSError, TypeError, ValueError):
+            return None
+        return self.lastOpenDir if relative.parts else None
+
+    def _restore_last_position(self, dirpath):
+        """打开文件夹后自动回到该文件夹上次查看的图片。"""
+        if not dirpath or self.is_3d or self.is_2_5d:
+            return False
+
+        from labelme.dlcv.file_tree_widget import FileTreeWidget
+
+        if not isinstance(self.fileListWidget, FileTreeWidget):
+            return False
+
+        saved_path = self._get_resume_store().get(dirpath)
+        if not saved_path:
+            return False
+
+        try:
+            relative = Path(os.path.abspath(saved_path)).relative_to(
+                Path(os.path.abspath(dirpath))
+            )
+        except (OSError, TypeError, ValueError):
+            self._get_resume_store().forget(dirpath)
+            return False
+        if not relative.parts:
+            return False
+
+        try:
+            item = self.fileListWidget.select_file_path(saved_path)
+        except Exception:
+            logger.exception("恢复上次标注图片失败")
+            item = None
+
+        if item is None:
+            if not os.path.isfile(saved_path):
+                self._get_resume_store().forget(dirpath)
+                return False
+            if not self.loadFile(saved_path):
+                return False
+
+        if self.filename is None:
+            return False
+
+        name = os.path.basename(saved_path)
+        self.status(dlcv_tr("已恢复上次标注位置: {name}").format(name=name))
+        notification(
+            dlcv_tr("已恢复上次标注位置"),
+            dlcv_tr("继续查看: {name}").format(name=name),
+            ToastPreset.INFORMATION,
+            duration=2500,
+        )
+        return True
+
+    def start_from_first_image(self):
+        """回到当前文件夹的第一张图片（快捷键 Ctrl+Home）。"""
+        if not self.lastOpenDir:
+            return
+        first_path = None
+        try:
+            first_path = self.fileListWidget.first_file_path()
+        except Exception:
+            logger.exception("获取第一张图片失败")
+        if first_path is None:
+            image_list = self.imageList or []
+            if image_list:
+                first_path = image_list[0]
+        if not first_path:
+            return
+        if self.fileListWidget.select_file_path(first_path) is None:
+            self.loadFile(first_path)
+
+    def _init_resume_actions(self):
+        action = QtWidgets.QAction(dlcv_tr("从第一张开始"), self)
+        action.setShortcut("Ctrl+Home")
+        action.setStatusTip(dlcv_tr("回到当前文件夹的第一张图片"))
+        action.triggered.connect(self.start_from_first_image)
+        self.addAction(action)
+        if hasattr(self, "menus"):
+            self.menus.file.addSeparator()
+            self.menus.file.addAction(action)
+    # endregion
+
     """额外函数"""
 
     @property
@@ -1885,6 +2013,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
     def _init_ui(self):
         self._init_label_count_dock()
         self._init_setting_dock()  # 必须在所有的 docker widget 都初始化后才执行，否则 docker widget 不会 restore 成上一次退出时的状态
+        self._init_defect_inspector_dock()
 
         # 移除视图菜单中 dock 的显隐开关，禁止关闭 dock
         for action in list(self.menus.view.actions()):
@@ -1895,6 +2024,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
                 self.file_dock.toggleViewAction(),
                 self.label_count_dock.toggleViewAction(),
                 self.setting_dock.toggleViewAction(),
+                self.defect_inspector_dock.toggleViewAction(),
             ):
                 self.menus.view.removeAction(action)
 
@@ -1910,6 +2040,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
             self.file_dock,
             self.label_count_dock,
             self.setting_dock,
+            self.defect_inspector_dock,
         ):
             dock.setFeatures(no_close_features)
             dock.setVisible(True)
@@ -1922,6 +2053,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
             self.flag_dock.setFloating(False)
             self.shape_dock.setFloating(False)
             self.label_dock.setFloating(False)
+            self.defect_inspector_dock.setFloating(False)
 
         # 添加到菜单栏->视图->重置所有视图位置
         action_reset_view = QtWidgets.QAction(dlcv_tr("重置所有视图位置"), self)
@@ -1933,6 +2065,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
         self._init_trigger_action()
         self._init_edit_mode_action()
         self._init_about_action()
+        self._init_resume_actions()
 
         self.actions.copy.setEnabled(True)
         self.actions.paste.setEnabled(True)
@@ -2153,6 +2286,16 @@ class MainWindow(CopyPasteMixin, MainWindow):
     def _init_label_count_dock(self):
         self.label_count_dock = LabelCountDock(self)
         self.addDockWidget(Qt.RightDockWidgetArea, self.label_count_dock)
+
+    def _init_defect_inspector_dock(self):
+        from labelme.dlcv.widget.defect_inspector import DefectInspectorDock
+
+        self.defect_inspector_dock = DefectInspectorDock(self)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.defect_inspector_dock)
+        # 与“标签统计”共用一个页签区域，避免右侧栏过高。
+        if hasattr(self, "label_count_dock"):
+            self.tabifyDockWidget(self.label_count_dock, self.defect_inspector_dock)
+            self.defect_inspector_dock.raise_()
 
     # endregion
 

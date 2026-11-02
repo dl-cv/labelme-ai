@@ -201,12 +201,14 @@ QTreeWidget#fileTree::indicator:checked {{
 
 /* -------------------- Right Panels: Stats + Settings -------------------- */
 QDockWidget#label_count_dock,
-QDockWidget#setting_dock {{
+QDockWidget#setting_dock,
+QDockWidget#defect_inspector_dock {{
     background: #FFFFFF;
     border: 1px solid #E5E7EB;
 }}
 QDockWidget#label_count_dock::title,
-QDockWidget#setting_dock::title {{
+QDockWidget#setting_dock::title,
+QDockWidget#defect_inspector_dock::title {{
     background: #F9FAFB;
     /* 兼容大字号：避免标题文字被裁切 */
     min-height: 30px;
@@ -302,6 +304,82 @@ QPushButton#labelCountBtn:hover {{
 QPushButton#labelCountBtn:pressed {{
     background: #E8F0FF;
     border-color: {accent};
+}}
+
+/* -------------------- Defect Inspector -------------------- */
+QWidget#defectInspectorPanel {{
+    background: transparent;
+}}
+
+QLabel#defectFieldLabel {{
+    color: #374151;
+}}
+
+QComboBox#defectCategory {{
+    background: #FFFFFF;
+    border: 1px solid #D6DAE3;
+    border-radius: 6px;
+    padding: 4px 8px;
+    min-height: 24px;
+    color: #111827;
+}}
+QComboBox#defectCategory:focus {{
+    border-color: {accent};
+}}
+QComboBox#defectCategory::drop-down {{
+    border: 0px;
+    width: 18px;
+}}
+
+QLabel#defectSummary {{
+    color: #6B7280;
+}}
+
+QListWidget#defectList {{
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 6px;
+    outline: none;
+    padding: 2px;
+}}
+QListWidget#defectList::item {{
+    padding: 3px 6px;
+    color: #111827;
+}}
+QListWidget#defectList::item:selected {{
+    background: palette(highlight);
+    color: palette(highlighted-text);
+}}
+
+QLabel#defectPosition {{
+    color: #374151;
+}}
+
+QPushButton#defectNavBtn {{
+    background: #FFFFFF;
+    border: 1px solid #D6DAE3;
+    border-radius: 6px;
+    padding: 2px 10px;
+    min-height: 26px;
+    min-width: 28px;
+    color: #111827;
+}}
+QPushButton#defectNavBtn:hover {{
+    background: #F3F4F6;
+}}
+QPushButton#defectNavBtn:pressed {{
+    background: #E8F0FF;
+    border-color: {accent};
+}}
+QPushButton#defectNavBtn:disabled {{
+    color: #9CA3AF;
+    border-color: #E5E7EB;
+    background: #F9FAFB;
+}}
+
+QCheckBox#defectFilterCheck {{
+    color: #374151;
+    spacing: 4px;
 }}
 
 /* -------------------- Scroll Bars (subtle) -------------------- */

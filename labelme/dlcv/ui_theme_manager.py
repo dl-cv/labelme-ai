@@ -389,6 +389,7 @@ class UiThemeManager:
                 "file_dock",
                 "setting_dock",
                 "label_count_dock",
+                "defect_inspector_dock",
                 "flag_dock",
                 "shape_dock",
                 "label_dock",

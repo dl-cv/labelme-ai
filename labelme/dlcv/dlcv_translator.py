@@ -545,6 +545,68 @@ tr_map = {
         'Height:',
         '面积:':
         'Area:',
+
+        # ======缺陷巡检 / 断点续标======
+        '缺陷巡检':
+        'Defect Inspector',
+        '类别':
+        'Category',
+        '全部缺陷 ({count})':
+        'All defects ({count})',
+        '当前图片暂无缺陷':
+        'No defects in this image.',
+        '当前图片共 {count} 个缺陷，{categories} 类':
+        '{count} defects in this image across {categories} categories.',
+        '{label}  宽 {width} px，高 {height} px，中心 ({x}, {y})':
+        '{label}  {width}×{height} px, center ({x}, {y})',
+        '上一个缺陷 (Alt+←)':
+        'Previous defect (Alt+Left)',
+        '下一个缺陷 (Alt+→)':
+        'Next defect (Alt+Right)',
+        '上一个缺陷':
+        'Previous defect',
+        '下一个缺陷':
+        'Next defect',
+        '画布只看当前类别':
+        'Only show current category on canvas',
+        '开启后画布只显示当前类别的标注，其他类别暂时隐藏；只影响显示，不修改标注。适合放大复核某一类缺陷，需要对比其他类别时关闭。':
+        'When enabled, the canvas only draws annotations of the current category and temporarily hides other categories. Display only; data is unchanged. Useful when zooming in to review one category; turn it off when comparing categories.',
+        '全部缺陷默认显示全部；选中一条缺陷后勾选，可按该缺陷的类别过滤画布':
+        'All defects are shown by default. After selecting a defect, enable this option to filter the canvas by that defect category.',
+        '勾选后按当前选中缺陷的类别过滤画布；只影响显示，不修改标注':
+        'Filters the canvas by the category of the selected defect. Display only; annotations are unchanged.',
+        '按类别筛选当前图片的缺陷；选中后自动定位到该类第一个缺陷':
+        "Filter the current image's defects by category. Selecting a category jumps to its first defect.",
+        '点击缺陷可放大定位；Alt+←/→ 逐个切换，到首尾自动翻图':
+        'Click a defect to zoom to it. Alt+Left/Right steps through defects and automatically moves to the adjacent image at either end.',
+        '自动放大定位':
+        'Auto zoom to defect',
+        '跳转到缺陷时自动放大并居中显示；标签名称过大时按 C 隐藏':
+        'Zoom in and center the canvas when jumping to a defect. Press C to hide oversized label names.',
+        '已经是最后一张图片':
+        'Already at the last image',
+        '已经是第一张图片':
+        'Already at the first image',
+        '下一张':
+        'next',
+        '上一张':
+        'previous',
+        '「{name}」图片没有标注':
+        'The {name} image has no annotations.',
+        '「{name}」图片没有『{category}』缺陷':
+        "The {name} image has no defects of category '{category}'.",
+        '当前图片没有『{category}』缺陷，共 {count} 个缺陷':
+        "No '{category}' defects in this image ({count} defects total).",
+        '已恢复上次标注位置: {name}':
+        'Restored last position: {name}',
+        '已恢复上次标注位置':
+        'Restored last annotated image',
+        '继续查看: {name}':
+        'Continuing from: {name}',
+        '从第一张开始':
+        'Start from First Image',
+        '回到当前文件夹的第一张图片':
+        'Go back to the first image in the current folder.',
     },
     'zh_CN': {
         'ai processing...': 'ai分析中...',

@@ -263,6 +263,118 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         """获取当前根目录路径"""
         return self._root_dir
 
+    @staticmethod
+    def _path_key(path) -> str:
+        if not path:
+            return ""
+        try:
+            return os.path.normcase(os.path.normpath(os.path.abspath(str(path))))
+        except (OSError, TypeError, ValueError):
+            return ""
+
+    def _find_file_item(self, file_path: str):
+        """按文件路径查找已加载的树节点（兼容大小写/斜杠差异）。"""
+        if not file_path:
+            return None
+        try:
+            posix_path = Path(file_path).absolute().as_posix()
+        except (OSError, TypeError, ValueError):
+            posix_path = ""
+        item = self._file_items.get(posix_path)
+        if item is not None:
+            return item
+
+        expected_key = self._path_key(file_path)
+        for path, file_item in self._file_items.items():
+            if self._path_key(path) == expected_key:
+                return file_item
+        return None
+
+    def _find_child_dir_item(self, parent_item, directory):
+        expected_key = self._path_key(directory)
+        for index in range(parent_item.childCount()):
+            child = parent_item.child(index)
+            child_path = child.data(0, Qt.UserRole)
+            if child_path and self._path_key(child_path) == expected_key:
+                return child
+        return None
+
+    def _ensure_directory_loaded(self, item) -> None:
+        """展开懒加载目录节点，把子节点真正创建出来。"""
+        if item.childCount() == 1:
+            placeholder = item.child(0)
+            if not placeholder.data(0, Qt.UserRole):
+                self._on_item_expanded(item)
+        item.setExpanded(True)
+
+    def _ensure_file_item(self, file_path: str):
+        """逐级展开父目录，直到目标文件节点被加载。"""
+        item = self._find_file_item(file_path)
+        if item is not None:
+            return item
+        if not self._root_dir:
+            return None
+        try:
+            root_path = Path(self._root_dir).absolute()
+            target_path = Path(file_path).absolute()
+            relative = target_path.relative_to(root_path)
+        except (OSError, TypeError, ValueError):
+            return None
+
+        parent_item = self.invisibleRootItem()
+        current_path = root_path
+        for part in relative.parts[:-1]:
+            current_path = current_path / part
+            directory_item = self._find_child_dir_item(parent_item, current_path)
+            if directory_item is None:
+                return None
+            self._ensure_directory_loaded(directory_item)
+            parent_item = directory_item
+        return self._find_file_item(file_path)
+
+    def select_file_path(self, file_path: str):
+        """展开并选中指定文件，选中后由主窗的选中信号负责加载图片。
+
+        返回对应的树节点；找不到时返回 None。
+        """
+        item = self._ensure_file_item(file_path)
+        if item is None:
+            return None
+        self.setCurrentItem(item, 0)
+        self.scrollToItem(item, 0)
+        if not item.isSelected():
+            item.setSelected(True)
+        return item
+
+    def first_file_path(self) -> str | None:
+        """返回文件树中可见的第一个图片路径（优先当前目录的文件）。"""
+        root = self.invisibleRootItem()
+
+        for index in range(root.childCount()):
+            child = root.child(index)
+            path = child.data(0, Qt.UserRole)
+            if path and path in self._file_items:
+                return path
+
+        def _first_in_children(parent_item):
+            for index in range(parent_item.childCount()):
+                child = parent_item.child(index)
+                path = child.data(0, Qt.UserRole)
+                if not path or path in self._file_items:
+                    continue
+                self._ensure_directory_loaded(child)
+                for sub_index in range(child.childCount()):
+                    sub_item = child.child(sub_index)
+                    sub_path = sub_item.data(0, Qt.UserRole)
+                    if sub_path and sub_path in self._file_items:
+                        return sub_path
+                found = _first_in_children(child)
+                if found:
+                    return found
+            return None
+
+        return _first_in_children(root)
+
     def refresh_directory(self):
         if not self._root_dir or not os.path.isdir(self._root_dir):
             return
