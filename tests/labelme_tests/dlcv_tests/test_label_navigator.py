@@ -189,13 +189,14 @@ def test_label_list_shows_shape_size(qtbot, tmp_path):
     try:
         window.loadLabels([_polygon("scratch", 20, 30, 8, 6)])
         item = window.labelList[0]
-        assert "8×6 px" in item.text()
+        assert "8×6" in item.text()
+        assert "px" not in item.text()
 
         shape = window.canvas.shapes[0]
         window.canvas.selectShapes([shape])
         shape.points[1].setX(shape.points[1].x() + 4)
         window.canvas.shapeMoved.emit()
-        assert "12×6 px" in item.text()
+        assert "12×6" in item.text()
     finally:
         window.setClean()
         window.close()

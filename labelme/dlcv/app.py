@@ -259,7 +259,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
         width = max(0, int(round(rect.width())))
         height = max(0, int(round(rect.height())))
         r, g, b = shape.fill_color.getRgb()[:3]
-        return '{}  {}×{} px <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
+        return '{}  {}×{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
             text, width, height, r, g, b
         )
 
