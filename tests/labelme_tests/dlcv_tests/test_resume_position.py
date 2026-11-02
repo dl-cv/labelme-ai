@@ -119,7 +119,7 @@ def test_open_directory_restores_last_image(qtbot, monkeypatch, tmp_path):
         assert Path(second.filename).name == images[1].name
 
         second.setClean()
-        second.start_from_first_image()
+        second._resume_controller.start_from_first_image()
         assert Path(second.filename).name == images[0].name
     finally:
         second.setClean()

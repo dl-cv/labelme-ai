@@ -430,3 +430,13 @@ class LabelNavigatorBar(QtWidgets.QWidget):
         )
         self._update_controls()
     # endregion
+
+
+def install_label_navigator(main_window):
+    """把导航条插入「多边形标签」dock 顶部，返回实例。"""
+    layout = getattr(main_window, "_shape_dock_layout", None)
+    if layout is None:
+        return None
+    bar = LabelNavigatorBar(main_window)
+    layout.insertWidget(0, bar)
+    return bar

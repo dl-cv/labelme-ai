@@ -51,6 +51,8 @@ from labelme.dlcv.widget.unique_label_qlist_widget import (
     init_uniq_label_list_text_flag_wgt,
 )
 from labelme.dlcv.controller.copy_paste import CopyPasteMixin
+from labelme.dlcv.controller.label_item_text import LabelItemTextMixin
+from labelme.dlcv.controller.resume_controller import ResumeController
 from labelme.dlcv.controller.pos_controller import ensure_window_in_screen
 from labelme.dlcv.actions import install_create_brush_mode_action
 from labelme.dlcv.widget.setting_dock import (
@@ -130,7 +132,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 # endregion
 
 
-class MainWindow(CopyPasteMixin, MainWindow):
+class MainWindow(CopyPasteMixin, LabelItemTextMixin, MainWindow):
     canvas: labelme.dlcv.canvas.Canvas
     sig_auto_label_all_update = QtCore.Signal(object)
     _INVALID_POLYGON_COLOR_ATTRS = (
@@ -151,7 +153,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
         self.settings = self.createSettings("labelme", "labelme")
         # extra 额外属性
         self.action_refresh = None
-        self._resume_store = None
+        self._resume_controller = ResumeController(self)
         # 2.5D管理器
         STORE.register_main_window(self)
         super().__init__(config, filename, output, output_file, output_dir)
@@ -238,45 +240,6 @@ class MainWindow(CopyPasteMixin, MainWindow):
 
         if current_label and current_label in ordered_labels:
             label_list.setCurrentRow(ordered_labels.index(current_label))
-
-    def addLabel(self, shape):
-        super().addLabel(shape)
-        if len(self.labelList):
-            item = self.labelList[len(self.labelList) - 1]
-            if item.shape() is shape:
-                item.setText(self._label_item_html(shape))
-        self._sync_label_dialog_order_with_uniq_list()
-
-    def _label_item_html(self, shape):
-        """多边形标签列表的显示文本：名称 + 宽×高 + 颜色点。"""
-        text = html.escape(shape.label)
-        if shape.group_id is not None:
-            text = "{} ({})".format(text, html.escape(str(shape.group_id)))
-        try:
-            rect = shape.boundingRect()
-        except Exception:
-            rect = QtCore.QRectF()
-        width = max(0, int(round(rect.width())))
-        height = max(0, int(round(rect.height())))
-        r, g, b = shape.fill_color.getRgb()[:3]
-        return '{}  {}×{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
-            text, width, height, r, g, b
-        )
-
-    def _refresh_label_item_text(self, shape):
-        if shape is None:
-            return
-        try:
-            item = self.labelList.findItemByShape(shape)
-        except ValueError:
-            return
-        item.setText(self._label_item_html(shape))
-
-    def _update_item(self, item, text, flags, group_id, description):
-        super()._update_item(item, text, flags, group_id, description)
-        shape = item.shape() if item is not None else None
-        if shape is not None:
-            item.setText(self._label_item_html(shape))
 
     def _get_rgb_by_label(self, label):
         if self._config["shape_color"] == "auto":
@@ -816,10 +779,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
     def closeEvent(self, event):
         super().closeEvent(event)
         self.settings.setValue("lastOpenDir", self.lastOpenDir)
-        try:
-            self._get_resume_store().persist()
-        except Exception:
-            logger.exception("保存断点续标位置失败")
+        self._resume_controller.persist()
 
         # extra 保存设置
         # 保存store里面的设置
@@ -1670,7 +1630,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
         # extra load_file 之后自动保存一次,防止多个用户同时标注同一个文件夹不打钩
         self.setDirty()
         self._load_file_3d_callback()
-        self._remember_resume_position(self.filename)
+        self._resume_controller.remember(self.filename)
         if hasattr(self, "label_navigator"):
             self.label_navigator.on_image_loaded()
         return True
@@ -1855,121 +1815,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
         # End
 
         if restore and not pattern:
-            self._restore_last_position(self.lastOpenDir)
-
-    # region 断点续标
-    def _get_resume_store(self):
-        """懒加载续标记录；设置对象在 UI 初始化时可能被重建一次。"""
-        from labelme.dlcv.controller.resume_position import ResumePositionStore
-
-        store = self._resume_store
-        if store is not None and store.settings is self.settings:
-            return store
-        if store is not None:
-            store.persist()
-        store = ResumePositionStore(self.settings)
-        self._resume_store = store
-        return store
-
-    def _remember_resume_position(self, filename):
-        if not filename or self.is_3d or self.is_2_5d:
-            return
-        try:
-            directory = self._current_dataset_dir(filename)
-            self._get_resume_store().remember(filename, directory)
-        except Exception:
-            logger.exception("记录断点续标位置失败")
-
-    def _current_dataset_dir(self, filename):
-        """优先把位置记录到当前打开的根目录，兼顾子文件夹图片。"""
-        if not self.lastOpenDir:
-            return None
-        try:
-            relative = Path(os.path.abspath(filename)).relative_to(
-                Path(os.path.abspath(self.lastOpenDir))
-            )
-        except (OSError, TypeError, ValueError):
-            return None
-        return self.lastOpenDir if relative.parts else None
-
-    def _restore_last_position(self, dirpath):
-        """打开文件夹后自动回到该文件夹上次查看的图片。"""
-        if not dirpath or self.is_3d or self.is_2_5d:
-            return False
-
-        from labelme.dlcv.file_tree_widget import FileTreeWidget
-
-        if not isinstance(self.fileListWidget, FileTreeWidget):
-            return False
-
-        saved_path = self._get_resume_store().get(dirpath)
-        if not saved_path:
-            return False
-
-        try:
-            relative = Path(os.path.abspath(saved_path)).relative_to(
-                Path(os.path.abspath(dirpath))
-            )
-        except (OSError, TypeError, ValueError):
-            self._get_resume_store().forget(dirpath)
-            return False
-        if not relative.parts:
-            return False
-
-        try:
-            item = self.fileListWidget.select_file_path(saved_path)
-        except Exception:
-            logger.exception("恢复上次标注图片失败")
-            item = None
-
-        if item is None:
-            if not os.path.isfile(saved_path):
-                self._get_resume_store().forget(dirpath)
-                return False
-            if not self.loadFile(saved_path):
-                return False
-
-        if self.filename is None:
-            return False
-
-        name = os.path.basename(saved_path)
-        self.status(dlcv_tr("已恢复上次标注位置: {name}").format(name=name))
-        notification(
-            dlcv_tr("已恢复上次标注位置"),
-            dlcv_tr("继续查看: {name}").format(name=name),
-            ToastPreset.INFORMATION,
-            duration=2500,
-        )
-        return True
-
-    def start_from_first_image(self):
-        """回到当前文件夹的第一张图片（快捷键 Ctrl+Home）。"""
-        if not self.lastOpenDir:
-            return
-        first_path = None
-        try:
-            first_path = self.fileListWidget.first_file_path()
-        except Exception:
-            logger.exception("获取第一张图片失败")
-        if first_path is None:
-            image_list = self.imageList or []
-            if image_list:
-                first_path = image_list[0]
-        if not first_path:
-            return
-        if self.fileListWidget.select_file_path(first_path) is None:
-            self.loadFile(first_path)
-
-    def _init_resume_actions(self):
-        action = QtWidgets.QAction(dlcv_tr("从第一张开始"), self)
-        action.setShortcut("Ctrl+Home")
-        action.setStatusTip(dlcv_tr("回到当前文件夹的第一张图片"))
-        action.triggered.connect(self.start_from_first_image)
-        self.addAction(action)
-        if hasattr(self, "menus"):
-            self.menus.file.addSeparator()
-            self.menus.file.addAction(action)
-    # endregion
+            self._resume_controller.restore(self.lastOpenDir)
 
     """额外函数"""
 
@@ -2046,9 +1892,11 @@ class MainWindow(CopyPasteMixin, MainWindow):
         return dialog
 
     def _init_ui(self):
+        from labelme.dlcv.widget.label_navigator import install_label_navigator
+
         self._init_label_count_dock()
         self._init_setting_dock()  # 必须在所有的 docker widget 都初始化后才执行，否则 docker widget 不会 restore 成上一次退出时的状态
-        self._init_label_navigator()
+        self.label_navigator = install_label_navigator(self)
 
         # 移除视图菜单中 dock 的显隐开关，禁止关闭 dock
         for action in list(self.menus.view.actions()):
@@ -2097,7 +1945,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
         self._init_trigger_action()
         self._init_edit_mode_action()
         self._init_about_action()
-        self._init_resume_actions()
+        self._resume_controller.install_actions()
 
         self.actions.copy.setEnabled(True)
         self.actions.paste.setEnabled(True)
@@ -2318,15 +2166,6 @@ class MainWindow(CopyPasteMixin, MainWindow):
     def _init_label_count_dock(self):
         self.label_count_dock = LabelCountDock(self)
         self.addDockWidget(Qt.RightDockWidgetArea, self.label_count_dock)
-
-    def _init_label_navigator(self):
-        from labelme.dlcv.widget.label_navigator import LabelNavigatorBar
-
-        layout = getattr(self, "_shape_dock_layout", None)
-        if layout is None:
-            return
-        self.label_navigator = LabelNavigatorBar(self)
-        layout.insertWidget(0, self.label_navigator)
 
     # endregion
 
@@ -2866,11 +2705,6 @@ class MainWindow(CopyPasteMixin, MainWindow):
 
         self.canvas.update()
         return invalid_shapes, invalid_json
-
-    def _on_canvas_shape_moved(self):
-        for shape in self.canvas.selectedShapes:
-            self._refresh_label_item_text(shape)
-        self.refresh_invalid_polygon_state()
 
     def is_all_shapes_valid(self, log_invalid=False) -> bool:
         # extra 检查所有多边形是否合法
