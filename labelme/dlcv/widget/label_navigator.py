@@ -12,6 +12,7 @@ from collections import Counter
 from qtpy import QtCore
 from qtpy import QtWidgets
 from qtpy.QtCore import Qt
+from qtpy.QtGui import QKeySequence
 
 from labelme.dlcv import dlcv_tr
 from labelme.dlcv.controller.zoom_controller import focus_shape
@@ -83,11 +84,11 @@ class LabelNavigatorBar(QtWidgets.QWidget):
         self.prev_btn = QtWidgets.QPushButton(self)
         self.prev_btn.setObjectName("labelNavigatorBtn")
         self.prev_btn.setIcon(newIcon("prev"))
-        self.prev_btn.setToolTip(dlcv_tr("上一个缺陷 (Alt+←)"))
+        self.prev_btn.setToolTip(dlcv_tr("上一个缺陷 (Alt+← / Alt+A)"))
         self.next_btn = QtWidgets.QPushButton(self)
         self.next_btn.setObjectName("labelNavigatorBtn")
         self.next_btn.setIcon(newIcon("next"))
-        self.next_btn.setToolTip(dlcv_tr("下一个缺陷 (Alt+→)"))
+        self.next_btn.setToolTip(dlcv_tr("下一个缺陷 (Alt+→ / Alt+D)"))
         self.position_label = QtWidgets.QLabel("0/0", self)
         self.position_label.setObjectName("labelNavigatorPosition")
         self.position_label.setAlignment(Qt.AlignCenter)
@@ -121,7 +122,9 @@ class LabelNavigatorBar(QtWidgets.QWidget):
         window = self.main_window
         self.labelList = window.labelList
         self.labelList.setToolTip(
-            dlcv_tr("点击缺陷可放大定位；Alt+←/→ 逐个切换，到首尾自动翻图")
+            dlcv_tr(
+                "点击缺陷可放大定位；Alt+←/→ 或 Alt+A/D 逐个切换，到首尾自动翻图"
+            )
         )
         self.labelList.itemSelectionChanged.connect(self._on_label_selection_changed)
         self.labelList.itemChanged.connect(self._on_label_item_changed)
@@ -132,12 +135,16 @@ class LabelNavigatorBar(QtWidgets.QWidget):
             window.canvas.selectionChanged.connect(self._on_canvas_selection_changed)
 
         self.prev_action = QtWidgets.QAction(dlcv_tr("上一个缺陷"), window)
-        self.prev_action.setShortcut("Alt+Left")
+        self.prev_action.setShortcuts(
+            [QKeySequence("Alt+Left"), QKeySequence("Alt+A")]
+        )
         self.prev_action.triggered.connect(lambda: self._shortcut_step(-1))
         window.addAction(self.prev_action)
 
         self.next_action = QtWidgets.QAction(dlcv_tr("下一个缺陷"), window)
-        self.next_action.setShortcut("Alt+Right")
+        self.next_action.setShortcuts(
+            [QKeySequence("Alt+Right"), QKeySequence("Alt+D")]
+        )
         self.next_action.triggered.connect(lambda: self._shortcut_step(1))
         window.addAction(self.next_action)
 

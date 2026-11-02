@@ -551,18 +551,18 @@ tr_map = {
         'Category',
         '全部 ({count})':
         'All ({count})',
-        '上一个缺陷 (Alt+←)':
-        'Previous defect (Alt+Left)',
-        '下一个缺陷 (Alt+→)':
-        'Next defect (Alt+Right)',
+        '上一个缺陷 (Alt+← / Alt+A)':
+        'Previous defect (Alt+Left / Alt+A)',
+        '下一个缺陷 (Alt+→ / Alt+D)':
+        'Next defect (Alt+Right / Alt+D)',
         '上一个缺陷':
         'Previous defect',
         '下一个缺陷':
         'Next defect',
         '按类别筛选当前图片的缺陷；选中后自动定位到该类第一个缺陷':
         "Filter the current image's defects by category. Selecting a category jumps to its first defect.",
-        '点击缺陷可放大定位；Alt+←/→ 逐个切换，到首尾自动翻图':
-        'Click a defect to zoom to it. Alt+Left/Right steps through defects and automatically moves to the adjacent image at either end.',
+        '点击缺陷可放大定位；Alt+←/→ 或 Alt+A/D 逐个切换，到首尾自动翻图':
+        'Click a defect to zoom to it. Alt+Left/Right or Alt+A/D steps through defects and automatically moves to the adjacent image at either end.',
         '自动定位':
         'Auto locate',
         '跳转到缺陷时自动放大并居中显示；标签名称过大时按 C 隐藏':

@@ -203,6 +203,24 @@ def test_label_list_shows_shape_size(qtbot, tmp_path):
 
 
 @pytest.mark.gui
+def test_navigator_supports_arrow_and_ad_shortcuts(qtbot, tmp_path):
+    window = _create_window(qtbot, tmp_path)
+    try:
+        navigator = window.label_navigator
+        prev_shortcuts = {
+            shortcut.toString() for shortcut in navigator.prev_action.shortcuts()
+        }
+        next_shortcuts = {
+            shortcut.toString() for shortcut in navigator.next_action.shortcuts()
+        }
+        assert {"Alt+Left", "Alt+A"} <= prev_shortcuts
+        assert {"Alt+Right", "Alt+D"} <= next_shortcuts
+    finally:
+        window.setClean()
+        window.close()
+
+
+@pytest.mark.gui
 def test_auto_zoom_defaults_false_and_persists(qtbot, tmp_path):
     window = _create_window(qtbot, tmp_path)
     try:
