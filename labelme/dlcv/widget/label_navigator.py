@@ -73,18 +73,6 @@ class LabelNavigatorBar(QtWidgets.QWidget):
         self.position_label.setObjectName("labelNavigatorPosition")
         self.position_label.setAlignment(Qt.AlignCenter)
         self.position_label.setMinimumWidth(40)
-
-        first_row.addWidget(category_label)
-        first_row.addWidget(self.category_combo, 1)
-        first_row.addWidget(self.prev_btn)
-        first_row.addWidget(self.next_btn)
-        first_row.addSpacing(4)
-        first_row.addWidget(self.position_label)
-        layout.addLayout(first_row)
-
-        second_row = QtWidgets.QHBoxLayout()
-        second_row.setContentsMargins(0, 0, 0, 0)
-        second_row.setSpacing(10)
         self.auto_zoom_checkbox = QtWidgets.QCheckBox(
             dlcv_tr("自动放大定位"), self
         )
@@ -93,9 +81,15 @@ class LabelNavigatorBar(QtWidgets.QWidget):
         self.auto_zoom_checkbox.setToolTip(
             dlcv_tr("跳转到缺陷时自动放大并居中显示；标签名称过大时按 C 隐藏")
         )
-        second_row.addWidget(self.auto_zoom_checkbox)
-        second_row.addStretch(1)
-        layout.addLayout(second_row)
+
+        first_row.addWidget(category_label)
+        first_row.addWidget(self.category_combo, 1)
+        first_row.addWidget(self.auto_zoom_checkbox)
+        first_row.addWidget(self.prev_btn)
+        first_row.addWidget(self.next_btn)
+        first_row.addSpacing(4)
+        first_row.addWidget(self.position_label)
+        layout.addLayout(first_row)
     # endregion
 
     # region 信号
