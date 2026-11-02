@@ -1636,8 +1636,8 @@ class MainWindow(CopyPasteMixin, MainWindow):
         self.setDirty()
         self._load_file_3d_callback()
         self._remember_resume_position(self.filename)
-        if hasattr(self, "defect_inspector_dock"):
-            self.defect_inspector_dock.on_image_loaded()
+        if hasattr(self, "label_navigator"):
+            self.label_navigator.on_image_loaded()
         return True
 
     def loadFlags(self, flags):
@@ -1797,8 +1797,8 @@ class MainWindow(CopyPasteMixin, MainWindow):
         self.lastOpenDir = dirpath
         self.filename = None
         self.fileListWidget.clear()
-        if hasattr(self, "defect_inspector_dock"):
-            self.defect_inspector_dock.on_folder_changed()
+        if hasattr(self, "label_navigator"):
+            self.label_navigator.on_folder_changed()
 
         self.fileListWidget.set_root_dir(dirpath)
 
@@ -2013,7 +2013,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
     def _init_ui(self):
         self._init_label_count_dock()
         self._init_setting_dock()  # 必须在所有的 docker widget 都初始化后才执行，否则 docker widget 不会 restore 成上一次退出时的状态
-        self._init_defect_inspector_dock()
+        self._init_label_navigator()
 
         # 移除视图菜单中 dock 的显隐开关，禁止关闭 dock
         for action in list(self.menus.view.actions()):
@@ -2024,7 +2024,6 @@ class MainWindow(CopyPasteMixin, MainWindow):
                 self.file_dock.toggleViewAction(),
                 self.label_count_dock.toggleViewAction(),
                 self.setting_dock.toggleViewAction(),
-                self.defect_inspector_dock.toggleViewAction(),
             ):
                 self.menus.view.removeAction(action)
 
@@ -2040,7 +2039,6 @@ class MainWindow(CopyPasteMixin, MainWindow):
             self.file_dock,
             self.label_count_dock,
             self.setting_dock,
-            self.defect_inspector_dock,
         ):
             dock.setFeatures(no_close_features)
             dock.setVisible(True)
@@ -2053,7 +2051,6 @@ class MainWindow(CopyPasteMixin, MainWindow):
             self.flag_dock.setFloating(False)
             self.shape_dock.setFloating(False)
             self.label_dock.setFloating(False)
-            self.defect_inspector_dock.setFloating(False)
 
         # 添加到菜单栏->视图->重置所有视图位置
         action_reset_view = QtWidgets.QAction(dlcv_tr("重置所有视图位置"), self)
@@ -2287,15 +2284,14 @@ class MainWindow(CopyPasteMixin, MainWindow):
         self.label_count_dock = LabelCountDock(self)
         self.addDockWidget(Qt.RightDockWidgetArea, self.label_count_dock)
 
-    def _init_defect_inspector_dock(self):
-        from labelme.dlcv.widget.defect_inspector import DefectInspectorDock
+    def _init_label_navigator(self):
+        from labelme.dlcv.widget.label_navigator import LabelNavigatorBar
 
-        self.defect_inspector_dock = DefectInspectorDock(self)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.defect_inspector_dock)
-        # 与“标签统计”共用一个页签区域，避免右侧栏过高。
-        if hasattr(self, "label_count_dock"):
-            self.tabifyDockWidget(self.label_count_dock, self.defect_inspector_dock)
-            self.defect_inspector_dock.raise_()
+        layout = getattr(self, "_shape_dock_layout", None)
+        if layout is None:
+            return
+        self.label_navigator = LabelNavigatorBar(self)
+        layout.insertWidget(0, self.label_navigator)
 
     # endregion
 

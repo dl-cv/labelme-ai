@@ -155,7 +155,7 @@ def _close_window(app, window):
 
 
 def _prepare_evidence_layout(window):
-    for name in ("flag_dock", "shape_dock", "label_dock", "defect_inspector_dock"):
+    for name in ("flag_dock", "shape_dock", "label_dock"):
         dock = getattr(window, name, None)
         if dock is not None:
             dock.hide()
