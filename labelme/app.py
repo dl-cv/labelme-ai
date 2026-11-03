@@ -136,7 +136,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.labelList.itemDropped.connect(self.labelOrderChanged)
         self.shape_dock = QtWidgets.QDockWidget(self.tr("Polygon Labels"), self)
         self.shape_dock.setObjectName("Labels")
-        self.shape_dock.setWidget(self.labelList)
+        # 用容器包一层，dlcv 扩展可以在列表上方插入类别筛选/导航工具条。
+        shape_dock_widget = QtWidgets.QWidget(self.shape_dock)
+        shape_dock_layout = QtWidgets.QVBoxLayout(shape_dock_widget)
+        shape_dock_layout.setContentsMargins(0, 0, 0, 0)
+        shape_dock_layout.setSpacing(0)
+        shape_dock_layout.addWidget(self.labelList)
+        self.shape_dock.setWidget(shape_dock_widget)
+        self._shape_dock_layout = shape_dock_layout
 
         self.uniqLabelList = UniqueLabelQListWidget()
         self.uniqLabelList.setToolTip(

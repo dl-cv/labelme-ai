@@ -1,12 +1,14 @@
-import html
 from typing import Callable
 
-from qtpy import QtCore, QtGui, QtWidgets
+from qtpy import QtCore
+from qtpy import QtGui
+from qtpy import QtWidgets
 from qtpy.QtCore import Qt
 
 from labelme import utils
 from labelme.app import MainWindow
 from labelme.dlcv import dlcv_tr
+from labelme.dlcv.controller.label_item_text import label_item_html
 from labelme.utils.qt import newIcon
 
 
@@ -128,16 +130,7 @@ def change_shape_color(main_window):
         # 1) 更新 shape 颜色
         update_shape_color_with_rgb(shape, rgb)
         # 2) 更新 labelList 对应 shape item 颜色
-        text = (
-            shape.label
-            if shape.group_id is None
-            else "{} ({})".format(shape.label, shape.group_id)
-        )
-        item.setText(
-            '{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
-                html.escape(text), *shape.fill_color.getRgb()[:3]
-            )
-        )
+        item.setText(label_item_html(shape))
 
     for i in range(main_window.uniqLabelList.count()):
         item = main_window.uniqLabelList.item(i)

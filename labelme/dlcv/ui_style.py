@@ -304,6 +304,62 @@ QPushButton#labelCountBtn:pressed {{
     border-color: {accent};
 }}
 
+/* -------------------- Label Navigator (Polygon Labels toolbar) -------------------- */
+QWidget#labelNavigatorBar {{
+    background: transparent;
+}}
+
+QLabel#labelNavigatorFieldLabel {{
+    color: #374151;
+}}
+
+QComboBox#labelNavigatorCombo {{
+    background: #FFFFFF;
+    border: 1px solid #D6DAE3;
+    border-radius: 6px;
+    padding: 4px 8px;
+    min-height: 24px;
+    color: #111827;
+}}
+QComboBox#labelNavigatorCombo:focus {{
+    border-color: {accent};
+}}
+QComboBox#labelNavigatorCombo::drop-down {{
+    border: 0px;
+    width: 18px;
+}}
+
+QLabel#labelNavigatorPosition {{
+    color: #374151;
+}}
+
+QPushButton#labelNavigatorBtn {{
+    background: #FFFFFF;
+    border: 1px solid #D6DAE3;
+    border-radius: 6px;
+    padding: 2px 10px;
+    min-height: 26px;
+    min-width: 28px;
+    color: #111827;
+}}
+QPushButton#labelNavigatorBtn:hover {{
+    background: #F3F4F6;
+}}
+QPushButton#labelNavigatorBtn:pressed {{
+    background: #E8F0FF;
+    border-color: {accent};
+}}
+QPushButton#labelNavigatorBtn:disabled {{
+    color: #9CA3AF;
+    border-color: #E5E7EB;
+    background: #F9FAFB;
+}}
+
+QCheckBox#labelNavigatorCheck {{
+    color: #374151;
+    spacing: 4px;
+}}
+
 /* -------------------- Scroll Bars (subtle) -------------------- */
 QScrollBar:vertical {{
     background: transparent;

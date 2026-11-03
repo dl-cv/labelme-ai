@@ -51,6 +51,8 @@ from labelme.dlcv.widget.unique_label_qlist_widget import (
     init_uniq_label_list_text_flag_wgt,
 )
 from labelme.dlcv.controller.copy_paste import CopyPasteMixin
+from labelme.dlcv.controller.label_item_text import LabelItemTextMixin
+from labelme.dlcv.controller.resume_controller import ResumeController
 from labelme.dlcv.controller.pos_controller import ensure_window_in_screen
 from labelme.dlcv.actions import install_create_brush_mode_action
 from labelme.dlcv.widget.setting_dock import (
@@ -130,7 +132,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True  # 解决图片加载失败问题
 # endregion
 
 
-class MainWindow(CopyPasteMixin, MainWindow):
+class MainWindow(CopyPasteMixin, LabelItemTextMixin, MainWindow):
     canvas: labelme.dlcv.canvas.Canvas
     sig_auto_label_all_update = QtCore.Signal(object)
     _INVALID_POLYGON_COLOR_ATTRS = (
@@ -151,6 +153,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
         self.settings = self.createSettings("labelme", "labelme")
         # extra 额外属性
         self.action_refresh = None
+        self._resume_controller = ResumeController(self)
         # 2.5D管理器
         STORE.register_main_window(self)
         super().__init__(config, filename, output, output_file, output_dir)
@@ -237,10 +240,6 @@ class MainWindow(CopyPasteMixin, MainWindow):
 
         if current_label and current_label in ordered_labels:
             label_list.setCurrentRow(ordered_labels.index(current_label))
-
-    def addLabel(self, shape):
-        super().addLabel(shape)
-        self._sync_label_dialog_order_with_uniq_list()
 
     def _get_rgb_by_label(self, label):
         if self._config["shape_color"] == "auto":
@@ -780,6 +779,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
     def closeEvent(self, event):
         super().closeEvent(event)
         self.settings.setValue("lastOpenDir", self.lastOpenDir)
+        self._resume_controller.persist()
 
         # extra 保存设置
         # 保存store里面的设置
@@ -1630,6 +1630,9 @@ class MainWindow(CopyPasteMixin, MainWindow):
         # extra load_file 之后自动保存一次,防止多个用户同时标注同一个文件夹不打钩
         self.setDirty()
         self._load_file_3d_callback()
+        self._resume_controller.remember(self.filename)
+        if hasattr(self, "label_navigator"):
+            self.label_navigator.on_image_loaded()
         return True
 
     def loadFlags(self, flags):
@@ -1678,7 +1681,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
     def _openDirectory(self, directory, filename=None):
         self.resetState()
         self.canvas.loadPixmap(QtGui.QPixmap())
-        self.importDirImages(directory)
+        self.importDirImages(directory, restore=filename is None)
         if filename is not None:
             filename = str(Path(filename).absolute().as_posix())
             if filename in self.imageList:
@@ -1779,7 +1782,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
 
         self._config["keep_prev"] = keep_prev
 
-    def importDirImages(self, dirpath, pattern=None, load=True):
+    def importDirImages(self, dirpath, pattern=None, load=True, restore=True):
         self.actions.openNextImg.setEnabled(True)
         self.actions.openPrevImg.setEnabled(True)
 
@@ -1789,6 +1792,8 @@ class MainWindow(CopyPasteMixin, MainWindow):
         self.lastOpenDir = dirpath
         self.filename = None
         self.fileListWidget.clear()
+        if hasattr(self, "label_navigator"):
+            self.label_navigator.on_folder_changed()
 
         self.fileListWidget.set_root_dir(dirpath)
 
@@ -1808,6 +1813,10 @@ class MainWindow(CopyPasteMixin, MainWindow):
         if label_txt_path.exists():
             self._load_label_txt(label_txt_path)
         # End
+
+        if restore and not pattern:
+            self._resume_controller.restore(self.lastOpenDir)
+
     """额外函数"""
 
     @property
@@ -1883,8 +1892,11 @@ class MainWindow(CopyPasteMixin, MainWindow):
         return dialog
 
     def _init_ui(self):
+        from labelme.dlcv.widget.label_navigator import install_label_navigator
+
         self._init_label_count_dock()
         self._init_setting_dock()  # 必须在所有的 docker widget 都初始化后才执行，否则 docker widget 不会 restore 成上一次退出时的状态
+        self.label_navigator = install_label_navigator(self)
 
         # 移除视图菜单中 dock 的显隐开关，禁止关闭 dock
         for action in list(self.menus.view.actions()):
@@ -1933,6 +1945,7 @@ class MainWindow(CopyPasteMixin, MainWindow):
         self._init_trigger_action()
         self._init_edit_mode_action()
         self._init_about_action()
+        self._resume_controller.install_actions()
 
         self.actions.copy.setEnabled(True)
         self.actions.paste.setEnabled(True)
@@ -2692,9 +2705,6 @@ class MainWindow(CopyPasteMixin, MainWindow):
 
         self.canvas.update()
         return invalid_shapes, invalid_json
-
-    def _on_canvas_shape_moved(self):
-        self.refresh_invalid_polygon_state()
 
     def is_all_shapes_valid(self, log_invalid=False) -> bool:
         # extra 检查所有多边形是否合法
