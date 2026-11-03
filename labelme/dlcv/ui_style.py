@@ -199,6 +199,10 @@ QTreeWidget#fileTree::indicator:checked {{
     image: url(:/done.png);
 }}
 
+QStackedWidget#fileTreeStack {{
+    background: transparent;
+}}
+
 /* -------------------- Right Panels: Stats + Settings -------------------- */
 QDockWidget#label_count_dock,
 QDockWidget#setting_dock {{
@@ -396,3 +400,125 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
 }}
 """
 
+
+
+def get_image_filter_toggle_qss(accent: str = "#2F6FED") -> str:
+    """文件树顶部“图像筛选”按钮样式。
+
+    单独作用在按钮上，不依赖全局主题，原版 UI 下也能正常显示。
+    """
+    return f"""
+QToolButton#fileFilterBtn {{
+    background: #FFFFFF;
+    border: 1px solid #D6DAE3;
+    border-radius: 6px;
+    padding: 0px;
+}}
+QToolButton#fileFilterBtn:hover {{
+    background: #F3F4F6;
+}}
+QToolButton#fileFilterBtn:pressed {{
+    background: #E8F0FF;
+    border-color: {accent};
+}}
+QToolButton#fileFilterBtn[active="true"] {{
+    background: #E8F0FF;
+    border-color: {accent};
+}}
+"""
+
+
+def get_image_filter_qss(accent: str = "#2F6FED") -> str:
+    """图像筛选卡片样式。
+
+    作为组件内局部样式表使用，modern / classic 两套主题下表现一致，
+    避免原版 UI 下卡片失去边框、按钮变成系统默认样式。
+    """
+    return f"""
+QWidget#imageFilterPanel {{
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+}}
+QLabel#imageFilterTitle {{
+    color: #111827;
+    font-weight: 600;
+}}
+QLabel#imageFilterStatus {{
+    color: #6B7280;
+}}
+QLabel#imageFilterName {{
+    color: #111827;
+}}
+QLabel#imageFilterCount {{
+    color: #6B7280;
+}}
+QScrollArea#imageFilterScroll {{
+    border: none;
+    background: transparent;
+}}
+QWidget#imageFilterRows {{
+    background: transparent;
+}}
+QWidget#imageFilterRow {{
+    background: transparent;
+    border-radius: 6px;
+}}
+QWidget#imageFilterRow[checked="true"] {{
+    background: #F3F7FF;
+}}
+QWidget#imageFilterRow:hover {{
+    background: #EAF1FF;
+}}
+QToolButton#imageFilterCheck {{
+    border: none;
+    background: transparent;
+    padding: 0px;
+}}
+QToolButton#imageFilterCloseBtn {{
+    border: none;
+    background: transparent;
+    border-radius: 4px;
+    padding: 2px;
+}}
+QToolButton#imageFilterCloseBtn:hover {{
+    background: #F3F4F6;
+}}
+QPushButton#imageFilterCancel {{
+    background: #FFFFFF;
+    border: 1px solid #D6DAE3;
+    border-radius: 6px;
+    padding: 6px 10px;
+    min-height: 32px;
+    color: #111827;
+}}
+QPushButton#imageFilterCancel:hover {{
+    background: #F3F4F6;
+}}
+QPushButton#imageFilterCancel:pressed {{
+    background: #E8F0FF;
+    border-color: {accent};
+}}
+QPushButton#imageFilterApply {{
+    background: {accent};
+    border: 1px solid {accent};
+    border-radius: 6px;
+    padding: 6px 10px;
+    min-height: 32px;
+    color: #FFFFFF;
+    font-weight: 600;
+}}
+QPushButton#imageFilterApply:hover {{
+    background: #2A63D4;
+    border-color: #2A63D4;
+}}
+QPushButton#imageFilterApply:pressed {{
+    background: #2457BC;
+    border-color: #2457BC;
+}}
+QPushButton#imageFilterApply:disabled {{
+    background: #C7D7F7;
+    border-color: #C7D7F7;
+    color: #FFFFFF;
+}}
+"""

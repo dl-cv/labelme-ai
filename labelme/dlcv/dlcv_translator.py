@@ -242,6 +242,36 @@ tr_map = {
         "Show images with annotation files (JSON)",
         "显示没有标注文件的图片":
         "Show images without annotation files",
+        "图像筛选":
+        "Image Filter",
+        "按标注类别筛选图片":
+        "Filter images by annotation category",
+        "取消筛选":
+        "Clear Filter",
+        "应用筛选":
+        "Apply Filter",
+        "正在统计类别…（已扫描 {count} 张图片）":
+        "Collecting categories… ({count} images scanned)",
+        "共 {images} 张图片，{categories} 个类别":
+        "{images} images, {categories} categories",
+        "（{failed} 个标注文件读取失败）":
+        " ({failed} annotation files failed to read)",
+        "（{dirs} 个目录无法读取）":
+        " ({dirs} folders could not be read)",
+        "统计类别失败：{error}":
+        "Failed to collect categories: {error}",
+        "当前文件夹没有图片":
+        "No images in the current folder",
+        "请先打开图片文件夹":
+        "Open an image folder first",
+        "无法读取项目配置":
+        "Cannot read project settings",
+        "{count} 张":
+        "{count} image(s)",
+        "已选类别：{names}":
+        "Selected categories: {names}",
+        "图像筛选：{summary}":
+        "Image filter: {summary}",
         "复制文件到剪贴板成功":
         "Copy file to clipboard successfully",
         "已将文件复制到剪贴板":
