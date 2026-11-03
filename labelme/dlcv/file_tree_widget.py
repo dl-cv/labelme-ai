@@ -1,4 +1,5 @@
 import os
+from dataclasses import replace
 from pathlib import Path
 
 from dlcv_core.image_json import ImageJsonError, UnsupportedImageFormatError
@@ -11,6 +12,10 @@ from qtpy.QtCore import Qt
 from labelme.dlcv.dlcv_translator import dlcv_tr
 from labelme.dlcv.label_file import has_image_json
 from labelme.dlcv.store import STORE
+from labelme.dlcv.widget.file_tree_filter import FileTreeFilter
+from labelme.dlcv.widget.file_tree_filter import TreeFilter
+from labelme.dlcv.widget.image_filter_panel import image_key
+from labelme.dlcv.widget.image_filter_widget import ImageFilterWidget
 
 
 def _has_embedded_annotation(image_path):
@@ -74,6 +79,11 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         self._file_items = {}  # 存储文件路径到树item的映射
         self.image_list = OrderedSet()  # 存储所有图片文件的路径列表，使用有序集合.为 as_posix 格式
         self._extensions = None  # 存储所有图片文件的扩展名 [".jpg", ".png", ".jpeg", ".bmp", ".tif", ".tiff", ".dng", ".webp"]
+
+        # 过滤执行器：条件对象 + 应用到树上的逻辑统一在 TreeFilter 里
+        self._tree_filter = TreeFilter(
+            self, lambda: self._file_items, path_key=image_key
+        )
 
         # 设置图标
         self._folder_icon = self.style().standardIcon(
@@ -201,6 +211,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             dir_item.setIcon(0, self._folder_icon)
             # 添加占位符子节点
             QtWidgets.QTreeWidgetItem(dir_item)
+            self.apply_filter_to_item(dir_item, self.filter_state)
 
         # 添加排序后的文件
         for file, file_path, checked in file_items:
@@ -237,6 +248,7 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
         # 存储映射关系
         self._file_items[file_path] = file_item
         self.image_list.add(file_path)  # 使用 add 方法添加元素到有序集合
+        self.apply_filter_to_item(file_item, self.filter_state)
 
     # ----------- 处理项目展开事件 End ----------
 
@@ -271,6 +283,15 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             return os.path.normcase(os.path.normpath(os.path.abspath(str(path))))
         except (OSError, TypeError, ValueError):
             return ""
+
+    @staticmethod
+    def _is_effectively_hidden(item) -> bool:
+        """item 自身或任一祖先被隐藏（筛选时父目录隐藏，子文件自身仍是 False）。"""
+        while item is not None:
+            if item.isHidden():
+                return True
+            item = item.parent()
+        return False
 
     def _find_file_item(self, file_path: str):
         """按文件路径查找已加载的树节点（兼容大小写/斜杠差异）。"""
@@ -354,7 +375,8 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             child = root.child(index)
             path = child.data(0, Qt.UserRole)
             if path and path in self._file_items:
-                return path
+                if not self._is_effectively_hidden(child):
+                    return path
 
         def _first_in_children(parent_item):
             for index in range(parent_item.childCount()):
@@ -362,12 +384,15 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
                 path = child.data(0, Qt.UserRole)
                 if not path or path in self._file_items:
                     continue
+                if self._is_effectively_hidden(child):
+                    continue
                 self._ensure_directory_loaded(child)
                 for sub_index in range(child.childCount()):
                     sub_item = child.child(sub_index)
                     sub_path = sub_item.data(0, Qt.UserRole)
                     if sub_path and sub_path in self._file_items:
-                        return sub_path
+                        if not self._is_effectively_hidden(sub_item):
+                            return sub_path
                 found = _first_in_children(child)
                 if found:
                     return found
@@ -582,63 +607,27 @@ class _FileTreeWidget(QtWidgets.QTreeWidget):
             self.setSelectionMode(QtWidgets.QAbstractItemView.MultiSelection)
         super().mousePressEvent(event)
 
-    def _should_show_item(self, img_path: str, search_text: str,
-                          show_annotated: bool,
-                          show_unannotated: bool) -> bool:
-        """判断指定文件是否应显示
+    @property
+    def filter_state(self) -> FileTreeFilter:
+        return self._tree_filter.criteria
 
-        Args:
-            img_path: 图片文件路径
-            search_text: 搜索关键词
-            show_annotated: 是否显示已标注文件
-            show_unannotated: 是否显示未标注文件
+    def reset_filter(self):
+        """清空所有过滤条件，并恢复本功能隐藏的目录。"""
+        self._tree_filter.reset()
 
-        Returns:
-            bool: 是否应显示
-        """
-        if search_text and search_text not in img_path:
-            return False
+    def set_filter(self, filter_state: FileTreeFilter):
+        """应用统一过滤条件（文件名 + 标注状态 + 类别）。"""
+        self._tree_filter.apply(filter_state)
 
-        # 不限制标注状态时，仅应用文本搜索，不读取图片或 JSON。
-        if show_annotated == show_unannotated:
-            return True
-
-        json_path = STORE.main_window.proj_manager.get_json_path(img_path)
-        is_annotated = os.path.exists(json_path)
-
-        # 只勾了已标注
-        if show_annotated and not show_unannotated:
-            return is_annotated
-        # 只勾了未标注
-        if not show_annotated and show_unannotated:
-            return not is_annotated
-        # 两个都勾了 = 全部显示
-        return True
-
-    def apply_filters(self, search_text: str = "",
-                      show_annotated: bool = False,
-                      show_unannotated: bool = False):
-        """应用过滤条件
-
-        同时根据搜索文本和标注状态过滤文件项。
-
-        Args:
-            search_text: 搜索关键词
-            show_annotated: 是否显示已标注文件
-            show_unannotated: 是否显示未标注文件
-        """
-        for img_path, file_item in self._file_items.items():
-            show = self._should_show_item(
-                img_path, search_text, show_annotated, show_unannotated)
-            file_item.setHidden(not show)
+    def apply_filter_to_item(self, item, filter_state: FileTreeFilter) -> None:
+        """对单个节点应用过滤（懒加载/勾选状态变化时使用）。"""
+        self._tree_filter.apply_to_item(item, filter_state)
 
     def search(self, text: str):
-        """ 根据字符串隐藏 items
-
-        Args:
-            text (str): 用于过滤的字符串，只有路径中包含该字符串的文件会显示，其余隐藏
-        """
-        self.apply_filters(search_text=text)
+        """按文件名搜索；标注状态和类别筛选条件保持不变。"""
+        self._tree_filter.apply(
+            replace(self._tree_filter.criteria, search_text=text)
+        )
 
     # ----------- fileListWidget 额外函数 -------------
 
@@ -777,7 +766,23 @@ class FileTreeWidget(QtWidgets.QWidget):
         self.search_box.setClearButtonEnabled(True)
         self.search_box.setPlaceholderText(dlcv_tr("搜索文件名"))
         self.search_box.setToolTip(dlcv_tr("Enter键搜索"))
-        self.layout.addWidget(self.search_box)
+
+        # “图像筛选”入口：点击后在文件树面板内展开筛选组件
+        self.image_filter_btn = QtWidgets.QToolButton(self)
+        self.image_filter_btn.setObjectName("fileFilterBtn")
+        self.image_filter_btn.setIconSize(QtCore.QSize(16, 16))
+        self.image_filter_btn.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self.image_filter_btn.setCursor(Qt.PointingHandCursor)
+        self.image_filter_btn.setFixedSize(32, 32)
+        self.image_filter_btn.setToolTip(dlcv_tr("按标注类别筛选图片"))
+        self.image_filter_btn.setAccessibleName(dlcv_tr("图像筛选"))
+
+        search_row = QtWidgets.QHBoxLayout()
+        search_row.setContentsMargins(0, 0, 0, 0)
+        search_row.setSpacing(6)
+        search_row.addWidget(self.search_box, 1)
+        search_row.addWidget(self.image_filter_btn)
+        self.layout.addLayout(search_row)
 
         # 创建过滤选项栏
         filter_layout = QtWidgets.QHBoxLayout()
@@ -802,7 +807,21 @@ class FileTreeWidget(QtWidgets.QWidget):
         # 创建树控件
         self.tree_widget = _FileTreeWidget(self)
         self.tree_widget.setObjectName("fileTree")
-        self.layout.addWidget(self.tree_widget)
+
+        # 图像筛选组件：与文件树共用同一块区域，展开时替换文件树
+        self.image_filter = ImageFilterWidget(
+            tree_widget=self.tree_widget,
+            owner=self,
+            toggle_button=self.image_filter_btn,
+            parent=self,
+        )
+        self._body_stack = QtWidgets.QStackedWidget(self)
+        self._body_stack.setObjectName("fileTreeStack")
+        self._body_stack.addWidget(self.tree_widget)
+        self._body_stack.addWidget(self.image_filter)
+        self._body_stack.setCurrentWidget(self.tree_widget)
+        self.layout.addWidget(self._body_stack)
+        self.image_filter.sig_open_changed.connect(self._on_filter_page_changed)
 
         # 连接搜索信号
         self.search_box.returnPressed.connect(self._on_search)
@@ -817,8 +836,44 @@ class FileTreeWidget(QtWidgets.QWidget):
         self.show_unannotated_checkbox.stateChanged.connect(
             self._on_filter_changed)
 
+    # ---------- 图像筛选（组件） ----------
+
+    def _on_filter_page_changed(self, is_open: bool):
+        self._body_stack.setCurrentWidget(
+            self.image_filter if is_open else self.tree_widget
+        )
+        if not is_open:
+            self.tree_widget.setFocus()
+
+    def reapply_filters(self):
+        """由图像筛选组件调用：按当前筛选状态重新过滤文件树。"""
+        self._apply_filters()
+
+    def mark_category_dirty(self):
+        """标注数据变化后通知图像筛选组件重新统计类别。"""
+        self.image_filter.mark_data_changed()
+
+    def closeEvent(self, event):
+        self.image_filter.shutdown()
+        super().closeEvent(event)
+
+    def set_root_dir(self, root_dir):
+        self.image_filter.reset_for_new_root()
+        self.tree_widget.reset_filter()
+        self.tree_widget.set_root_dir(root_dir)
+
+    def clear(self):
+        self.image_filter.reset_for_new_root()
+        self.tree_widget.reset_filter()
+        self.tree_widget.clear()
+
+    def update_state(self):
+        self.tree_widget.update_state()
+        self.image_filter.notify_tree_changed()
+
     def refresh_directory(self):
         self.tree_widget.refresh_directory()
+        self.image_filter.notify_tree_changed()
         self._apply_filters()
 
     def _on_delete_requested(self, file_paths: list[str]):
@@ -868,17 +923,26 @@ class FileTreeWidget(QtWidgets.QWidget):
             _clear_current_file_state(self.tree_widget)
         _show_delete_result_dialog(self, deleted_count, failed)
 
+        self.image_filter.notify_tree_changed()
+
+    def _current_filter(self) -> FileTreeFilter:
+        """根据界面状态和图像筛选组件状态组装统一过滤条件。"""
+        categories, index = self.image_filter.filter_state()
+        return FileTreeFilter(
+            search_text=self.search_box.text().strip(),
+            show_annotated=self.show_annotated_checkbox.isChecked(),
+            show_unannotated=self.show_unannotated_checkbox.isChecked(),
+            categories=frozenset(categories),
+            index=index,
+        )
+
     def _on_search(self):
-        """处理搜索事件"""
-        search_text = self.search_box.text().strip()
-        print(f"搜索关键词: '{search_text}'")
+        """回车应用搜索框内容。"""
         self._apply_filters()
 
     def _on_text_changed(self, text):
-        """处理文本变化事件"""
-        # 当搜索框被清空时，自动显示所有文件
+        """输入过程中不筛选；清空搜索框时立即恢复全部文件。"""
         if not text.strip():
-            print("搜索框已清空，显示所有文件")
             self._apply_filters()
 
     def _on_filter_changed(self, state):
@@ -890,22 +954,27 @@ class FileTreeWidget(QtWidgets.QWidget):
         show_unannotated = self.show_unannotated_checkbox.isChecked()
         if show_annotated == show_unannotated:
             return
-        img_path = item.get_path()
-        if img_path in self.tree_widget._file_items:
-            item.setHidden(not self.tree_widget._should_show_item(
-                img_path, self.search_box.text().strip(),
-                show_annotated, show_unannotated,
-            ))
+        if item.get_path() in self.tree_widget._file_items:
+            self.tree_widget.apply_filter_to_item(item, self._current_filter())
 
     def _apply_filters(self):
-        """应用当前所有过滤条件"""
-        search_text = self.search_box.text().strip()
-        show_annotated = self.show_annotated_checkbox.isChecked()
-        show_unannotated = self.show_unannotated_checkbox.isChecked()
-        self.tree_widget.apply_filters(
-            search_text=search_text,
-            show_annotated=show_annotated,
-            show_unannotated=show_unannotated)
+        """应用当前所有过滤条件（文件树只负责过滤执行）。"""
+        self.tree_widget.set_filter(self._current_filter())
+
+    def apply_filters(self, search_text: str = "",
+                      show_annotated: bool = False,
+                      show_unannotated: bool = False):
+        """兼容外部直接调用：用传入条件 + 当前类别筛选状态重新过滤。"""
+        categories, index = self.image_filter.filter_state()
+        self.tree_widget.set_filter(
+            FileTreeFilter(
+                search_text=search_text,
+                show_annotated=show_annotated,
+                show_unannotated=show_unannotated,
+                categories=frozenset(categories),
+                index=index,
+            )
+        )
 
     def __getattr__(self, name):
         """

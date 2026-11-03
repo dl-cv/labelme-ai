@@ -993,6 +993,9 @@ class MainWindow(CopyPasteMixin, LabelItemTextMixin, MainWindow):
             # 实时更新统计信息
             if hasattr(self, "label_count_dock"):
                 self.label_count_dock.count_labels_in_file([], {})
+            # 标注已清理：类别筛选的统计结果也过期了。
+            if hasattr(self.fileListWidget, "mark_category_dirty"):
+                self.fileListWidget.mark_category_dirty()
             self.dirty = False
             self.actions.save.setEnabled(False)
             return True
@@ -1070,6 +1073,10 @@ class MainWindow(CopyPasteMixin, LabelItemTextMixin, MainWindow):
             # 实时更新统计信息
             if hasattr(self, "label_count_dock"):
                 self.label_count_dock.count_labels_in_file(self.canvas.shapes, flags)
+
+            # 标注已保存：类别筛选的统计结果也过期了。
+            if hasattr(self.fileListWidget, "mark_category_dirty"):
+                self.fileListWidget.mark_category_dirty()
 
             # disable allows next and previous image to proceed
             # self.filename = filename
@@ -1189,6 +1196,9 @@ class MainWindow(CopyPasteMixin, LabelItemTextMixin, MainWindow):
             # 保存 label.txt
             label_txt_path = Path(self.fileListWidget.tree_widget.get_root_dir()) / "label.txt"
             self._save_label_txt(label_txt_path)
+            # label.txt 的类别集合可能变化（新类别即使还没有图片也会出现在筛选中）。
+            if hasattr(self.fileListWidget, "mark_category_dirty"):
+                self.fileListWidget.mark_category_dirty()
             # extra end
         else:
             self._cancel_shape_creation()
