@@ -3,6 +3,7 @@ from typing import List
 import math
 
 from labelme.dlcv.store import STORE
+from labelme.dlcv.shape_render import ShapeRenderSettings
 from labelme.shape import *
 
 
@@ -118,9 +119,11 @@ class Shape(Shape):
             self.points.append(point)
             self.point_labels.append(label)
 
-    def paint(self, painter):
+    def paint(self, painter, settings=None):
         if self.mask is None and not self.points:
             return
+        if settings is None:
+            settings = ShapeRenderSettings.from_store(self.scale, painter, STORE)
 
         color = self.select_line_color if self.selected else self.line_color
         pen = QtGui.QPen(color)
@@ -190,114 +193,19 @@ class Shape(Shape):
                     self.drawVertex(vrtx_path, i)
 
                 # 箭头
-                if getattr(STORE, 'canvas_display_rotation_arrow', True):
-                    cx = sum(p.x() for p in self.points) / 4.0
-                    cy = sum(p.y() for p in self.points) / 4.0
-                    center = QtCore.QPointF(cx, cy)
-                    angle = math.radians(self.direction)
-                    dir_vec = QtCore.QPointF(math.cos(angle), math.sin(angle))
-
-                    # 找与方向最平行的边来确定尺度
-                    def _edge(i):
-                        j = (i + 1) % 4
-                        return QtCore.QPointF(
-                            self.points[j].x() - self.points[i].x(),
-                            self.points[j].y() - self.points[i].y(),
-                        )
-
-                    def _len(v):
-                        return math.hypot(v.x(), v.y())
-
-                    def _dot(u, v):
-                        return u.x() * v.x() + u.y() * v.y()
-
-                    best = 0.0
-                    best_len = 0.0
-                    for i in range(4):
-                        e = _edge(i)
-                        L = _len(e)
-                        if L > 0:
-                            score = abs(_dot(QtCore.QPointF(e.x() / L, e.y() / L), dir_vec))
-                            if score > best:
-                                best = score
-                                best_len = L
-
-                    arrow_len = max(12.0, best_len * 0.2)
-                    start = QtCore.QPointF(
-                        center.x() + dir_vec.x() * (best_len * 0.5),
-                        center.y() + dir_vec.y() * (best_len * 0.5),
-                    )
-                    end = QtCore.QPointF(
-                        start.x() + dir_vec.x() * arrow_len,
-                        start.y() + dir_vec.y() * arrow_len,
-                    )
-
+                if settings.canvas_display_rotation_arrow:
+                    start, end, p1, p2 = self._rotation_arrow_points()
                     self.arrow_center, self.arrow_end = start, end
-
                     arrow_pen = QtGui.QPen(QtGui.QColor(255, 0, 0))
                     arrow_pen.setWidth(self.PEN_WIDTH)
                     painter.setPen(arrow_pen)
                     painter.drawLine(self._scale_point(start), self._scale_point(end))
-
-                    # 箭头头部
-                    head_len = arrow_len * 0.2
-                    h1 = math.radians(self.direction + 150)
-                    h2 = math.radians(self.direction - 150)
-                    p1 = QtCore.QPointF(end.x() + head_len * math.cos(h1),
-                                        end.y() + head_len * math.sin(h1))
-                    p2 = QtCore.QPointF(end.x() + head_len * math.cos(h2),
-                                        end.y() + head_len * math.sin(h2))
                     painter.drawLine(self._scale_point(end), self._scale_point(p1))
                     painter.drawLine(self._scale_point(end), self._scale_point(p2))
 
                 # 恢复画笔
                 painter.setPen(pen)
             
-                # 显示Label（如果有）- 优化旋转框标签显示
-                if self.label and STORE.canvas_display_shape_label:
-                    try:
-                        # 之前没有对字体进行缩放， 现在对字体进行中心缩放
-                        label = self.label
-                        center = self.get_label_paint_point()
-                        scaled_center = self._scale_point(center)
-            
-                        # 设置粗体
-                        font = painter.font()
-                        font.setBold(True)
-            
-                        # 绘制标签时，从store中读取标签字体大小
-                        font.setPointSize(STORE.canvas_shape_label_font_size if self.scale < 1 else int(STORE.canvas_shape_label_font_size * self.scale))
-                        painter.setFont(font)
-            
-                        # 计算矩形宽度
-                        padding = 5
-                        text_width = painter.fontMetrics().width(label)
-                        text_height = painter.fontMetrics().height()
-                        bg_rect = QtCore.QRectF(scaled_center, scaled_center)
-                        bg_rect.setWidth(text_width + padding * 2)
-                        bg_rect.setHeight(text_height + padding * 2)
-                        label_position = getattr(STORE, 'canvas_shape_label_position', 'center')
-                        if label_position == 'top_left':
-                            bg_rect.moveTopLeft(scaled_center)
-                        elif label_position == 'bottom_right':
-                            bg_rect.moveBottomRight(scaled_center)
-                        else:
-                            bg_rect.moveCenter(scaled_center)
-
-                        # 绘制背景 - 增加透明度
-                        painter.fillRect(bg_rect, QtGui.QColor(30, 31, 34, int(255 * 0.8)))
-
-                        # 设置字体颜色
-                        font_color = QtGui.QColor(105, 170, 88)
-                        painter.setPen(font_color)
-                        painter.drawText(bg_rect, QtCore.Qt.AlignCenter, label)
-            
-                        # 恢复原来的画笔
-                        painter.setPen(pen)
-                    except Exception as e:
-                        # 记录错误但不打印堆栈跟踪
-                        print(f"显示旋转框标签出错: {e}")
-                        pass
             elif self.shape_type == "circle":
                 assert len(self.points) in [1, 2]
                 if len(self.points) == 2:
@@ -323,7 +231,7 @@ class Shape(Shape):
                         self.drawVertex(negative_vrtx_path, i)
             elif self.shape_type == "point":
                 # 点标注：根据设置决定绘制圆形或十字
-                if STORE.canvas_points_to_crosshair and len(self.points) > 0:
+                if settings.canvas_points_to_crosshair and len(self.points) > 0:
                     # 绘制十字线
                     point = self._scale_point(self.points[0])
                     d = self.point_size
@@ -349,11 +257,11 @@ class Shape(Shape):
 
             painter.drawPath(line_path)
 
-            if STORE.canvas_display_shape_center_cross:
+            if settings.canvas_display_shape_center_cross:
                 center = self.get_center_point()
                 if center is not None:
                     scaled_center = self._scale_point(center)
-                    half = STORE.canvas_shape_center_cross_length / 2.0
+                    half = settings.canvas_shape_center_cross_length / 2.0
                     center_cross_path.moveTo(scaled_center.x() - half, scaled_center.y())
                     center_cross_path.lineTo(scaled_center.x() + half, scaled_center.y())
                     center_cross_path.moveTo(scaled_center.x(), scaled_center.y() - half)
@@ -361,7 +269,7 @@ class Shape(Shape):
                     painter.drawPath(center_cross_path)
 
             # extra 显示顶点
-            if STORE.canvas_highlight_start_point:
+            if settings.canvas_highlight_start_point:
                 # 第一个顶点显示为红色，第二个顶点显示为蓝色，其他顶点使用原来的颜色
                 if len(self.points) >= 1:
                     # 绘制第一个顶点（红色）
@@ -405,41 +313,17 @@ class Shape(Shape):
                 if (
                     ShapeType.can_display_label(self.shape_type)
                     and self.label
-                    and STORE.canvas_display_shape_label
+                    and settings.canvas_display_shape_label
                 ):
-                    label = self.label
-                    center = self.get_label_paint_point()
-                    scaled_center = self._scale_point(center)
-
-                    # 设置粗体
-                    font = painter.font()
-                    font.setBold(True)
-
-                    # 绘制标签时，从store中读取标签字体大小
-                    font.setPointSize(STORE.canvas_shape_label_font_size if self.scale < 1 else int(STORE.canvas_shape_label_font_size * self.scale))
-                    painter.setFont(font)
-
-                    # 计算矩形宽度
-                    padding = 5
-                    text_width = painter.fontMetrics().width(label)
-                    text_height = painter.fontMetrics().height()
-                    bg_rect = QtCore.QRectF(scaled_center, scaled_center)
-                    bg_rect.setWidth(text_width + padding * 2)
-                    bg_rect.setHeight(text_height + padding * 2)
-                    label_position = getattr(STORE, 'canvas_shape_label_position', 'center')
-                    if label_position == 'top_left':
-                        bg_rect.moveTopLeft(scaled_center)
-                    elif label_position == 'bottom_right':
-                        bg_rect.moveBottomRight(scaled_center)
-                    else:
-                        bg_rect.moveCenter(scaled_center)
-
+                    bg_rect = self._label_paint_rect(self.scale, settings)
                     painter.fillRect(bg_rect, QtGui.QColor(30, 31, 34, int(255 * 0.7)))
-
-                    # 设置字体颜色
-                    font_color = QtGui.QColor(105, 170, 88)
-                    painter.setPen(font_color)
-                    painter.drawText(bg_rect, QtCore.Qt.AlignCenter, label)
+                    painter.setPen(QtGui.QColor(105, 170, 88))
+                    previous_font = painter.font()
+                    painter.setFont(settings.label_font)
+                    try:
+                        painter.drawText(bg_rect, QtCore.Qt.AlignCenter, self.label)
+                    finally:
+                        painter.setFont(previous_font)
             except:
                 pass
             # extra end
@@ -448,6 +332,117 @@ class Shape(Shape):
             painter.setPen(pen)
             painter.drawPath(negative_vrtx_path)
             painter.fillPath(negative_vrtx_path, QtGui.QColor(255, 0, 0, 255))
+
+    def _rotation_arrow_points(self):
+        """Share arrow geometry; a value signature also catches direct point edits."""
+        key = (self.direction, tuple((point.x(), point.y()) for point in self.points))
+        cached = getattr(self, "_rotation_arrow_cache", None)
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        cx = sum(point.x() for point in self.points) / 4.0
+        cy = sum(point.y() for point in self.points) / 4.0
+        angle = math.radians(self.direction)
+        dx, dy = math.cos(angle), math.sin(angle)
+        best_score = best_length = 0.0
+        for i in range(4):
+            start, end = self.points[i], self.points[(i + 1) % 4]
+            ex, ey = end.x() - start.x(), end.y() - start.y()
+            length = math.hypot(ex, ey)
+            if length:
+                score = abs((ex * dx + ey * dy) / length)
+                if score > best_score:
+                    best_score, best_length = score, length
+        arrow_length = max(12.0, best_length * 0.2)
+        start = QtCore.QPointF(cx + dx * best_length * 0.5,
+                              cy + dy * best_length * 0.5)
+        end = QtCore.QPointF(start.x() + dx * arrow_length,
+                            start.y() + dy * arrow_length)
+        heads = []
+        for offset in (150, -150):
+            head_angle = math.radians(self.direction + offset)
+            heads.append(QtCore.QPointF(
+                end.x() + arrow_length * 0.2 * math.cos(head_angle),
+                end.y() + arrow_length * 0.2 * math.sin(head_angle),
+            ))
+        points = (start, end, heads[0], heads[1])
+        self._rotation_arrow_cache = (key, points)
+        return points
+
+    def _label_paint_rect(self, scale, settings, font_metrics=None):
+        metrics = font_metrics if font_metrics is not None else settings.label_font_metrics
+        position = settings.canvas_shape_label_position
+        anchor = self.get_label_paint_point(position)
+        anchor = QtCore.QPointF(anchor.x() * scale, anchor.y() * scale)
+        size = settings.label_sizes.get(self.label) if font_metrics is None else None
+        if size is None:
+            size = (metrics.horizontalAdvance(self.label) + 10, metrics.height() + 10)
+            if font_metrics is None:
+                settings.label_sizes[self.label] = size
+        rect = QtCore.QRectF(0, 0, *size)
+        if position == "top_left":
+            rect.moveTopLeft(anchor)
+        elif position == "bottom_right":
+            rect.moveBottomRight(anchor)
+        else:
+            rect.moveCenter(anchor)
+        return rect
+
+    def paintBounds(self, scale, settings=None, font_metrics=None):
+        """Conservative bounds in painter-logical pixels, before canvas offset.
+
+        The caller must use the same scale/settings as for painting. Points are
+        intentionally read on every call: editors also replace/mutate them
+        directly, so a persistent bounds cache would become stale. Padding
+        includes the largest normal vertex highlight and raster/pen coverage.
+        """
+        if not self.points:
+            return QtCore.QRectF()
+        if settings is None:
+            settings = ShapeRenderSettings.from_store(scale, store=STORE)
+        xs = [point.x() * scale for point in self.points]
+        ys = [point.y() * scale for point in self.points]
+        left, right, top, bottom = min(xs), max(xs), min(ys), max(ys)
+        if self.shape_type == ShapeType.CIRCLE and len(self.points) >= 2:
+            radius = math.hypot(xs[1] - xs[0], ys[1] - ys[0])
+            left, right = min(left, xs[0] - radius), max(right, xs[0] + radius)
+            top, bottom = min(top, ys[0] - radius), max(bottom, ys[0] + radius)
+        if self.mask is not None:
+            height, width = self.mask.shape[:2]
+            # find_contours pads the mask, so include its outer padded edge.
+            left, top = min(left, xs[0] - scale), min(top, ys[0] - scale)
+            right = max(right, xs[0] + (width + 1) * scale)
+            bottom = max(bottom, ys[0] + (height + 1) * scale)
+        pen_padding = abs(self.PEN_WIDTH) * 2 + 2
+        vertex_padding = abs(self.point_size) * 2
+        padding = vertex_padding + pen_padding
+        bounds = QtCore.QRectF(left - padding, top - padding,
+                              right - left + padding * 2, bottom - top + padding * 2)
+        if (self.shape_type == ShapeType.ROTATION and len(self.points) >= 4
+                and settings.canvas_display_rotation_arrow):
+            # 任意边长不超过包围盒对角线。用保守半径覆盖箭身/箭头，
+            # 屏幕外的框无需再逐边匹配方向或创建箭头路径。
+            diagonal = math.hypot(right - left, bottom - top)
+            reach = diagonal * 0.5 + 1.2 * max(12 * scale, diagonal * 0.2) + pen_padding
+            cx, cy = sum(xs) / 4, sum(ys) / 4
+            bounds = bounds.united(QtCore.QRectF(cx - reach, cy - reach,
+                                                 reach * 2, reach * 2))
+        if settings.canvas_display_shape_center_cross:
+            center = self.get_center_point()
+            if center is not None:
+                half = abs(settings.canvas_shape_center_cross_length) / 2 + pen_padding
+                cross_bounds = QtCore.QRectF(center.x() * scale - half,
+                                            center.y() * scale - half, half * 2, half * 2)
+                bounds = bounds.united(cross_bounds)
+        if (settings.canvas_display_shape_label and self.label
+                and ShapeType.can_display_label(self.shape_type)):
+            try:
+                label_bounds = self._label_paint_rect(scale, settings, font_metrics)
+            except (ValueError, TypeError, AttributeError):
+                # Malformed in-progress polygons also skip labels in paint().
+                pass
+            else:
+                bounds = bounds.united(label_bounds.adjusted(-2, -2, 2, 2))
+        return bounds
 
     # extra methods
 
@@ -504,8 +499,9 @@ class Shape(Shape):
             return self.points[0]
 
     # 获取标签绘制点， 用于绘制标签
-    def get_label_paint_point(self) -> QtCore.QPointF:
-        position = getattr(STORE, 'canvas_shape_label_position', 'center')
+    def get_label_paint_point(self, position=None) -> QtCore.QPointF:
+        if position is None:
+            position = getattr(STORE, 'canvas_shape_label_position', 'center')
 
         # 计算形状的边界框
         if self.points:
@@ -522,12 +518,12 @@ class Shape(Shape):
             return QtCore.QPointF(x_max, y_max)
 
         # center 默认逻辑
-        import shapely
-        from shapely.geometry import Polygon
-
         center_point = self.get_center_point()
 
         if self.shape_type == ShapeType.POLYGON:
+            import shapely
+            from shapely.geometry import Polygon
+
             geo_polygon = Polygon([(point.x(), point.y()) for point in self.points])
 
             if geo_polygon.contains(
@@ -624,76 +620,11 @@ class Shape(Shape):
             # 如果指定了epsilon，使用更小的值确保严格检测
             epsilon = min(epsilon, max(1.0, self.PEN_WIDTH / 2.0))
             
-        # 确保必要的属性已经初始化
-        if not hasattr(self, 'arrow_center') or not hasattr(self, 'arrow_end') or self.arrow_center is None or self.arrow_end is None:
-            # 如果箭头相关属性未初始化，临时计算
-            if len(self.points) < 4:
-                return False
-                
-            # 计算中心点
-            center_x = sum(p.x() for p in self.points) / 4
-            center_y = sum(p.y() for p in self.points) / 4
-            center = QtCore.QPointF(center_x, center_y)
-            
-            # 计算旋转方向向量
-            angle_rad = math.radians(self.direction)
-            dir_vector = QtCore.QPointF(math.cos(angle_rad), math.sin(angle_rad))
-            
-            # 计算与箭头方向平行的边的长度
-            # 计算各个边的方向向量
-            edge_vectors = []
-            for i in range(4):
-                next_i = (i + 1) % 4
-                edge_vec = QtCore.QPointF(
-                    self.points[next_i].x() - self.points[i].x(),
-                    self.points[next_i].y() - self.points[i].y()
-                )
-                edge_vectors.append(edge_vec)
-            
-            # 找出与箭头方向最平行的边
-            max_dot_product = -1
-            parallel_edge_length = 0
-            for edge_vec in edge_vectors:
-                # 计算单位向量
-                edge_length = math.sqrt(edge_vec.x()**2 + edge_vec.y()**2)
-                if edge_length > 0:
-                    edge_unit_vec = QtCore.QPointF(edge_vec.x()/edge_length, edge_vec.y()/edge_length)
-                    # 计算点积的绝对值（平行度）
-                    dot_product = abs(edge_unit_vec.x()*dir_vector.x() + edge_unit_vec.y()*dir_vector.y())
-                    if dot_product > max_dot_product:
-                        max_dot_product = dot_product
-                        parallel_edge_length = edge_length
-            
-            # 计算箭头起始点：从中心点向箭头方向移动平行边长度的一半
-            arrow_start_x = center_x + (dir_vector.x() * parallel_edge_length * 0.5)
-            arrow_start_y = center_y + (dir_vector.y() * parallel_edge_length * 0.5)
-            arrow_start = QtCore.QPointF(arrow_start_x, arrow_start_y)
-            
-            # 计算箭头长度：与箭头平行的边的长度的0.2（与paint方法保持一致）
-            arrow_length = max(12.0, parallel_edge_length * 0.2)
-            
-            # 计算箭头终点
-            end_x = arrow_start_x + arrow_length * dir_vector.x()
-            end_y = arrow_start_y + arrow_length * dir_vector.y()
-            arrow_end = QtCore.QPointF(end_x, end_y)
-            
-            # 临时设置箭头属性
-            self.arrow_center = arrow_start
-            self.arrow_end = arrow_end
-        
-        # 使用箭头属性
-        start_point = self.arrow_center  # 箭头主线段起点
-        end_point = self.arrow_end        # 箭头主线段终点（也是箭头头部起点）
-        
-        # 计算箭头头部（与paint方法保持一致）
-        arrow_len = QtCore.QLineF(start_point, end_point).length()
-        head_len = arrow_len * 0.2
-        h1 = math.radians(self.direction + 150)
-        h2 = math.radians(self.direction - 150)
-        p1 = QtCore.QPointF(end_point.x() + head_len * math.cos(h1),
-                            end_point.y() + head_len * math.sin(h1))
-        p2 = QtCore.QPointF(end_point.x() + head_len * math.cos(h2),
-                            end_point.y() + head_len * math.sin(h2))
+        if len(self.points) < 4:
+            return False
+        # 屏幕外的框不再每帧重画，命中不能依赖上次paint留下的端点。
+        start_point, end_point, p1, p2 = self._rotation_arrow_points()
+        self.arrow_center, self.arrow_end = start_point, end_point
         
         # 辅助函数：严格检查点是否在线段上（使用严格的容差）
         def isPointOnLineSegment(point, line_start, line_end, tolerance):
