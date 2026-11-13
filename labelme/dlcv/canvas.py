@@ -3,6 +3,8 @@ import math  # 添加math模块导入
 from shapely import Polygon, Point, LineString, MultiPolygon
 
 from labelme.dlcv.shape import ShapeType
+from labelme.dlcv.shape_render import ShapeRenderSettings
+from labelme.dlcv.zoom_preview import paint_zoom_preview
 from labelme.widgets.canvas import *
 
 
@@ -29,7 +31,7 @@ class CustomCanvas(Canvas):
 
     """额外函数"""
 
-    def rotateShape(self, shape, angle):
+    def rotateShape(self, shape, angle, store=True):
         """根据给定的角度旋转形状"""
         if not shape or shape.shape_type != "rotation":
             return
@@ -86,9 +88,10 @@ class CustomCanvas(Canvas):
             # 更新点位置
             shape.points[i] = QtCore.QPointF(new_x, new_y)
 
-        # 更新显示
+        # 拖动预览不创建全图撤销快照，独立旋转调用保持原有行为。
         self.update()
-        self.storeShapes()
+        if store:
+            self.storeShapes()
 
     def is_circle_in_image(self, circle_center: QtCore.QPointF, radius: float):
         x, y = circle_center.x(), circle_center.y()
@@ -407,6 +410,83 @@ class Canvas(CustomCanvas):
         self.offset = QtCore.QPointF(0, 0)
         # 右键分割标注相关变量
         self.splitting_shape = False  # 是否正在分割标注
+        self._rotation_edit = None
+        self._zoom_preview_active = False
+        self._zoom_preview_timer = QtCore.QTimer(self)
+        self._zoom_preview_timer.setSingleShot(True)
+        self._zoom_preview_timer.setInterval(250)
+        self._zoom_preview_timer.timeout.connect(self._finish_zoom_preview)
+
+    def _start_zoom_preview(self):
+        # 少量标注无需降级；密集场景滚轮期间只绘制批量轮廓。
+        if len(self.shapes) >= 1000:
+            self._zoom_preview_active = True
+            self._zoom_preview_timer.start()
+            self.update()
+
+    def _finish_zoom_preview(self):
+        self._zoom_preview_timer.stop()
+        if self._zoom_preview_active:
+            self._zoom_preview_active = False
+            self.update()
+
+    def _begin_rotation_edit(self, shape):
+        if self._rotation_edit is None:
+            self._rotation_edit = (
+                shape,
+                [(point.x(), point.y()) for point in shape.points],
+                shape.direction,
+            )
+
+    def _clear_rotation_edit(self):
+        self._rotation_edit = None
+        self.draggingArrow = False
+        self.hArrowShape = None
+        self.movingShape = False
+
+    def _finish_rotation_edit(self):
+        edit = self._rotation_edit
+        self._clear_rotation_edit()
+        if edit is not None:
+            shape, points, direction = edit
+            if shape in self.shapes and (
+                points != [(point.x(), point.y()) for point in shape.points]
+                or direction != shape.direction
+            ):
+                # 一次手势只对应一次撤销和一次自动保存。
+                self.storeShapes()
+                self.shapeMoved.emit()
+        self.update()
+
+    def _move_rotation_arrow(self, pos):
+        shape = self.hArrowShape
+        self._begin_rotation_edit(shape)
+        center_x = sum(point.x() for point in shape.points) / len(shape.points)
+        center_y = sum(point.y() for point in shape.points) / len(shape.points)
+        new_angle = math.degrees(math.atan2(pos.y() - center_y,
+                                            pos.x() - center_x)) % 360
+        angle_diff = new_angle - shape.direction
+        if angle_diff:
+            shape.direction = new_angle
+            self.rotateShape(shape, angle_diff, store=False)
+            self.movingShape = True
+
+    def focusOutEvent(self, ev):
+        self._finish_zoom_preview()
+        rotation_vertex = (self.hShape is not None and self.selectedVertex()
+                           and self.hShape.shape_type == ShapeType.ROTATION)
+        if self._rotation_edit is not None or rotation_vertex:
+            self._finish_rotation_edit()
+            # 尚未有效移动的顶点手势也必须结束，防止丢焦后的晚到事件重开编辑。
+            self.unHighlight()
+            self.prevPoint = None
+        super().focusOutEvent(ev)
+
+    def loadShapes(self, shapes, replace=True):
+        self._finish_zoom_preview()
+        self._clear_rotation_edit()
+        self.prevPoint = None
+        super().loadShapes(shapes, replace=replace)
 
     def canCloseShape(self):
         can = super().canCloseShape()  # fix ai标注时候，直接按下回车导致程序闪退
@@ -521,6 +601,7 @@ class Canvas(CustomCanvas):
 
     # 鼠标按下事件
     def mousePressEvent(self, ev, need_transform=True):
+        self._finish_zoom_preview()
         # extra 鼠标坐标转换
         if need_transform:
             # 鼠标点击的坐标,转换为图片坐标
@@ -596,6 +677,7 @@ class Canvas(CustomCanvas):
                             if shape.isArrowHit(pos, self.epsilon):
                                 self.draggingArrow = True
                                 self.hArrowShape = shape
+                                self._begin_rotation_edit(shape)
                                 self.deSelectShape()
                                 self.selectShapes([shape])  # 修改为selectShapes
                                 self.update()
@@ -670,6 +752,8 @@ class Canvas(CustomCanvas):
             # 防止超出画布边界
             if self.outOfPixmap(pos):
                 pos = self.intersectionPoint(None, pos)
+            if pos == shape.points[index]:
+                return
 
             # 保存当前的旋转角度
             current_rotation = shape.direction
@@ -742,7 +826,8 @@ class Canvas(CustomCanvas):
                 opposite_point.x() + v_vector.x(),
                 opposite_point.y() + v_vector.y())
 
-            # 应用新的点到形状
+            # 只记录本次手势起点，移动过程中不复制全部标注或触发保存。
+            self._begin_rotation_edit(shape)
             shape.points = points
 
             # 重新计算中心点
@@ -771,9 +856,8 @@ class Canvas(CustomCanvas):
             # 确保方向保持不变
             shape.direction = current_rotation
 
-            # 更新显示
+            # 更新显示；撤销记录和自动保存统一在手势结束时提交。
             self.update()
-            self.shapeMoved.emit()
             return
 
         # 原始逻辑（非旋转框的处理）
@@ -879,44 +963,8 @@ class Canvas(CustomCanvas):
         # 箭头拖拽处理 - 优先级最高
         if self.draggingArrow and self.hArrowShape and QtCore.Qt.LeftButton & ev.buttons(
         ):  
-            shape = self.hArrowShape
-            center_x = sum(p.x() for p in shape.points) / len(shape.points)
-            center_y = sum(p.y() for p in shape.points) / len(shape.points)
-            center = QtCore.QPointF(center_x, center_y)
-
-            # 计算鼠标位置相对于中心点的角度
-            dx = pos.x() - center.x()
-            dy = pos.y() - center.y()
-
-            # 计算新角度（屏幕坐标系y轴向下为正，所以用y而非-y）
-            new_angle = math.degrees(math.atan2(dy, dx))
-
-            # print(f"坐标信息: 鼠标位置({pos.x()}, {pos.y()}), 中心点({center.x()}, {center.y()})")
-            # print(f"偏移量: dx={dx:.1f}, dy={dy:.1f}")
-            # print(f"角度计算: 弧度值={math.atan2(dy, dx):.3f}, 转换角度={new_angle:.1f}°")
-            # print(
-            #     f"方向变化: 当前方向={shape.direction:.1f}°, 新角度={new_angle:.1f}°, 变化量={new_angle - shape.direction:.1f}°")
-            # print(f"归一化角度: {new_angle % 360:.1f}° (0-360°范围内)")
-            # print("-" * 50)
-
-            # 将角度调整到0-360度范围
-            new_angle = new_angle % 360
-            if new_angle < 0:
-                new_angle += 360
-
-            # 计算角度差（当前角度与新角度的差值）
-            old_angle = shape.direction
-            angle_diff = new_angle - old_angle
-
-            # 设置新角度
-            shape.direction = new_angle
-
-            # 旋转整个形状的顶点
-            self.rotateShape(shape, angle_diff)
-
-            # 更新显示
+            self._move_rotation_arrow(pos)
             self.update()
-            self.shapeMoved.emit()
             return
 
         # 如果画笔功能启用，即使不在绘制过程中也更新预览圆
@@ -1091,13 +1139,13 @@ class Canvas(CustomCanvas):
             # moving vertex
             if self.selectedVertex():
                 self.boundedMoveVertex(pos)
-                self.repaint()
+                self.update()
                 self.movingShape = True
             # moving selected shapes
             elif self.selectedShapes and self.prevPoint:
                 self.overrideCursor(CURSOR_MOVE)
                 self.boundedMoveShapes(self.selectedShapes, pos)
-                self.repaint()
+                self.update()
                 self.movingShape = True
             return
 
@@ -1106,11 +1154,15 @@ class Canvas(CustomCanvas):
         # - Highlight vertex
         # Update shape/vertex fill and tooltip value accordingly.
         self.setToolTip(self.tr("Image"))
-        for shape in reversed([s for s in self.shapes if self.isVisible(s)]):
-            # Look for a nearby vertex to highlight. If that fails,
-            # check if we happen to be inside a shape.
+        for shape in reversed(self.shapes):
+            if not self.isVisible(shape):
+                continue
+            # 旋转框等不可插点的形状无需计算最近边；顶点命中后也无需算边。
             index = shape.nearestVertex(pos, self.epsilon)
-            index_edge = shape.nearestEdge(pos, self.epsilon)
+            index_edge = (
+                shape.nearestEdge(pos, self.epsilon)
+                if index is None and shape.canAddPoint() else None
+            )
             if index is not None:
                 if self.selectedVertex():
                     self.hShape.highlightClear()
@@ -1156,6 +1208,18 @@ class Canvas(CustomCanvas):
 
     # 鼠标释放事件
     def mouseReleaseEvent(self, ev):
+        if ev.button() == QtCore.Qt.LeftButton and self._rotation_edit is not None:
+            # 合并绘制不能丢掉最后一个释放位置。
+            if self.movingShape:
+                pos = self.transformPos(ev.pos())
+                if self.draggingArrow:
+                    self._move_rotation_arrow(pos)
+                elif self.hShape is self._rotation_edit[0] and self.selectedVertex():
+                    self.boundedMoveVertex(pos)
+            self._finish_rotation_edit()
+            self.restoreCursor()
+            return
+
         # extra 右键分割标注结束（编辑模式下，优先处理分割，避免触发右键菜单）
         if ev.button() == QtCore.Qt.RightButton and self.editing() and self.splitting_shape:
             self.splitting_shape = False
@@ -1538,6 +1602,10 @@ class Canvas(CustomCanvas):
         if QT5:
             # mods = ev.modifiers()
             delta = ev.angleDelta()
+            if not delta.y():
+                ev.accept()
+                return
+            self._start_zoom_preview()
             # if QtCore.Qt.ControlModifier == int(mods):
             #     # with Ctrl/Command key
             #     # zoom
@@ -1575,7 +1643,9 @@ class Canvas(CustomCanvas):
                 #         if (QtCore.Qt.ShiftModifier == int(mods))
                 #         else QtCore.Qt.Vertical,
                 #     )
-                self.zoomRequest.emit(ev.delta(), ev.pos())
+                if ev.delta():
+                    self._start_zoom_preview()
+                    self.zoomRequest.emit(ev.delta(), ev.pos())
             # else:
             #     self.scrollRequest.emit(ev.delta(), QtCore.Qt.Horizontal)
         ev.accept()
@@ -1654,6 +1724,11 @@ class Canvas(CustomCanvas):
 
     # 加载图片
     def loadPixmap(self, pixmap: QtGui.QPixmap, clear_shapes=True):
+        self._finish_zoom_preview()
+        if clear_shapes:
+            self._clear_rotation_edit()
+            self.unHighlight()
+            self.prevPoint = None
         self.pixmap = pixmap
         if self._ai_model and self.createMode in ["ai_polygon", "ai_mask"]:
             if not pixmap.isNull():  # extra 当 pixmap 为空时，不需要调用 _ai_model
@@ -1758,11 +1833,41 @@ class Canvas(CustomCanvas):
                 p.drawPath(path)
 
         Shape.scale = self.scale
-        for shape in self.shapes:
+        render_settings = (
+            ShapeRenderSettings.from_store(self.scale, p, STORE) if self.shapes else None
+        )
+        # 绘制坐标此时只剩画布居中/平移偏移，将可见区域逆变换后再剔除。
+        visible_rect = QtCore.QRectF(event.rect())
+        visible_region = self.visibleRegion()
+        if not visible_region.isEmpty():
+            visible_rect = visible_rect.intersected(
+                QtCore.QRectF(visible_region.boundingRect()))
+        inverse, _ = p.worldTransform().inverted()
+        visible_rect = inverse.mapRect(visible_rect)
+        # 全图已经适配在视口内时，直接画全部标注，避免无收益的bounds计算。
+        cull_shapes = not visible_rect.contains(QtCore.QRectF(
+            0, 0, self.pixmap.width() * self.scale, self.pixmap.height() * self.scale))
+        shapes_to_paint = self.shapes
+        if self._zoom_preview_active:
+            # 滚轮连续缩放时，不为数千个框逐个生成文字、箭头和顶点路径。
+            # 编辑中的标注仍保持精绘，停轮后由单次定时器恢复完整细节。
+            outlines, detailed = [], []
+            for shape in self.shapes:
+                if (shape.selected or not self._hideBackround) and self.isVisible(shape):
+                    if shape.selected or shape is self.hShape:
+                        detailed.append(shape)
+                    else:
+                        outlines.append(shape)
+            paint_zoom_preview(p, outlines, self.scale, visible_rect, render_settings)
+            shapes_to_paint = detailed
+        for shape in shapes_to_paint:
             if (shape.selected
                     or not self._hideBackround) and self.isVisible(shape):
+                if cull_shapes and not shape.paintBounds(
+                        self.scale, render_settings).intersects(visible_rect):
+                    continue
                 shape.fill = shape.selected or shape == self.hShape
-                shape.paint(p)
+                shape.paint(p, render_settings)
         if self.current:
             self.current.paint(p)
             self.line.paint(p)
@@ -1841,6 +1946,10 @@ class Canvas(CustomCanvas):
 
     # 重置状态
     def resetState(self):
+        self._finish_zoom_preview()
+        self._clear_rotation_edit()
+        self.unHighlight()
+        self.prevPoint = None
         self.restoreCursor()
 
         # extra self.pixmap = None 会导致鼠标点击事件崩溃
@@ -1857,6 +1966,7 @@ class Canvas(CustomCanvas):
 
     # 键盘事件
     def keyPressEvent(self, ev):
+        self._finish_zoom_preview()
         super().keyPressEvent(ev)
         modifiers = ev.modifiers()
         key = ev.key()
