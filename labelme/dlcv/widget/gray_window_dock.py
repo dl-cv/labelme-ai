@@ -69,11 +69,12 @@ class GrayWindowDock(QtWidgets.QDockWidget):
 
         panel = QtWidgets.QWidget(self)
         layout = QtWidgets.QVBoxLayout(panel)
-        histogram_title = QtWidgets.QLabel("原图灰度直方图（像素数为对数）\n橙线：黑场 · 蓝线：白场")
+        histogram_title = QtWidgets.QLabel("原图灰度直方图")
         histogram_title.setWordWrap(True)
         layout.addWidget(histogram_title)
         self.histogram = GrayHistogram(panel)
         layout.addWidget(self.histogram)
+        self.histogram.levelsEdited.connect(self._histogram_levels_changed)
         self.info = QtWidgets.QLabel()
         self.info.setWordWrap(True)
         layout.addWidget(self.info)
@@ -93,9 +94,6 @@ class GrayWindowDock(QtWidgets.QDockWidget):
         buttons.addWidget(self.reset_button)
         controls_layout.addLayout(buttons)
         layout.addWidget(self.controls)
-        note = QtWidgets.QLabel("仅调整显示，不修改原图和标注。\n自动黑场 = 排除背景后的最小灰度；白场按工件主峰计算，可继续微调。\n滑块覆盖原图灰度范围；输入框和上下箭头可精调，重置恢复完整灰度范围。")
-        note.setWordWrap(True)
-        layout.addWidget(note)
         layout.addStretch()
         self.setWidget(panel)
         self.set_image(None)
@@ -136,6 +134,7 @@ class GrayWindowDock(QtWidgets.QDockWidget):
         low, high = auto_window(image) if image.dtype == np.uint16 else (0, ceiling)
         self._reset_slider_range(low, high)
         self._set_window(low, high, emit=False)
+        self.histogram.focus_window(low, high)
         return self.display_image()
 
     def _reset_slider_range(self, low, high):
@@ -162,6 +161,12 @@ class GrayWindowDock(QtWidgets.QDockWidget):
         if emit:
             self._timer.stop()
             self._emit_image()
+
+    def _histogram_levels_changed(self, low, high):
+        if self.raw_image is None:
+            return
+        self._set_window(low, high, emit=False)
+        self._timer.start()
 
     def _minimum_changed(self, value):
         if self.raw_image is None:
@@ -203,9 +208,11 @@ class GrayWindowDock(QtWidgets.QDockWidget):
             low, high = auto_window(self.raw_image)
             self._reset_slider_range(low, high)
             self._set_window(low, high)
+            self.histogram.focus_window(low, high)
 
     def reset_window(self):
         if self.raw_image is not None:
             ceiling = int(np.iinfo(self.raw_image.dtype).max)
             self._slider_range = (0, ceiling)
             self._set_window(0, ceiling)
+            self.histogram.focus_window(0, ceiling)

@@ -107,6 +107,34 @@ def test_slider_reaches_raw_maximum_after_auto_adjust(qtbot):
     assert dock.maximum_slider.value() == 65535
 
 
+def test_default_histogram_zoom_focuses_window_without_limiting_controls(qtbot):
+    dock = GrayWindowDock()
+    qtbot.addWidget(dock)
+    raw = np.full((100, 100), 40000, np.uint16)
+    raw[:20] = np.arange(2000, dtype=np.uint16).reshape(20, 100) + 13046
+    dock.set_image(raw)
+    histogram = dock.histogram
+    low, high = histogram.window
+    initial_range = histogram.item.getHistogramRange()
+    assert initial_range[0] < low < high < initial_range[1] < 40000
+    assert dock.maximum_slider.maximum() == 40000
+    assert histogram.counts.sum() == raw.size
+    histogram.item.setHistogramRange(12000, 16000, padding=0)
+    manually_zoomed = histogram.item.getHistogramRange()
+    dock.minimum_spin.setValue(low + 10)
+    np.testing.assert_allclose(histogram.item.getHistogramRange(), manually_zoomed)
+    dock.maximum_slider.setValue(40000)
+    assert dock.maximum_spin.value() == 40000
+    np.testing.assert_allclose(histogram.item.getHistogramRange(), manually_zoomed)
+    dock.auto_adjust()
+    np.testing.assert_allclose(histogram.item.getHistogramRange(), initial_range)
+    assert histogram.window == (low, high)
+    dock.reset_window()
+    reset_range = histogram.item.getHistogramRange()
+    assert reset_range[0] == 0
+    assert reset_range[1] >= 65535
+
+
 @pytest.mark.parametrize("dtype", [np.uint8, np.uint16])
 def test_histogram_counts_raw_pixels_and_caches_while_adjusting(qtbot, dtype):
     dock = GrayWindowDock()
@@ -130,6 +158,60 @@ def test_histogram_counts_raw_pixels_and_caches_while_adjusting(qtbot, dtype):
     dock.set_image(None)
     assert histogram.counts is None
     assert histogram.edges is None
+
+
+def test_imagej_histogram_peak_limit_does_not_modify_counts():
+    from labelme.dlcv.widget.gray_histogram import histogram_heights
+
+    counts = np.array([0, 10, 1000, 8, 2], dtype=np.int64)
+    original = counts.copy()
+    np.testing.assert_array_equal(histogram_heights(counts), [0, 10, 15, 8, 2])
+    np.testing.assert_array_equal(counts, original)
+    np.testing.assert_array_equal(histogram_heights(np.array([10, 20, 8])), [10, 20, 8])
+    np.testing.assert_array_equal(histogram_heights(np.array([0, 0, 64])), [0, 0, 64])
+
+
+def test_official_histogram_handles_sync_with_controls_and_raw_image(qtbot):
+    import pyqtgraph as pg
+    from qtpy import QtWidgets
+
+    dock = GrayWindowDock()
+    qtbot.addWidget(dock)
+    raw = np.arange(23317, 25317, dtype=np.uint16).reshape(40, 50)
+    dock.set_image(raw)
+    histogram = dock.histogram
+    assert isinstance(histogram, pg.HistogramLUTWidget)
+    assert isinstance(histogram.item, pg.HistogramLUTItem)
+    assert histogram.item.orientation == "horizontal"
+    assert histogram.item.imageItem().image.dtype == np.uint16
+    assert np.shares_memory(histogram.item.imageItem().image, raw)
+    np.testing.assert_array_equal(histogram.item.imageItem().image, raw)
+    assert histogram.minimumHeight() >= 260
+    assert not dock.findChildren(QtWidgets.QCheckBox)
+    assert histogram.item.region.lines[0].movable
+    assert histogram.item.region.lines[1].movable
+    assert histogram.item.region.lines[0].markers
+    assert histogram.item.region.lines[1].markers
+    counts = histogram.counts
+    original = raw.copy()
+    dock.minimum_spin.setValue(23600)
+    dock.maximum_spin.setValue(24600)
+    assert histogram.item.getLevels() == (23600, 24600)
+    assert tuple(histogram.source_image.getLevels()) == (23600, 24600)
+    with qtbot.waitSignal(dock.imageChanged, timeout=1000):
+        histogram.item.region.lines[0].setValue(23800)
+    assert dock.minimum_spin.value() == 23800
+    assert dock.minimum_slider.value() == 23800
+    with qtbot.waitSignal(dock.imageChanged, timeout=1000):
+        histogram.item.region.lines[1].setValue(24900)
+    assert dock.maximum_spin.value() == 24900
+    assert dock.maximum_slider.value() == 24900
+    assert histogram.window == (23800, 24900)
+    assert histogram.counts is counts
+    np.testing.assert_array_equal(raw, original)
+    dock.set_image(None)
+    assert histogram.source_image.image is None
+    assert not histogram.item.region.isVisible()
 
 
 def test_histogram_keeps_background_and_handles_constant_image(qtbot):
