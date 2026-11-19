@@ -70,6 +70,7 @@ from labelme.dlcv.label_file import (
 import os
 from labelme.dlcv.widget.label_count import LabelCountDock
 from labelme.dlcv.ui_theme_manager import UiThemeManager
+from labelme.dlcv.widget.gray_window_dock import GrayWindowDock
 from labelme.dlcv.widget.brightness_contrast_dialog import (
     BrightnessContrastDialog as DlcvBrightnessContrastDialog,
 )
@@ -620,12 +621,30 @@ class MainWindow(CopyPasteMixin, LabelItemTextMixin, MainWindow):
             )
             return
 
+        if self.gray_window_dock.raw_image is not None:
+            self.gray_window_dock.show()
+            self.gray_window_dock.raise_()
+            return
+
         dialog = DlcvBrightnessContrastDialog(
             self._cv_rgb_img,
             self.onNewBrightnessContrast,
             parent=self,
         )
         dialog.exec_()
+
+    def resetState(self):
+        super().resetState()
+        if hasattr(self, "gray_window_dock"):
+            self.gray_window_dock.set_image(None)
+
+    def _on_gray_window_changed(self, gray_image):
+        from labelme.utils.image import numpy_to_qimage
+
+        self._cv_rgb_img = cv2.cvtColor(gray_image, cv2.COLOR_GRAY2RGB)
+        # 灰度图使用原始灰度窗，不叠加旧的 8 位亮度/对比度参数。
+        self.image = numpy_to_qimage(self._cv_rgb_img).copy()
+        self.canvas.loadPixmap(QtGui.QPixmap.fromImage(self.image), clear_shapes=False)
 
     def tr(self,*args,**kwargs):
         dlcv_tr('测试')
@@ -1432,9 +1451,10 @@ class MainWindow(CopyPasteMixin, LabelItemTextMixin, MainWindow):
                     cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH,
                 )
             else:
-                image = Image.open(f"{file_path}")
-                image = np.array(image)
-                cv_img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                with Image.open(file_path) as source:
+                    image = np.array(source)
+                cv_img = (image if image.ndim == 2
+                          else cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
         except:
             notification(
                 dlcv_tr("提示"), dlcv_tr("无法打开图片，请检查文件是否已损坏"), ToastPreset.ERROR
@@ -1447,7 +1467,9 @@ class MainWindow(CopyPasteMixin, LabelItemTextMixin, MainWindow):
             )
             return False
 
-        cv_img = normalize_16b_gray_to_uint8(cv_img)
+        gray_display = self.gray_window_dock.set_image(cv_img)
+        cv_img = (gray_display if gray_display is not None
+                  else normalize_16b_gray_to_uint8(cv_img))
         if len(cv_img.shape) == 2:
             cv_rgb_img = cv2.cvtColor(cv_img, cv2.COLOR_GRAY2RGB)
         else:
@@ -1462,14 +1484,14 @@ class MainWindow(CopyPasteMixin, LabelItemTextMixin, MainWindow):
 
         # 对每张图应用全局亮度/对比度设置
         brightness, contrast = STORE.brightness_contrast_values
-        if brightness != 1.0 or contrast != 1.0:
+        if gray_display is None and (brightness != 1.0 or contrast != 1.0):
             cv_rgb_img = cv2.convertScaleAbs(
                 cv_rgb_img,
                 alpha=contrast if contrast != 1.0 else 1.0,
                 beta=(brightness - 1.0) * 255 if brightness != 1.0 else 0,
             )
 
-        image = numpy_to_qimage(cv_rgb_img)
+        image = numpy_to_qimage(cv_rgb_img).copy()
         # extra End
 
         if image.isNull():
@@ -1905,6 +1927,9 @@ class MainWindow(CopyPasteMixin, LabelItemTextMixin, MainWindow):
         from labelme.dlcv.widget.label_navigator import install_label_navigator
 
         self._init_label_count_dock()
+        self.gray_window_dock = GrayWindowDock(self)
+        self.gray_window_dock.imageChanged.connect(self._on_gray_window_changed)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.gray_window_dock)
         self._init_setting_dock()  # 必须在所有的 docker widget 都初始化后才执行，否则 docker widget 不会 restore 成上一次退出时的状态
         self.label_navigator = install_label_navigator(self)
 
@@ -1932,6 +1957,7 @@ class MainWindow(CopyPasteMixin, LabelItemTextMixin, MainWindow):
             self.file_dock,
             self.label_count_dock,
             self.setting_dock,
+            self.gray_window_dock,
         ):
             dock.setFeatures(no_close_features)
             dock.setVisible(True)
@@ -1941,6 +1967,7 @@ class MainWindow(CopyPasteMixin, LabelItemTextMixin, MainWindow):
             self.file_dock.setFloating(False)
             self.setting_dock.setFloating(False)
             self.label_count_dock.setFloating(False)
+            self.gray_window_dock.setFloating(False)
             self.flag_dock.setFloating(False)
             self.shape_dock.setFloating(False)
             self.label_dock.setFloating(False)
@@ -2185,6 +2212,8 @@ class MainWindow(CopyPasteMixin, LabelItemTextMixin, MainWindow):
         self.parameter = self.setting_dock.parameter
         self._selectAiModelComboBox = self.setting_dock.selectAiModelComboBox
         self.addDockWidget(Qt.RightDockWidgetArea, self.setting_dock)
+        self.tabifyDockWidget(self.setting_dock, self.gray_window_dock)
+        self.setting_dock.raise_()
 
         # XXX: Could be completely declarative.
         # Restore application settings.
